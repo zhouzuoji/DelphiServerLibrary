@@ -481,6 +481,12 @@ function HTMLDecodeUStr(const s: UnicodeString): UnicodeString;
 
 function HTMLDecodeBStr(const s: WideString): WideString;
 
+function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString;
+  out value: UnicodeString): Boolean;
+
+function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString;
+  out value: RawByteString): Boolean;
+
 (***********************char case converting*********************************)
 
 procedure StrUpperW(str: PWideChar; len: Integer); overload;
@@ -1886,6 +1892,116 @@ end;
 function HTMLDecodeBStr(const s: WideString): WideString;
 begin
   Result := HTMLDecodeBufferW(PWideChar(s), Length(s));
+end;
+
+function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString;
+  out value: UnicodeString): Boolean;
+var
+  P1, P2, strend: PWideChar;
+  c: WideChar;
+begin
+  Result := False;
+  strend := str + len;
+
+  P1 := str;
+
+  while P1 < strend do
+  begin
+    P1 := StrPosW(PWideChar(name), Length(name), str, len);
+
+    if P1 = nil then Exit;
+
+    if (P1 > str) and  ((P1-1)^ <> #32) and ((P1-1)^ <> #39) and ((P1-1)^ = '"') then
+    begin
+      Inc(P1, Length(name));
+      Continue;
+    end;
+
+    Inc(P1, Length(name));
+
+    while (P1 < strend) and (P1^ = #32) do Inc(P1);
+
+    if P1 = strend then Break;
+
+    if P1^ <> '=' then Continue;
+
+    Inc(P1);
+
+    while (P1 < strend) and (P1^ = #32) do Inc(P1);
+
+    if P1 = strend then Break;
+
+    if (P1^ <> #39) and (P1^ <> '"') then Continue;
+
+    c := P1^;
+
+    Inc(P1);
+
+    P2 := P1;
+
+    while (P2 < strend) and (P2^ <> c) do Inc(P2);
+
+    if P2 = strend then Break;
+
+    SetString(value, P1, P2 - P1);
+    Result := True;
+    Break;
+  end;
+end;
+
+function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString;
+  out value: RawByteString): Boolean;
+var
+  P1, P2, strend: PAnsiChar;
+  c: AnsiChar;
+begin
+  Result := False;
+  strend := str + len;
+
+  P1 := str;
+
+  while P1 < strend do
+  begin
+    P1 := StrPosA(PAnsiChar(name), Length(name), str, len);
+
+    if P1 = nil then Exit;
+
+    if (P1 > str) and  ((P1-1)^ <> #32) and ((P1-1)^ <> #39) and ((P1-1)^ = '"') then
+    begin
+      Inc(P1, Length(name));
+      Continue;
+    end;
+
+    Inc(P1, Length(name));
+
+    while (P1 < strend) and (P1^ = #32) do Inc(P1);
+
+    if P1 = strend then Break;
+
+    if P1^ <> '=' then Continue;
+
+    Inc(P1);
+
+    while (P1 < strend) and (P1^ = #32) do Inc(P1);
+
+    if P1 = strend then Break;
+
+    if (P1^ <> #39) and (P1^ <> '"') then Continue;
+
+    c := P1^;
+
+    Inc(P1);
+
+    P2 := P1;
+
+    while (P2 < strend) and (P2^ <> c) do Inc(P2);
+
+    if P2 = strend then Break;
+
+    SetString(value, P1, P2 - P1);
+    Result := True;
+    Break;
+  end;
 end;
 
 function ReplaceIfNotEqual(var dst: RawByteString; const src: RawByteString;
