@@ -763,6 +763,9 @@ function StrSliceA(const s: RawByteString; offset: Integer; num: Integer = -1): 
 
 procedure StrSplit(const str, delimiter: string; list: TStrings);
 
+function StrSplitA(const str: RawByteString; const delimiters: array of AnsiChar;
+  var strs: array of RawByteString): Integer;
+
 function StrToDateTimeA(const s: RawByteString; out dt: TDateTime): Boolean;
 
 function UStrToDateTime(const s: UnicodeString; out dt: TDateTime): Boolean;
@@ -1001,6 +1004,8 @@ type
     sfiComputersNearMe = $003d,
     sfiProfiles = $003e);
 
+function FindChildWindowRecursive(parent: HWND; WndClassName, WndText: PWideChar): HWND;
+
 function SHGetTargetOfShortcut(const LinkFile: string): string;
 
 function SHCreateShortcut(const TargetFile, desc, CreateAt: string): Boolean;
@@ -1161,6 +1166,8 @@ type
     property WaitingForTask: Boolean read fWaitingForTask;
   end;
 
+  DSLWorkThreadClass = class of DSLWorkThread;
+
   PDSLDelayRunnable = ^DSLDelayRunnable;
   DSLDelayRunnable = record
     next: PDSLDelayRunnable;
@@ -1205,6 +1212,7 @@ type
     fThreads: TList;
     fActive: Boolean;
     fThreadCount: Integer;
+    fThreadClass: DSLWorkThreadClass;
     procedure SetActive(const Value: Boolean);
     procedure SetThreadCount(const Value: Integer);
   protected
@@ -1216,6 +1224,7 @@ type
     function QueueTask(task: DSLRunnable): Boolean;
     property Active: Boolean read fActive write SetActive;
     property ThreadCount: Integer read fThreadCount write SetThreadCount;
+    property ThreadClass: DSLWorkThreadClass read fThreadClass write fThreadClass;
   end;
 
 (****************************trace utils***************************************)
@@ -5888,6 +5897,57 @@ begin
   end;
 end;
 
+function IndexOfCharA(const arr: array of AnsiChar; c: AnsiChar): Integer;
+var
+  i: Integer;
+begin
+  Result := -1;
+
+  for i := Low(arr) to High(arr) do
+  begin
+    if arr[i] = c then
+    begin
+      Result := i;
+      Break;
+    end;
+  end;
+end;
+
+function StrSplitA(const str: RawByteString; const delimiters: array of AnsiChar;
+  var strs: array of RawByteString): Integer;
+var
+  P1, P2: Integer;
+  L, n: Integer;
+begin
+  P1 := 1;
+  L := Length(str);
+
+  n := 0;
+
+  while P1 <= L do
+  begin
+    while (P1 <= L) and (IndexOfCharA(delimiters, str[P1]) >= 0) do Inc(P1);
+
+    if P1 > L then Break;
+
+    P2 := P1 + 1;
+
+    while (P2 <= L) and (IndexOfCharA(delimiters, str[P2]) = -1) do Inc(P2);
+
+    if Length(strs) > n then
+    begin
+      strs[n] := Copy(str, P1, P2 - P1);
+      Inc(n);
+    end;
+
+    if n >= Length(strs) then Break;
+
+    P1 := P2 + 1;
+  end;
+
+  Result := n;
+end;
+
 function StrToDateTimeA(const s: RawByteString; out dt: TDateTime): Boolean;
 var
   numbers: array[0..5] of Int64;
@@ -6591,6 +6651,32 @@ begin
   end;
 end;
 
+function FindChildWindowRecursive(parent: HWND; WndClassName, WndText: PWideChar): HWND;
+var
+  tmp, wnd: HWND;
+begin
+  Result := 0;
+
+  wnd := FindWindowExW(parent, 0, WndClassName, WndText);
+
+  if wnd <> 0 then Result := wnd
+  else begin
+    tmp := GetWindow(parent, GW_CHILD);
+
+    while tmp <> 0 do
+    begin
+      wnd := FindChildWindowRecursive(tmp, WndClassName, WndText);
+
+      if wnd <> 0 then
+      begin
+        Result := wnd;
+        Break;
+      end
+      else tmp := GetWindow(tmp, GW_HWNDNEXT);
+    end;
+  end;
+end;
+
 function SHGetTargetOfShortcut(const LinkFile: string): string;
 const
   IID_IPersistFile: TGUID = '{0000010B-0000-0000-C000-000000000046}';
@@ -7170,7 +7256,7 @@ begin
   fThreads.Count := fThreadCount;
 
   for i := 0 to fThreads.Count - 1 do
-    fThreads[i] := DSLWorkThread.Create(False);
+    fThreads[i] := ThreadClass.Create(False);
 end;
 
 procedure DSLWorkThreadPool.stop;

@@ -442,7 +442,7 @@ begin
   FillChar(Self, sizeof(DSLHttpRequest), 0);
   Self.AutoDecompress := True;
   Self.options.AutoCookie := True;
-  Self.options.AutoRedirect := False;
+  Self.options.AutoRedirect := True;
   Self.options.PragmaNoCache := True;
 end;
 
