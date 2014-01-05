@@ -830,6 +830,8 @@ procedure ClearObjectListAndFree(objlist: TObject);
 
 procedure dir_list(const ParentDir: string; strs: TStrings);
 
+procedure SafeForceDirectories(const dir: string);
+
 procedure SaveBufToFile(const FileName: string; buf: Pointer; len: Integer);
 
 procedure SaveStrToFile(const FileName: string; const str: RawByteString);
@@ -2878,6 +2880,14 @@ begin
   until (n >= 1000) or (SysUtils.FindNext(sr) <> 0);
 
   SysUtils.FindClose(sr);
+end;
+
+procedure SafeForceDirectories(const dir: string);
+begin
+  try
+    ForceDirectories(dir);
+  except
+  end;
 end;
 
 procedure SaveBufToFile(const FileName: string; buf: Pointer; len: Integer);
