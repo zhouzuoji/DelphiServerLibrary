@@ -334,6 +334,10 @@ function IsEqualFloat(d1, d2: Double): Boolean;
 
 (*************************************时间日期相关************************************)
 
+function FormatSysTime(const st: TSystemTime; const fmt: string = ''): string;
+
+function FormatSysTimeNow(const fmt: string = ''): string;
+
 function SameHour(former, later: TDateTime): Boolean;
 
 function SameDay(former, later: TDateTime): Boolean;
@@ -829,6 +833,10 @@ procedure dir_list(const ParentDir: string; strs: TStrings);
 procedure SaveBufToFile(const FileName: string; buf: Pointer; len: Integer);
 
 procedure SaveStrToFile(const FileName: string; const str: RawByteString);
+function SafeSaveStrToFile(const FileName: string; const str: RawByteString): Boolean;
+
+procedure SaveStrsToFile(const FileName: string; const strs: array of RawByteString);
+function SafeSaveStrsToFile(const FileName: string; const strs: array of RawByteString): Boolean;
 
 function LoadStrFromFile(const FileName: string): RawByteString;
 
@@ -2878,7 +2886,7 @@ var
 begin
   fs := TFileStream.Create(FileName, fmCreate);
   try
-    fs.write(buf^, len);
+    fs.WriteBuffer(buf^, len);
   finally
     fs.Free;
   end;
@@ -2887,6 +2895,40 @@ end;
 procedure SaveStrToFile(const FileName: string; const str: RawByteString);
 begin
   SaveBufToFile(FileName, Pointer(str), Length(str));
+end;
+
+function SafeSaveStrToFile(const FileName: string; const str: RawByteString): Boolean;
+begin
+  try
+    SaveBufToFile(FileName, Pointer(str), Length(str));
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+procedure SaveStrsToFile(const FileName: string; const strs: array of RawByteString);
+var
+  fs: TFileStream;
+  i: Integer;
+begin
+  fs := TFileStream.Create(FileName, fmCreate);
+  try
+    for i := Low(strs) to High(strs) do
+      fs.WriteBuffer(Pointer(strs[i])^, Length(strs[i]));
+  finally
+    fs.Free;
+  end;
+end;
+
+function SafeSaveStrsToFile(const FileName: string; const strs: array of RawByteString): Boolean;
+begin
+  try
+    SaveStrsToFile(FileName, strs);
+    Result := True;
+  except
+    Result := False;
+  end;
 end;
 
 function LoadStrFromFile(const FileName: string): RawByteString;
@@ -2939,6 +2981,19 @@ var
 begin
   s := DSLHttpDecode(LoadStrFromFile(FileName));
   SaveStrToFile(FileName, s);
+end;
+
+function FormatSysTime(const st: TSystemTime; const fmt: string): string;
+begin
+  Result := Format('%d_%d_%d_%d_%d_%d', [st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond]); 
+end;
+
+function FormatSysTimeNow(const fmt: string): string;
+var
+  st: TSystemTime;
+begin 
+  GetLocalTime(st);
+  Result := FormatSysTime(st, fmt);
 end;
 
 function SameHour(former, later: TDateTime): Boolean;
@@ -7299,7 +7354,7 @@ end;
 
 constructor DSLCircularList.Create(_capacity: Integer);
 begin
-  SetLength(fList, capacity);
+  SetLength(fList, _capacity);
   fCapacity := _capacity;
   fCount := 0;
   fFirst := 0;
