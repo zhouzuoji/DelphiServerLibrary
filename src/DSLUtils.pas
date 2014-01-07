@@ -1114,7 +1114,7 @@ type
     constructor Create(CreateSuspended: Boolean);
     destructor Destroy; override;
     procedure SendStopSignal;
-    procedure stop_and_wait;
+    procedure StopAndWait;
   end;
 
   PDSLLinkNode = ^DSLLinkNode;
@@ -1163,7 +1163,7 @@ type
     fTaskQueue: DSLFIFOQueue;
     fCompletedTaskCount: Integer;
     fWaitingForTask: Boolean;
-    function get_pending_task_count: Integer;
+    function GetPendingTaskCount: Integer;
   protected
     procedure Execute; override;
   public
@@ -1172,7 +1172,7 @@ type
     procedure ClearTask;
     function QueueTask(task: DSLRunnable): Boolean;
     property CompletedTaskCount: Integer read fCompletedTaskCount;
-    property PendingTaskCount: Integer read get_pending_task_count;
+    property PendingTaskCount: Integer read GetPendingTaskCount;
     property WaitingForTask: Boolean read fWaitingForTask;
   end;
 
@@ -1205,16 +1205,16 @@ type
     fTaskEvent: THandle;
     fTaskQueue: DSLDelayRunnableQueue;
     fCompletedTaskCount: Integer;
-    function get_pending_task_count: Integer;
+    function GetPendingTaskCount: Integer;
   protected
     procedure Execute; override;
   public
     constructor Create(CreateSuspended: Boolean);
     destructor Destroy; override;
-    function queue_task(task: DSLRunnable; DelayMS: Int64): Boolean; overload;
-    function queue_task(task: DSLRunnable; runtime: TDateTime): Boolean; overload;
-    property pending_task_count: Integer read get_pending_task_count;
-    property completed_task_count: Integer read fCompletedTaskCount;
+    function QueueTask(task: DSLRunnable; DelayMS: Int64): Boolean; overload;
+    function QueueTask(task: DSLRunnable; runtime: TDateTime): Boolean; overload;
+    property PendingTaskCount: Integer read GetPendingTaskCount;
+    property CompletedTaskCount: Integer read fCompletedTaskCount;
   end;
 
   DSLWorkThreadPool = class
@@ -7073,7 +7073,7 @@ begin
   SetEvent(fStopSignal);
 end;
 
-procedure DSLSignalThread.stop_and_wait;
+procedure DSLSignalThread.StopAndWait;
 begin
   Self.Terminate;
   Self.SendStopSignal;
@@ -7186,7 +7186,7 @@ begin
   end;
 end;
 
-function DSLWorkThread.get_pending_task_count: Integer;
+function DSLWorkThread.GetPendingTaskCount: Integer;
 begin
   Result := fTaskQueue.size;
 end;
@@ -7250,19 +7250,19 @@ begin
   end;
 end;
 
-function DSLDelayRunnableThread.get_pending_task_count: Integer;
+function DSLDelayRunnableThread.GetPendingTaskCount: Integer;
 begin
   Result := fTaskQueue.size;
 end;
 
-function DSLDelayRunnableThread.queue_task(task: DSLRunnable; DelayMS: Int64): Boolean;
+function DSLDelayRunnableThread.QueueTask(task: DSLRunnable; DelayMS: Int64): Boolean;
 begin
   Result := fTaskQueue.push(task, DelayMS);
 
   if Result then SetEvent(fTaskEvent);
 end;
 
-function DSLDelayRunnableThread.queue_task(task: DSLRunnable; runtime: TDateTime): Boolean;
+function DSLDelayRunnableThread.QueueTask(task: DSLRunnable; runtime: TDateTime): Boolean;
 begin
   Result := fTaskQueue.push(task, runtime);
 
