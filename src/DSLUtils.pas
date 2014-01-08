@@ -866,6 +866,8 @@ procedure ListViewSetRowCount(ListView: TListView; count: Integer);
 
 function UrlExtractPathA(const url: RawByteString): RawByteString;
 
+function UrlExtractPathW(const url: UnicodeString): UnicodeString;
+
 function UrlExtractFileNameA(const url: RawByteString): RawByteString;
 
 function HttpEncodeCStrTest(str: PAnsiChar; const non_conversions: RawByteString = '*._-'): Integer;
@@ -2746,6 +2748,28 @@ var
 begin
   Result := '';
   p := StrPosA('://', url);
+
+  if p <= 0 then
+    p := 1
+  else
+    Inc(p, 3);
+
+  for i := p to Length(url) do
+  begin
+    if url[i] = '/' then
+    begin
+      Result := Copy(url, i, Length(url) + 1 - i);
+      Break;
+    end;
+  end;
+end;
+
+function UrlExtractPathW(const url: UnicodeString): UnicodeString;
+var
+  p, i: Integer;
+begin
+  Result := '';
+  p := UStrPos('://', url);
 
   if p <= 0 then
     p := 1

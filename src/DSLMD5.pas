@@ -41,7 +41,8 @@ type
   PMD5Context = ^TMD5Context;
 
 procedure MD5ContextInit(var context: TMD5Context);
-procedure MD5Update(var context: TMD5Context; Input: PByteArray; InputLen: LongWord);
+procedure MD5Update(var context: TMD5Context; Input: PByteArray; InputLen: LongWord); overload;
+procedure MD5Update(var context: TMD5Context; const s: RawByteString); overload;
 procedure MD5Final(var context: TMD5Context; var digest: TMD5Digest);
 procedure MD5Calc(const buffer; Size: Integer; out digest: TMD5Digest); overload;
 function MD5Calc(const str: AnsiString; UpperCase: Boolean = True): AnsiString; overload;
@@ -109,6 +110,11 @@ begin
   end
   else i:=0;
   Move(Input[i], context.buffer[Index], InputLen - i);
+end;
+
+procedure MD5Update(var context: TMD5Context; const s: RawByteString);
+begin
+  MD5Update(context, PByteArray(Pointer(s)), Length(s));
 end;
 
 procedure MD5Encode(Output: PByteArray; Input: PUINT4Array; Len: LongWord); forward;
