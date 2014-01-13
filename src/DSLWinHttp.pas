@@ -103,6 +103,8 @@ type
 
     destructor Destroy; override;
 
+    function SetProxy(proxy: PWideChar): Boolean;
+
     procedure SetTimeout(ResolvingTimeout, ConnectingTimeout, SendingTimeout, ReceivingTimeout: DWORD);
 
     procedure DoRequest(const request: DSLHttpRequest; ResponseContent: TStream); overload;
@@ -512,6 +514,24 @@ begin
   end;
 
   inherited;
+end;
+
+function DSLWinHttpSession.SetProxy(proxy: PWideChar): Boolean;
+var
+  info: WINHTTP_PROXY_INFO;
+begin
+  if (proxy = nil) or (proxy^ = #0) then
+  begin
+    info.dwAccessType := WINHTTP_ACCESS_TYPE_NO_PROXY;
+    info.lpszProxy := nil;
+  end
+  else begin
+    info.dwAccessType := WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+    info.lpszProxy := proxy;
+  end;
+  info.lpszProxyBypass := nil;
+
+  Result := WinHttpSetOption(Self.Handle, WINHTTP_OPTION_PROXY, @info, SizeOf(info));
 end;
 
 procedure DSLWinHttpSession.SetTimeout(ResolvingTimeout, ConnectingTimeout, SendingTimeout, ReceivingTimeout: DWORD);

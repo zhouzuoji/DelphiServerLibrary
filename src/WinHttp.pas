@@ -467,6 +467,13 @@ type
   end;
   LPURL_COMPONENTS = ^URL_COMPONENTS;
 
+  WINHTTP_PROXY_INFO = packed record
+    dwAccessType: DWORD;
+    lpszProxy: LPWSTR;
+    lpszProxyBypass: LPWSTR;
+  end;
+  LPWINHTTP_PROXY_INFO = ^WINHTTP_PROXY_INFO;
+
 function WinHttpOpen(pwszUserAgent: PWideChar; dwAccessType: DWORD;
   pwszProxyName, pwszProxyBypass: PWideChar;
   dwFlags: DWORD): HINTERNET; stdcall;
