@@ -491,6 +491,10 @@ function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString;
 function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString;
   out value: RawByteString): Boolean;
 
+function StrIsEmptyA(const s: RawByteString): Boolean;
+
+function UStrIsEmpty(const s: RawByteString): Boolean;
+
 (***********************char case converting*********************************)
 
 procedure StrUpperW(str: PWideChar; len: Integer); overload;
@@ -3708,6 +3712,37 @@ begin
   SetLength(Result, UTF8DecodeBuffer(PAnsiChar(src), Length(src), PWideChar(Result), invalid));
 end;
 
+function StrIsEmptyA(const s: RawByteString): Boolean;
+var
+  i: Integer;
+begin
+  Result := True;
+
+  for i := 1 to Length(s) do
+  begin
+    if Ord(s[i]) > 32 then
+    begin
+      Result := False;
+      Break;
+    end;
+  end;
+end;
+
+function UStrIsEmpty(const s: RawByteString): Boolean;
+var
+  i: Integer;
+begin
+  Result := True;
+
+  for i := 1 to Length(s) do
+  begin
+    if Ord(s[i]) > 32 then
+    begin
+      Result := False;
+      Break;
+    end;
+  end;
+end;
 procedure StrUpperW(str: PWideChar; len: Integer);
 var
   i: Integer;
