@@ -48,6 +48,7 @@ type
     AutoRedirect: Boolean;
     PragmaNoCache: Boolean;
   end;
+  PDSLHttpRequestOptions = ^DSLHttpRequestOptions;
 
   DSLHttpRequest = record
     schema: PWideChar;
@@ -107,36 +108,39 @@ type
 
     procedure SetTimeout(ResolvingTimeout, ConnectingTimeout, SendingTimeout, ReceivingTimeout: DWORD);
 
-    procedure DoRequest(const request: DSLHttpRequest; ResponseContent: TStream); overload;
+    procedure DoRequest(const request: DSLHttpRequest; ResponseContent: TStream; pLocation: PUnicodeString = nil); overload;
 
-    function DoRequest(const request: DSLHttpRequest): RawByteString; overload;
+    function DoRequest(const request: DSLHttpRequest; pLocation: PUnicodeString = nil): RawByteString; overload;
 
-    procedure DoRequest(const request: DSLHttpRequest; ResponseContent: TStream; TimesErrorRetry: DWORD); overload;
+    procedure DoRequest(const request: DSLHttpRequest; ResponseContent: TStream; TimesErrorRetry: DWORD;
+      pLocation: PUnicodeString = nil); overload;
 
-    function DoRequest(const request: DSLHttpRequest; TimesErrorRetry: DWORD): RawByteString; overload;
+    function DoRequest(const request: DSLHttpRequest; TimesErrorRetry: DWORD;
+      pLocation: PUnicodeString = nil): RawByteString; overload;
 
-    function DoRequestAndDecode(const request: DSLHttpRequest): UnicodeString; overload;
+    function DoRequestAndDecode(const request: DSLHttpRequest; pLocation: PUnicodeString = nil): UnicodeString; overload;
 
-    function DoRequestAndDecode(const request: DSLHttpRequest; TimesErrorRetry: DWORD): UnicodeString; overload;
+    function DoRequestAndDecode(const request: DSLHttpRequest; TimesErrorRetry: DWORD;
+      pLocation: PUnicodeString = nil): UnicodeString; overload;
 
     function DoRequestEx(const request: DSLHttpRequest; ResponseContent: TStream): HINTERNET; overload;
 
     function DoRequestEx(const request: DSLHttpRequest; out ResponseContent: RawByteString): HINTERNET; overload;
 
     procedure DoRequest(url, method, referer, RequestHeaders: PWideChar; param: Pointer;
-      ParamLength: DWORD; ParamStream: TStream; content: TStream;
-      _AutoDecompress: Boolean = True; _TimesErrorRetry: DWORD = 0;
+      ParamLength: DWORD; ParamStream: TStream; content: TStream; pOptions: PDSLHttpRequestOptions = nil;
+      pLocation: PUnicodeString = nil; _AutoDecompress: Boolean = True; _TimesErrorRetry: DWORD = 0;
       _SendingTimeout: DWORD = 0; _ReceivingTimeout: DWORD = 0); overload;
 
     function DoRequest(url, method, referer, RequestHeaders: PWideChar; param: Pointer;
-      ParamLength: DWORD; ParamStream: TStream; _AutoDecompress: Boolean = True;
-      _TimesErrorRetry: DWORD = 0; _SendingTimeout: DWORD = 0;
-      _ReceivingTimeout: DWORD = 0): RawByteString; overload;
+      ParamLength: DWORD; ParamStream: TStream; pOptions: PDSLHttpRequestOptions = nil;
+      pLocation: PUnicodeString = nil; _AutoDecompress: Boolean = True; _TimesErrorRetry: DWORD = 0;
+      _SendingTimeout: DWORD = 0; _ReceivingTimeout: DWORD = 0): RawByteString; overload;
 
     function DoRequestAndDecode(url, method, referer, RequestHeaders: PWideChar; param: Pointer;
-      ParamLength: DWORD; ParamStream: TStream; _AutoDecompress: Boolean = True;
-      _TimesErrorRetry: DWORD = 0; _SendingTimeout: DWORD = 0;
-      _ReceivingTimeout: DWORD = 0): UnicodeString; overload;
+      ParamLength: DWORD; ParamStream: TStream; pOptions: PDSLHttpRequestOptions = nil;
+      pLocation: PUnicodeString = nil; _AutoDecompress: Boolean = True; _TimesErrorRetry: DWORD = 0;
+      _SendingTimeout: DWORD = 0; _ReceivingTimeout: DWORD = 0): UnicodeString; overload;
 
     procedure get(url: PWideChar; content: TStream; referer: PWideChar = nil); overload;
     function get(url: PWideChar; referer: PWideChar = nil): RawByteString; overload;
@@ -144,6 +148,24 @@ type
     function get(const url: UnicodeString; const referer: UnicodeString = ''): RawByteString; overload;
     function GetAndDecode(url: PWideChar; referer: PWideChar = nil): UnicodeString; overload;
     function GetAndDecode(const url: UnicodeString; const referer: UnicodeString = ''): UnicodeString; overload;
+
+    procedure GetWinthoutRedirect(url: PWideChar; content: TStream; referer: PWideChar = nil;
+      pLocation: PUnicodeString = nil); overload;
+
+    function GetWinthoutRedirect(url: PWideChar; referer: PWideChar = nil;
+      pLocation: PUnicodeString = nil): RawByteString; overload;
+
+    procedure GetWinthoutRedirect(const url: UnicodeString; content: TStream; const referer: UnicodeString = '';
+       pLocation: PUnicodeString = nil); overload;
+
+    function GetWinthoutRedirect(const url: UnicodeString; const referer: UnicodeString = '';
+      pLocation: PUnicodeString = nil): RawByteString; overload;
+
+    function GetWinthoutRedirectAndDecode(url: PWideChar; referer: PWideChar = nil;
+      pLocation: PUnicodeString = nil): UnicodeString; overload;
+
+    function GetWinthoutRedirectAndDecode(const url: UnicodeString; const referer: UnicodeString = '';
+      pLocation: PUnicodeString = nil): UnicodeString; overload;
 
     procedure PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream, content: TStream;
       ParamType: PWideChar = nil); overload;
@@ -172,6 +194,9 @@ type
   end;
 
 implementation
+
+const
+  NoRedirectOptions: DSLHttpRequestOptions = (AutoCookie: True; AutoRedirect: False; PragmaNoCache: True);
 
 function wcslen(s: PWideChar): Integer;
 var
@@ -541,7 +566,8 @@ begin
 end;
 
 function DSLWinHttpSession.DoRequest(url, method, referer, RequestHeaders: PWideChar;
-  param: Pointer; ParamLength: DWORD; ParamStream: TStream; _AutoDecompress: Boolean;
+  param: Pointer; ParamLength: DWORD; ParamStream: TStream; pOptions: PDSLHttpRequestOptions;
+  pLocation: PUnicodeString; _AutoDecompress: Boolean;
   _TimesErrorRetry, _SendingTimeout, _ReceivingTimeout: DWORD): RawByteString;
 var
   scheme, host, username, password, PathWithParams: UnicodeString;
@@ -552,6 +578,9 @@ begin
 
   request.init;
 
+  if Assigned(pOptions) then
+    request.options := pOptions^;
+
   request.schema := PWideChar(scheme);
   request.method := method;
   request.host := PWideChar(host);
@@ -567,17 +596,17 @@ begin
   request.AutoDecompress := _AutoDecompress;
   request.SendingTimeout := _SendingTimeout;
   request.ReceivingTimeout := _ReceivingTimeout;
-  Result := Self.DoRequest(request, _TimesErrorRetry);
+  Result := Self.DoRequest(request, _TimesErrorRetry, pLocation);
 end;
 
-function DSLWinHttpSession.DoRequest(const request: DSLHttpRequest): RawByteString;
+function DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; pLocation: PUnicodeString): RawByteString;
 var
   ResponseContent: TMemoryStream;
 begin
   ResponseContent := TMemoryStream.Create;
 
   try
-    Self.DoRequest(request, ResponseContent);
+    Self.DoRequest(request, ResponseContent, pLocation);
 
     SetLength(Result, ResponseContent.Size);
 
@@ -588,8 +617,9 @@ begin
 end;
 
 procedure DSLWinHttpSession.DoRequest(url, method, referer, RequestHeaders: PWideChar;
-  param: Pointer; ParamLength: DWORD; ParamStream, content: TStream; _AutoDecompress: Boolean;
-  _TimesErrorRetry, _SendingTimeout, _ReceivingTimeout: DWORD);
+  param: Pointer; ParamLength: DWORD; ParamStream, content: TStream;
+  pOptions: PDSLHttpRequestOptions; pLocation: PUnicodeString;
+  _AutoDecompress: Boolean; _TimesErrorRetry, _SendingTimeout, _ReceivingTimeout: DWORD);
 var
   scheme, host, username, password, PathWithParams: UnicodeString;
   port: Word;
@@ -598,6 +628,9 @@ begin
   WinHttpParseURI(url, port, scheme, host, username, password, PathWithParams);
 
   request.init;
+
+  if Assigned(pOptions) then
+    request.options := pOptions^;
 
   request.schema := PWideChar(scheme);
   request.method := method;
@@ -615,7 +648,7 @@ begin
   request.SendingTimeout := _SendingTimeout;
   request.ReceivingTimeout := _ReceivingTimeout;
 
-  Self.DoRequest(request, content, _TimesErrorRetry);
+  Self.DoRequest(request, content, _TimesErrorRetry, pLocation);
 end;
 
 function DSLWinHttpSession.DoRequestEx(const request: DSLHttpRequest;
@@ -733,77 +766,16 @@ begin
   end;
 end;
 
-function DSLWinHttpSession.DoRequestAndDecode(const request: DSLHttpRequest): UnicodeString;
-var
-  hRequest: HINTERNET;
-  ContentType: array [0..128] of WideChar;
-  hdrlen: Integer;
-  ResponseContent: TMemoryStream;
-  Codepage, i: Integer;
-  charset: PWideChar;
-  tmp: array [0..31] of AnsiChar;
-begin
-  hRequest := nil;
-  ResponseContent := TMemoryStream.Create;
 
-  try
-    hRequest := Self.DoRequestEx(request, ResponseContent);
-
-    if ResponseContent.Size = 0 then Result := ''
-    else begin
-      hdrlen := WinHttpGetStringHeader(hRequest, WINHTTP_QUERY_CONTENT_TYPE, ContentType);
-
-      Codepage := CP_ACP;
-
-      if hdrlen > 0 then
-      begin
-        charset := StrPosW('charset=', 8, ContentType, StrLenW(ContentType));
-
-        if Assigned(charset) then
-        begin
-          Inc(charset, 8);
-
-          i := 0;
-
-          while charset^ <> #0 do
-          begin
-            tmp[i] := AnsiChar(charset^);
-            Inc(i);
-            Inc(charset);
-          end;
-
-          Codepage := CodePageName2ID(tmp, i);
-        end
-        else begin
-          if IBeginWithW('text/html', ContentType) then
-          begin
-            HTMLGetCharset(PAnsiChar(ResponseContent.Memory), ResponseContent.Size, tmp);
-            if tmp[0] <> #0 then Codepage := CodePageName2ID(tmp, StrLen(tmp));
-          end
-          else if IBeginWithW('text/xml', ContentType) or IBeginWithW('application/xml', ContentType) then
-          begin
-            XMLGetCharset(PAnsiChar(ResponseContent.Memory), ResponseContent.Size, tmp);
-            if tmp[0] <> #0 then Codepage := CodePageName2ID(tmp, StrLen(tmp));
-          end;
-        end;
-      end;
-
-      Result := BufToUnicode(ResponseContent.Memory, ResponseContent.Size, Codepage);
-    end;
-  finally
-    if Assigned(hRequest) then WinHttpCloseHandle(hRequest);
-    ResponseContent.Free;
-  end;
-end;
-
-function DSLWinHttpSession.DoRequestAndDecode(const request: DSLHttpRequest; TimesErrorRetry: DWORD): UnicodeString;
+function DSLWinHttpSession.DoRequestAndDecode(const request: DSLHttpRequest; TimesErrorRetry: DWORD;
+  pLocation: PUnicodeString): UnicodeString;
 var
   i: DWORD;
 begin
   for i := 0 to TimesErrorRetry do
   begin
     try
-      Result := Self.DoRequestAndDecode(request);
+      Result := Self.DoRequestAndDecode(request, pLocation);
       Break;
     except
       if i = TimesErrorRetry then
@@ -830,6 +802,47 @@ end;
 function DSLWinHttpSession.GetAndDecode(const url, referer: UnicodeString): UnicodeString;
 begin
   Result := Self.DoRequestAndDecode(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
+end;
+
+function DSLWinHttpSession.GetWinthoutRedirect(const url, referer: UnicodeString;
+  pLocation: PUnicodeString): RawByteString;
+begin
+  Result := Self.DoRequest(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
+    nil, 0, nil, @NoRedirectOptions, pLocation);
+end;
+
+procedure DSLWinHttpSession.GetWinthoutRedirect(const url: UnicodeString; content: TStream;
+  const referer: UnicodeString; pLocation: PUnicodeString);
+begin
+  Self.DoRequest(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
+    nil, 0, nil, content, @NoRedirectOptions, pLocation);
+end;
+
+procedure DSLWinHttpSession.GetWinthoutRedirect(url: PWideChar; content: TStream; referer: PWideChar;
+  pLocation: PUnicodeString);
+begin
+  Self.DoRequest(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil, content,
+    @NoRedirectOptions, pLocation);
+end;
+
+function DSLWinHttpSession.GetWinthoutRedirect(url, referer: PWideChar; pLocation: PUnicodeString): RawByteString;
+begin
+  Result := Self.DoRequest(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil,
+    @NoRedirectOptions, pLocation);
+end;
+
+function DSLWinHttpSession.GetWinthoutRedirectAndDecode(const url, referer: UnicodeString;
+  pLocation: PUnicodeString): UnicodeString;
+begin
+  Result := Self.DoRequestAndDecode(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
+    nil, 0, nil, @NoRedirectOptions, pLocation);
+end;
+
+function DSLWinHttpSession.GetWinthoutRedirectAndDecode(url, referer: PWideChar;
+  pLocation: PUnicodeString): UnicodeString;
+begin
+  Result := Self.DoRequestAndDecode(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS),
+    nil, 0, nil, @NoRedirectOptions, pLocation);
 end;
 
 function DSLWinHttpSession.post(const url, referer: UnicodeString; const param: RawByteString;
@@ -1046,20 +1059,30 @@ begin
   end;
 end;
 
-procedure DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; ResponseContent: TStream);
+procedure DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; ResponseContent: TStream;
+  pLocation: PUnicodeString);
+var
+  hResponse: HINTERNET;
 begin
-  WinHttpCloseHandle(Self.DoRequestEx(request, ResponseContent));
+  hResponse := Self.DoRequestEx(request, ResponseContent);
+
+  try
+    if Assigned(pLocation) then
+      pLocation^ := WinHttpGetStringHeader(hResponse, WINHTTP_QUERY_LOCATION);
+  finally
+    WinHttpCloseHandle(hResponse);
+  end;
 end;
 
-procedure DSLWinHttpSession.DoRequest(const request: DSLHttpRequest;
-  ResponseContent: TStream; TimesErrorRetry: DWORD);
+procedure DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; ResponseContent: TStream;
+  TimesErrorRetry: DWORD; pLocation: PUnicodeString);
 var
   i: DWORD;
 begin
   for i := 0 to TimesErrorRetry do
   begin
     try
-      Self.DoRequest(request, ResponseContent);
+      Self.DoRequest(request, ResponseContent, pLocation);
       Break;
     except
       if i = TimesErrorRetry then
@@ -1068,25 +1091,27 @@ begin
   end;
 end;
 
-function DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; TimesErrorRetry: DWORD): RawByteString;
+function DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; TimesErrorRetry: DWORD;
+  pLocation: PUnicodeString): RawByteString;
 var
-  ResponseContent: TMemoryStream;
+  i: DWORD;
 begin
-  ResponseContent := TMemoryStream.Create;
-
-  try
-    Self.DoRequest(request, ResponseContent, TimesErrorRetry);
-
-    SetLength(Result, ResponseContent.Size);
-
-    Move(ResponseContent.Memory^, Pointer(Result)^, Length(Result));
-  finally
-    ResponseContent.Free;
+  for i := 0 to TimesErrorRetry do
+  begin
+    try
+      Result := Self.DoRequest(request, pLocation);
+      Break;
+    except
+      if i = TimesErrorRetry then
+        raise;
+    end;
   end;
 end;
 
-function DSLWinHttpSession.DoRequestAndDecode(url, method, referer, RequestHeaders: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-  _AutoDecompress: Boolean; _TimesErrorRetry, _SendingTimeout, _ReceivingTimeout: DWORD): UnicodeString;
+function DSLWinHttpSession.DoRequestAndDecode(url, method, referer, RequestHeaders: PWideChar;
+  param: Pointer; ParamLength: DWORD; ParamStream: TStream; pOptions: PDSLHttpRequestOptions;
+  pLocation: PUnicodeString; _AutoDecompress: Boolean;
+  _TimesErrorRetry, _SendingTimeout, _ReceivingTimeout: DWORD): UnicodeString;
 var
   scheme, host, username, password, PathWithParams: UnicodeString;
   port: Word;
@@ -1095,6 +1120,9 @@ begin
   WinHttpParseURI(url, port, scheme, host, username, password, PathWithParams);
 
   request.init;
+
+  if Assigned(pOptions) then
+    request.options := pOptions^;
 
   request.schema := PWideChar(scheme);
   request.method := method;
@@ -1111,7 +1139,74 @@ begin
   request.AutoDecompress := _AutoDecompress;
   request.SendingTimeout := _SendingTimeout;
   request.ReceivingTimeout := _ReceivingTimeout;
-  Result := Self.DoRequestAndDecode(request, _TimesErrorRetry);
+  Result := Self.DoRequestAndDecode(request, _TimesErrorRetry, pLocation);
+end;
+
+function DSLWinHttpSession.DoRequestAndDecode(const request: DSLHttpRequest;
+  pLocation: PUnicodeString): UnicodeString;
+var
+  hRequest: HINTERNET;
+  ContentType: array [0..128] of WideChar;
+  hdrlen: Integer;
+  ResponseContent: TMemoryStream;
+  Codepage, i: Integer;
+  charset: PWideChar;
+  tmp: array [0..31] of AnsiChar;
+begin
+  hRequest := nil;
+  ResponseContent := TMemoryStream.Create;
+
+  try
+    hRequest := Self.DoRequestEx(request, ResponseContent);
+
+    if ResponseContent.Size = 0 then Result := ''
+    else begin
+      hdrlen := WinHttpGetStringHeader(hRequest, WINHTTP_QUERY_CONTENT_TYPE, ContentType);
+
+      Codepage := CP_ACP;
+
+      if hdrlen > 0 then
+      begin
+        charset := StrPosW('charset=', 8, ContentType, StrLenW(ContentType));
+
+        if Assigned(charset) then
+        begin
+          Inc(charset, 8);
+
+          i := 0;
+
+          while charset^ <> #0 do
+          begin
+            tmp[i] := AnsiChar(charset^);
+            Inc(i);
+            Inc(charset);
+          end;
+
+          Codepage := CodePageName2ID(tmp, i);
+        end
+        else begin
+          if IBeginWithW('text/html', ContentType) then
+          begin
+            HTMLGetCharset(PAnsiChar(ResponseContent.Memory), ResponseContent.Size, tmp);
+            if tmp[0] <> #0 then Codepage := CodePageName2ID(tmp, StrLen(tmp));
+          end
+          else if IBeginWithW('text/xml', ContentType) or IBeginWithW('application/xml', ContentType) then
+          begin
+            XMLGetCharset(PAnsiChar(ResponseContent.Memory), ResponseContent.Size, tmp);
+            if tmp[0] <> #0 then Codepage := CodePageName2ID(tmp, StrLen(tmp));
+          end;
+        end;
+      end;
+
+      Result := BufToUnicode(ResponseContent.Memory, ResponseContent.Size, Codepage);
+    end;
+
+    if Assigned(pLocation) then
+      pLocation^ := WinHttpGetStringHeader(hRequest, WINHTTP_QUERY_LOCATION);
+  finally
+    if Assigned(hRequest) then WinHttpCloseHandle(hRequest);
+    ResponseContent.Free;
+  end;
 end;
 
 end.
