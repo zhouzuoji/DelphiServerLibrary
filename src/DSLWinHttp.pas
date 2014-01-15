@@ -168,13 +168,13 @@ type
       pLocation: PUnicodeString = nil): UnicodeString; overload;
 
     procedure PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream, content: TStream;
-      ParamType: PWideChar = nil); overload;
+      ParamType: PWideChar = nil; pOptions: PDSLHttpRequestOptions = nil; pLocation: PUnicodeString = nil); overload;
 
     function PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-      ParamType: PWideChar = nil): RawByteString; overload;
+      ParamType: PWideChar = nil; pOptions: PDSLHttpRequestOptions = nil; pLocation: PUnicodeString = nil): RawByteString; overload;
 
     function PostAndDecodeEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-      ParamType: PWideChar = nil): UnicodeString;
+      ParamType: PWideChar = nil; pOptions: PDSLHttpRequestOptions = nil; pLocation: PUnicodeString = nil): UnicodeString;
 
     procedure post(url, referer: PWideChar; const param: RawByteString; content: TStream; ParamType: PWideChar = nil); overload;
     function post(url, referer: PWideChar; const param: RawByteString; ParamType: PWideChar = nil): RawByteString; overload;
@@ -186,10 +186,30 @@ type
     procedure post(const url, referer: UnicodeString; param, content: TStream; const ParamType: UnicodeString = ''); overload;
     function post(const url, referer: UnicodeString; param: TStream; const ParamType: UnicodeString = ''): RawByteString; overload;
 
+    procedure PostWithoutRedirect(url, referer: PWideChar; const param: RawByteString; content: TStream;
+      ParamType: PWideChar = nil; pLoacation: PUnicodeString = nil); overload;
+
+    function PostWithoutRedirect(url, referer: PWideChar; const param: RawByteString; ParamType: PWideChar = nil; pLoacation: PUnicodeString = nil): RawByteString; overload;
+
+    procedure PostWithoutRedirect(url, referer: PWideChar; param, content: TStream; ParamType: PWideChar = nil; pLoacation: PUnicodeString = nil); overload;
+
+    function PostWithoutRedirect(url, referer: PWideChar; param: TStream; ParamType: PWideChar = nil; pLoacation: PUnicodeString = nil): RawByteString; overload;
+
+    procedure PostWithoutRedirect(const url, referer: UnicodeString; const param: RawByteString; content: TStream; const ParamType: UnicodeString = ''; pLoacation: PUnicodeString = nil); overload;
+    function PostWithoutRedirect(const url, referer: UnicodeString; const param: RawByteString; const ParamType: UnicodeString = ''; pLoacation: PUnicodeString = nil): RawByteString; overload;
+    procedure PostWithoutRedirect(const url, referer: UnicodeString; param, content: TStream; const ParamType: UnicodeString = ''; pLoacation: PUnicodeString = nil); overload;
+    function PostWithoutRedirect(const url, referer: UnicodeString; param: TStream; const ParamType: UnicodeString = ''; pLoacation: PUnicodeString = nil): RawByteString; overload;
+
     function PostAndDecode(url, referer: PWideChar; const param: RawByteString; ParamType: PWideChar = nil): UnicodeString; overload;
     function PostAndDecode(url, referer: PWideChar; param: TStream; ParamType: PWideChar = nil): UnicodeString; overload;
     function PostAndDecode(const url, referer: UnicodeString; const param: RawByteString; const ParamType: UnicodeString = ''): UnicodeString; overload;
     function PostAndDecode(const url, referer: UnicodeString; param: TStream; const ParamType: UnicodeString = ''): UnicodeString; overload;
+
+    function PostWithoutRedirectAndDecode(url, referer: PWideChar; const param: RawByteString; ParamType: PWideChar = nil; pLoacation: PUnicodeString = nil): UnicodeString; overload;
+    function PostWithoutRedirectAndDecode(url, referer: PWideChar; param: TStream; ParamType: PWideChar = nil; pLoacation: PUnicodeString = nil): UnicodeString; overload;
+    function PostWithoutRedirectAndDecode(const url, referer: UnicodeString; const param: RawByteString; const ParamType: UnicodeString = ''; pLoacation: PUnicodeString = nil): UnicodeString; overload;
+    function PostWithoutRedirectAndDecode(const url, referer: UnicodeString; param: TStream; const ParamType: UnicodeString = ''; pLoacation: PUnicodeString = nil): UnicodeString; overload;
+
     property Handle: HINTERNET read FHandle;
   end;
 
@@ -879,7 +899,7 @@ begin
 end;
 
 function DSLWinHttpSession.PostAndDecodeEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-  ParamType: PWideChar): UnicodeString;
+  ParamType: PWideChar; pOptions: PDSLHttpRequestOptions; pLocation: PUnicodeString): UnicodeString;
 var
   RequestHeaders: PWideChar;
   _RequestHeaders: UnicodeString;
@@ -891,17 +911,18 @@ begin
   end
   else RequestHeaders := PWideChar(DEFAULT_POST_HTTP_HEADERS);
 
-  Result := Self.DoRequestAndDecode(url, 'POST', referer, RequestHeaders, param, ParamLength, ParamStream);
+  Result := Self.DoRequestAndDecode(url, 'POST', referer, RequestHeaders, param, ParamLength, ParamStream, pOptions, pLocation);
 end;
 
 function DSLWinHttpSession.PostAndDecode(const url, referer: UnicodeString; const param: RawByteString;
   const ParamType: UnicodeString): UnicodeString;
 begin
-  Result := Self.PostAndDecodeEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType));
+  Result := Self.PostAndDecodeEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil,
+    PWideChar(ParamType));
 end;
 
 function DSLWinHttpSession.PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-  ParamType: PWideChar): RawByteString;
+  ParamType: PWideChar; pOptions: PDSLHttpRequestOptions; pLocation: PUnicodeString): RawByteString;
 var
   RequestHeaders: PWideChar;
   _RequestHeaders: UnicodeString;
@@ -913,7 +934,80 @@ begin
   end
   else RequestHeaders := PWideChar(DEFAULT_POST_HTTP_HEADERS);
 
-  Result := Self.DoRequest(url, 'POST', referer, RequestHeaders, param, ParamLength, ParamStream);
+  Result := Self.DoRequest(url, 'POST', referer, RequestHeaders, param, ParamLength,
+    ParamStream, pOptions, pLocation);
+end;
+
+procedure DSLWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; param, content: TStream; ParamType: PWideChar;
+  pLoacation: PUnicodeString);
+begin
+  Self.PostEx(url, referer, nil, 0, param, ParamType, @NoRedirectOptions, pLoacation);
+end;
+
+function DSLWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; param: TStream; ParamType: PWideChar;
+  pLoacation: PUnicodeString): RawByteString;
+begin
+  Self.PostEx(url, referer, nil, 0, param, ParamType, @NoRedirectOptions, pLoacation);
+end;
+
+procedure DSLWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; const param: RawByteString; content: TStream;
+  ParamType: PWideChar; pLoacation: PUnicodeString);
+begin
+  Self.PostEx(url, referer, Pointer(param), Length(param), nil, ParamType, @NoRedirectOptions, pLoacation);
+end;
+
+function DSLWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; const param: RawByteString;
+  ParamType: PWideChar; pLoacation: PUnicodeString): RawByteString;
+begin
+  Self.PostEx(url, referer, Pointer(param), Length(param), nil, ParamType, @NoRedirectOptions, pLoacation);
+end;
+
+procedure DSLWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; param, content: TStream;
+  const ParamType: UnicodeString; pLoacation: PUnicodeString);
+begin
+  Self.PostEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
+end;
+
+function DSLWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; param: TStream;
+  const ParamType: UnicodeString; pLoacation: PUnicodeString): RawByteString;
+begin
+  Self.PostEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
+end;
+
+function DSLWinHttpSession.PostWithoutRedirectAndDecode(url, referer: PWideChar; param: TStream; ParamType: PWideChar;
+  pLoacation: PUnicodeString): UnicodeString;
+begin
+  Result := Self.PostAndDecodeEx(url, referer, nil, 0, param, ParamType, @NoRedirectOptions, pLoacation);
+end;
+
+function DSLWinHttpSession.PostWithoutRedirectAndDecode(url, referer: PWideChar; const param: RawByteString;
+  ParamType: PWideChar; pLoacation: PUnicodeString): UnicodeString;
+begin
+  Result := Self.PostAndDecodeEx(url, referer, Pointer(param), Length(param), nil, ParamType, @NoRedirectOptions, pLoacation);
+end;
+
+function DSLWinHttpSession.PostWithoutRedirectAndDecode(const url, referer: UnicodeString; param: TStream;
+  const ParamType: UnicodeString; pLoacation: PUnicodeString): UnicodeString;
+begin
+  Result := Self.PostAndDecodeEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
+end;
+
+function DSLWinHttpSession.PostWithoutRedirectAndDecode(const url, referer: UnicodeString; const param: RawByteString;
+  const ParamType: UnicodeString; pLoacation: PUnicodeString): UnicodeString;
+begin
+  Result := Self.PostAndDecodeEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
+end;
+
+procedure DSLWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; const param: RawByteString;
+  content: TStream; const ParamType: UnicodeString; pLoacation: PUnicodeString);
+begin
+  Self.PostEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
+end;
+
+function DSLWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; const param: RawByteString;
+  const ParamType: UnicodeString; pLoacation: PUnicodeString): RawByteString;
+begin
+  Self.PostEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
 end;
 
 procedure DSLWinHttpSession.post(const url, referer: UnicodeString; param, content: TStream;
@@ -956,7 +1050,8 @@ begin
 end;
 
 procedure DSLWinHttpSession.PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD;
-  ParamStream, content: TStream; ParamType: PWideChar);
+  ParamStream, content: TStream; ParamType: PWideChar; pOptions: PDSLHttpRequestOptions;
+  pLocation: PUnicodeString);
 var
   RequestHeaders: PWideChar;
   _RequestHeaders: UnicodeString;
@@ -968,7 +1063,8 @@ begin
   end
   else RequestHeaders := PWideChar(DEFAULT_POST_HTTP_HEADERS);
   
-  Self.DoRequest(url, 'POST', referer, RequestHeaders, param, ParamLength, ParamStream, content);
+  Self.DoRequest(url, 'POST', referer, RequestHeaders, param, ParamLength, ParamStream, content,
+    pOptions, pLocation);
 end;
 
 function DSLWinHttpSession.DoRequestEx(const request: DSLHttpRequest;
