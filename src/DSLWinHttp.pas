@@ -906,7 +906,7 @@ var
 begin
   if ParamType <> '' then
   begin
-    _RequestHeaders := UStrCatCStr(DEFAULT_HTTP_HEADERS, ParamType);
+    _RequestHeaders := UStrCatCStr([DEFAULT_HTTP_HEADERS, #13#10'Content-Type: '], ParamType);
     RequestHeaders := PWideChar(_RequestHeaders);
   end
   else RequestHeaders := PWideChar(DEFAULT_POST_HTTP_HEADERS);
@@ -929,7 +929,7 @@ var
 begin
   if ParamType <> '' then
   begin
-    _RequestHeaders := UStrCatCStr(DEFAULT_HTTP_HEADERS, ParamType);
+    _RequestHeaders := UStrCatCStr([DEFAULT_HTTP_HEADERS, #13#10'Content-Type: '], ParamType);
     RequestHeaders := PWideChar(_RequestHeaders);
   end
   else RequestHeaders := PWideChar(DEFAULT_POST_HTTP_HEADERS);

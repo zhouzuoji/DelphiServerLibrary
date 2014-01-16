@@ -493,7 +493,7 @@ function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString;
 
 function StrIsEmptyA(const s: RawByteString): Boolean;
 
-function UStrIsEmpty(const s: RawByteString): Boolean;
+function UStrIsEmpty(const s: UnicodeString): Boolean;
 
 (***********************char case converting*********************************)
 
@@ -654,7 +654,7 @@ function StrCompareA(str1: PAnsiChar; len1: Integer; str2: PAnsiChar; len2: Inte
 
 function StrCompareA(const Str1, Str2: RawByteString; CaseSensitive: Boolean): Integer; overload;
 
-function UStrCatCStr(const s1: UnicodeString; s2: PWideChar): UnicodeString;
+function UStrCatCStr(const s1: array of UnicodeString; s2: PWideChar): UnicodeString;
 
 (******************************sub string extract******************************)
 
@@ -3728,7 +3728,7 @@ begin
   end;
 end;
 
-function UStrIsEmpty(const s: RawByteString): Boolean;
+function UStrIsEmpty(const s: UnicodeString): Boolean;
 var
   i: Integer;
 begin
@@ -5235,19 +5235,28 @@ begin
     PAnsiChar(Str2), Length(str2), CaseSensitive);
 end;
 
-function UStrCatCStr(const s1: UnicodeString; s2: PWideChar): UnicodeString;
+function UStrCatCStr(const s1: array of UnicodeString; s2: PWideChar): UnicodeString;
 var
-  L1, L2: Integer;
+  i, L1, L2: Integer;
 begin
-  L1 := Length(s1);
+  L1 := 0;
+
+  for i := Low(s1) to High(s1) do
+    Inc(L1, Length(s1[i]));
+
   L2 := StrLenW(s2);
 
-  if L2 = 0 then Result := s1
-  else begin
-    SetLength(Result, L1 + L2);
-    Move(Pointer(s1)^, Pointer(Result)^, L1 * 2);
-    Move(s2^, PWideChar(Result)[L1], L2 * 2);
+  SetLength(Result, L1 + L2);
+
+  L1 := 0;
+
+  for i := Low(s1) to High(s1) do
+  begin
+    Move(Pointer(s1[i])^, PWideChar(Result)[L1], Length(s1[i]) * 2);
+    Inc(L1, Length(s1[i]));
   end;
+
+  Move(s2^, PWideChar(Result)[L1], L2 * 2);
 end;
 
 function GetSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
