@@ -5324,7 +5324,7 @@ begin
   if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
   begin
     try
-      value := BufToFloatA(PAnsiChar(src) +  P1, P2 - P1, nil);
+      value := BufToFloatA(PAnsiChar(src) +  P1 - 1, P2 - P1, nil);
       Result := True;
     except
       Result := False;
@@ -5341,7 +5341,7 @@ var
 begin
   if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
   begin
-    Result := BufToFloatA(PAnsiChar(src) +  P1, P2 - P1, @c);
+    Result := BufToFloatA(PAnsiChar(src) +  P1 - 1, P2 - P1, @c);
 
     if Assigned(c) then Result := 0;
   end
