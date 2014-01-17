@@ -4,7 +4,7 @@ interface
 
 uses
   SysUtils, Classes, AnsiStrings, Windows, ShellAPI, StrUtils, DateUtils, Controls, RTLConsts,
-  Dialogs, Forms, Graphics, ComCtrls, CommCtrl, ComObj, ShlObj, ActiveX;
+  Dialogs, Forms, Graphics, ComCtrls, CommCtrl, ComObj, ShlObj, ActiveX, SyncObjs;
 
 type
 
@@ -721,6 +721,10 @@ function GetSubstrBetweenW(const src, prefix: UnicodeString; const suffix: array
 function UStrCopyUntil(const src: UnicodeString; const suffix: array of WideChar;
   StartIndex, EndIndex: Integer; EndingNoSuffix: Boolean = True): UnicodeString;
 
+function TrimCopyU(const s: UnicodeString; start, len: Integer): UnicodeString;
+function TrimCopyA(const s: RawByteString; start, len: Integer): RawByteString;
+function TrimCopyW(const s: WideString; start, len: Integer): WideString;
+
 function ExtractIntegerA(const str: RawByteString): Integer;
 
 function ExtractIntegersA(const str: RawByteString; var numbers: array of Int64): Integer;
@@ -1241,6 +1245,17 @@ type
     property Active: Boolean read fActive write SetActive;
     property ThreadCount: Integer read fThreadCount write SetThreadCount;
     property ThreadClass: DSLWorkThreadClass read fThreadClass write fThreadClass;
+  end;
+
+  DSLFileStream = class(TFileStream)
+  private
+    fLock: TCriticalSection;
+  public
+    constructor Create(const AFileName: string; Mode: Word); overload;
+    constructor Create(const AFileName: string; Mode: Word; Rights: Cardinal); overload;
+    destructor Destroy; override;
+    procedure lock;
+    procedure unlock;
   end;
 
 (****************************trace utils***************************************)
@@ -5773,6 +5788,69 @@ begin
     Result := Copy(src, StartIndex, P - StartIndex);
 end;
 
+function TrimCopyU(const s: UnicodeString; start, len: Integer): UnicodeString;
+var
+  P1, P2: Integer;
+begin
+  Result := '';
+
+  P1 := start;
+
+  if P1 <= 0 then P1 := 1;
+
+  P2 := start + len - 1;
+
+  if P1 <= Length(s) then
+  begin
+    while (P1 <= P2) and (s[P1] <= #32) do Inc(P1);
+    while (P2 >= P1) and (s[P2] <= #32) do Dec(P2);
+
+    if P2 >= P1 then Result := Copy(s, P1, P2 + 1 - P1);
+  end;
+end;
+
+function TrimCopyA(const s: RawByteString; start, len: Integer): RawByteString;
+var
+  P1, P2: Integer;
+begin
+  Result := '';
+
+  P1 := start;
+
+  if P1 <= 0 then P1 := 1;
+
+  P2 := start + len - 1;
+
+  if P1 <= Length(s) then
+  begin
+    while (P1 <= P2) and (s[P1] <= #32) do Inc(P1);
+    while (P2 >= P1) and (s[P2] <= #32) do Dec(P2);
+
+    if P2 >= P1 then Result := Copy(s, P1, P2 + 1 - P1);
+  end;
+end;
+
+function TrimCopyW(const s: WideString; start, len: Integer): WideString;
+var
+  P1, P2: Integer;
+begin
+  Result := '';
+
+  P1 := start;
+
+  if P1 <= 0 then P1 := 1;
+
+  P2 := start + len - 1;
+
+  if P1 <= Length(s) then
+  begin
+    while (P1 <= P2) and (s[P1] <= #32) do Inc(P1);
+    while (P2 >= P1) and (s[P2] <= #32) do Dec(P2);
+
+    if P2 >= P1 then Result := Copy(s, P1, P2 + 1 - P1);
+  end;
+end;
+
 function CheckMail(const s: string): Boolean;
 //ºÏ≤‚ «∑Ò” œ‰’ ∫≈
 var
@@ -8189,6 +8267,36 @@ end;
 function CompareCodePageByID(First, Second: PCodePage): Integer;
 begin
   Result := First^.ID - Second^.ID;
+end;
+
+{ DSLFileStream }
+
+constructor DSLFileStream.Create(const AFileName: string; Mode: Word);
+begin
+  inherited;
+  fLock := TCriticalSection.Create;
+end;
+
+constructor DSLFileStream.Create(const AFileName: string; Mode: Word; Rights: Cardinal);
+begin
+  inherited;
+  fLock := TCriticalSection.Create;
+end;
+
+destructor DSLFileStream.Destroy;
+begin
+  fLock.Free;
+  inherited;
+end;
+
+procedure DSLFileStream.lock;
+begin
+  fLock.Enter;
+end;
+
+procedure DSLFileStream.unlock;
+begin
+  fLock.Leave;
 end;
 
 initialization

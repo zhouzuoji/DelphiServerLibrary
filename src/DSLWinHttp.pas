@@ -149,22 +149,22 @@ type
     function GetAndDecode(url: PWideChar; referer: PWideChar = nil): UnicodeString; overload;
     function GetAndDecode(const url: UnicodeString; const referer: UnicodeString = ''): UnicodeString; overload;
 
-    procedure GetWinthoutRedirect(url: PWideChar; content: TStream; referer: PWideChar = nil;
+    procedure GetWithoutRedirect(url: PWideChar; content: TStream; referer: PWideChar = nil;
       pLocation: PUnicodeString = nil); overload;
 
-    function GetWinthoutRedirect(url: PWideChar; referer: PWideChar = nil;
+    function GetWithoutRedirect(url: PWideChar; referer: PWideChar = nil;
       pLocation: PUnicodeString = nil): RawByteString; overload;
 
-    procedure GetWinthoutRedirect(const url: UnicodeString; content: TStream; const referer: UnicodeString = '';
+    procedure GetWithoutRedirect(const url: UnicodeString; content: TStream; const referer: UnicodeString = '';
        pLocation: PUnicodeString = nil); overload;
 
-    function GetWinthoutRedirect(const url: UnicodeString; const referer: UnicodeString = '';
+    function GetWithoutRedirect(const url: UnicodeString; const referer: UnicodeString = '';
       pLocation: PUnicodeString = nil): RawByteString; overload;
 
-    function GetWinthoutRedirectAndDecode(url: PWideChar; referer: PWideChar = nil;
+    function GetWithoutRedirectAndDecode(url: PWideChar; referer: PWideChar = nil;
       pLocation: PUnicodeString = nil): UnicodeString; overload;
 
-    function GetWinthoutRedirectAndDecode(const url: UnicodeString; const referer: UnicodeString = '';
+    function GetWithoutRedirectAndDecode(const url: UnicodeString; const referer: UnicodeString = '';
       pLocation: PUnicodeString = nil): UnicodeString; overload;
 
     procedure PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream, content: TStream;
@@ -824,41 +824,41 @@ begin
   Result := Self.DoRequestAndDecode(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
 end;
 
-function DSLWinHttpSession.GetWinthoutRedirect(const url, referer: UnicodeString;
+function DSLWinHttpSession.GetWithoutRedirect(const url, referer: UnicodeString;
   pLocation: PUnicodeString): RawByteString;
 begin
   Result := Self.DoRequest(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
     nil, 0, nil, @NoRedirectOptions, pLocation);
 end;
 
-procedure DSLWinHttpSession.GetWinthoutRedirect(const url: UnicodeString; content: TStream;
+procedure DSLWinHttpSession.GetWithoutRedirect(const url: UnicodeString; content: TStream;
   const referer: UnicodeString; pLocation: PUnicodeString);
 begin
   Self.DoRequest(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
     nil, 0, nil, content, @NoRedirectOptions, pLocation);
 end;
 
-procedure DSLWinHttpSession.GetWinthoutRedirect(url: PWideChar; content: TStream; referer: PWideChar;
+procedure DSLWinHttpSession.GetWithoutRedirect(url: PWideChar; content: TStream; referer: PWideChar;
   pLocation: PUnicodeString);
 begin
   Self.DoRequest(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil, content,
     @NoRedirectOptions, pLocation);
 end;
 
-function DSLWinHttpSession.GetWinthoutRedirect(url, referer: PWideChar; pLocation: PUnicodeString): RawByteString;
+function DSLWinHttpSession.GetWithoutRedirect(url, referer: PWideChar; pLocation: PUnicodeString): RawByteString;
 begin
   Result := Self.DoRequest(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil,
     @NoRedirectOptions, pLocation);
 end;
 
-function DSLWinHttpSession.GetWinthoutRedirectAndDecode(const url, referer: UnicodeString;
+function DSLWinHttpSession.GetWithoutRedirectAndDecode(const url, referer: UnicodeString;
   pLocation: PUnicodeString): UnicodeString;
 begin
   Result := Self.DoRequestAndDecode(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
     nil, 0, nil, @NoRedirectOptions, pLocation);
 end;
 
-function DSLWinHttpSession.GetWinthoutRedirectAndDecode(url, referer: PWideChar;
+function DSLWinHttpSession.GetWithoutRedirectAndDecode(url, referer: PWideChar;
   pLocation: PUnicodeString): UnicodeString;
 begin
   Result := Self.DoRequestAndDecode(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS),
