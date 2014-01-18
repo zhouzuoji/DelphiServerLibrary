@@ -6259,12 +6259,8 @@ begin
   threads.Clear;
 end;
 
-function GetFloatBeforeA(
-  str: PAnsiChar;
-  len: Integer;
-  substr: PAnsiChar;
-  sublen: Integer;
-  out number: Double): Boolean;
+function GetFloatBeforeA(str: PAnsiChar; len: Integer; substr: PAnsiChar;
+  sublen: Integer; out number: Double): Boolean;
 var
   P, P1, P2: PAnsiChar;
   dot: Boolean; //小数点是否已经出现
