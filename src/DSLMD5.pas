@@ -45,9 +45,9 @@ procedure MD5Update(var context: TMD5Context; Input: PByteArray; InputLen: LongW
 procedure MD5Update(var context: TMD5Context; const s: RawByteString); overload;
 procedure MD5Final(var context: TMD5Context; var digest: TMD5Digest);
 procedure MD5Calc(const buffer; Size: Integer; out digest: TMD5Digest); overload;
-function MD5Calc(const str: AnsiString; UpperCase: Boolean = True): AnsiString; overload;
-function MD5Calc(const str: WideString; UpperCase: Boolean = True): AnsiString; overload;
-function MD5String(const str: string; UpperCase: Boolean = True): AnsiString;
+function MD5Calc(const str: RawByteString; UpperCase: Boolean = True): RawByteString; overload;
+function MD5Calc(const str: WideString; UpperCase: Boolean = True): RawByteString; overload;
+function MD5String(const str: string; UpperCase: Boolean = True): RawByteString;
 procedure MD5Stream(out digest: TMD5Digest; const stream: TStream; Len: Int64 = 0);
 procedure MD5File(const FileName: string; out digest: TMD5Digest);
 
@@ -70,7 +70,7 @@ begin
   end;
 end;
 
-function MemHex(const buffer; Size: LongWord; UpperCase: Boolean = True): AnsiString; overload;
+function MemHex(const buffer; Size: LongWord; UpperCase: Boolean = True): RawByteString; overload;
 begin
   SetLength(Result, Size * 2);
   MemHex(buffer, Size, PAnsiChar(Result), UpperCase);
@@ -147,7 +147,7 @@ begin
   MD5Final(context, digest);
 end;
 
-function MD5Calc(const str: AnsiString; UpperCase: Boolean = True): AnsiString;
+function MD5Calc(const str: RawByteString; UpperCase: Boolean = True): RawByteString;
 var
   digest: TMD5Digest;
 begin
@@ -155,7 +155,7 @@ begin
   Result := MemHex(digest, SizeOf(digest), UpperCase);
 end;
 
-function MD5Calc(const str: WideString; UpperCase: Boolean = True): AnsiString;
+function MD5Calc(const str: WideString; UpperCase: Boolean = True): RawByteString;
 var
   digest: TMD5Digest;
 begin
@@ -163,7 +163,7 @@ begin
   Result := MemHex(digest, SizeOf(digest), UpperCase);
 end;
 
-function MD5String(const str: string; UpperCase: Boolean = True): AnsiString;
+function MD5String(const str: string; UpperCase: Boolean = True): RawByteString;
 var
   digest: TMD5Digest;
 begin
