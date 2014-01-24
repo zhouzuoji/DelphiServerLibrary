@@ -485,11 +485,17 @@ function HTMLDecodeUStr(const s: UnicodeString): UnicodeString;
 
 function HTMLDecodeBStr(const s: WideString): WideString;
 
-function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString;
-  out value: UnicodeString): Boolean;
+function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString; out P1, P2: PWideChar): Boolean; overload;
 
-function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString;
-  out value: RawByteString): Boolean;
+function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString; out value: UnicodeString): Boolean; overload;
+
+function GetInputValueW(str: PWideChar; len: Integer; const name: UnicodeString; out value: UnicodeString): Boolean;
+
+function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString; out value: RawByteString): Boolean; overload;
+
+function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString; out P1, P2: PAnsiChar): Boolean; overload;
+
+function GetInputValueA(str: PAnsiChar; len: Integer; const name: RawByteString; out value: RawByteString): Boolean;
 
 function StrIsEmptyA(const s: RawByteString): Boolean;
 
@@ -594,6 +600,8 @@ function BStrScan(const s: WideString; c: WideChar): Integer; overload;
 
 function StrScan(const s: string; c: Char): Integer;
 
+function StrPosW(substr, str: PWideChar): PWideChar; overload;
+
 function StrPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar; overload;
 
 function UStrPos(const substr, str: UnicodeString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer; overload;
@@ -619,6 +627,8 @@ function UStrRIPos(const substr, str: UnicodeString; StartIndex: Integer = 1; En
 function BStrRIPos(const substr, str: WideString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer;
 
 function StrPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar; overload;
+
+function StrPosA(substr: PAnsiChar; str: PAnsiChar): PAnsiChar; overload;
 
 function StrPosA(const substr, str: RawByteString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer; overload;
 
@@ -650,7 +660,7 @@ function UStrCompare(S1, S2: UnicodeString; CaseSensitive: Boolean = True): Inte
 
 function BStrCompare(S1, S2: WideString; CaseSensitive: Boolean = True): Integer;
 
-function StrCompareA(str1: PAnsiChar; len1: Integer; str2: PAnsiChar; len2: Integer; CaseSensitive: Boolean): Integer; overload;
+function StrCompareA(str1: PAnsiChar; len1: Integer; str2: PAnsiChar; len2: Integer; CaseSensitive: Boolean = True): Integer; overload;
 
 function StrCompareA(const Str1, Str2: RawByteString; CaseSensitive: Boolean): Integer; overload;
 
@@ -661,7 +671,13 @@ function UStrCatCStr(const s1: array of UnicodeString; s2: PWideChar): UnicodeSt
 function GetSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
   start: Integer = 1; limit: Integer = 0): Boolean; overload;
 
+function GetTrimedSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
+  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+
 function GetSubstrBetweenA(const src, prefix, suffix: RawByteString;
+  start: Integer = 1; limit: Integer = 0): RawByteString; overload;
+
+function GetTrimedSubstrBetweenA(const src, prefix, suffix: RawByteString;
   start: Integer = 1; limit: Integer = 0): RawByteString; overload;
 
 function GetIntegerBetweenA(const src, prefix, suffix: RawByteString;
@@ -679,7 +695,13 @@ function GetFloatBetweenA(const src, prefix, suffix: RawByteString;
 function GetSectionBetweenW(const src, prefix, suffix: UnicodeString; out P1, P2: Integer;
   start: Integer = 1; limit: Integer = 0): Boolean; overload;
 
+function GetTrimedSectionBetweenW(const src, prefix, suffix: UnicodeString; out P1, P2: Integer;
+  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+
 function GetSubstrBetweenW(const src, prefix, suffix: UnicodeString;
+  start: Integer = 1; limit: Integer = 0): UnicodeString; overload;
+
+function GetTrimedSubstrBetweenW(const src, prefix, suffix: UnicodeString;
   start: Integer = 1; limit: Integer = 0): UnicodeString; overload;
 
 function GetIntegerBetweenW(const src, prefix, suffix: UnicodeString; out value: Int64;
@@ -711,11 +733,17 @@ function GetSectionBetweenA(const src, prefix: RawByteString; const suffix: arra
 function GetSubstrBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
   start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): RawByteString; overload;
 
+function GetTrimedSubstrBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): RawByteString; overload;
+
 function GetSectionBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
   out P1, P2: Integer; start: Integer = 1; limit: Integer = 0;
   EndingNoSuffix: Boolean = True): Boolean;  overload;
 
 function GetSubstrBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
+  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): UnicodeString; overload;
+
+function GetTrimedSubstrBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
   start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): UnicodeString; overload;
 
 function UStrCopyUntil(const src: UnicodeString; const suffix: array of WideChar;
@@ -1934,113 +1962,200 @@ begin
   Result := HTMLDecodeBufferW(PWideChar(s), Length(s));
 end;
 
-function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString;
-  out value: UnicodeString): Boolean;
+function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString; out P1, P2: PWideChar): Boolean; overload;
 var
-  P1, P2, strend: PWideChar;
+  P3, P4, strend: PWideChar;
   c: WideChar;
 begin
   Result := False;
   strend := str + len;
 
-  P1 := str;
+  P3 := str;
 
-  while P1 < strend do
+  while P3 < strend do
   begin
-    P1 := StrPosW(PWideChar(name), Length(name), str, len);
+    P3 := StrPosW(PWideChar(name), Length(name), str, len);
 
-    if P1 = nil then Exit;
+    if P3 = nil then Exit;
 
-    if (P1 > str) and  ((P1-1)^ <> #32) and ((P1-1)^ <> #39) and ((P1-1)^ = '"') then
+    if (P3 > str) and  ((P3-1)^ <> #32) and ((P3-1)^ <> #39) and ((P3-1)^ = '"') then
     begin
-      Inc(P1, Length(name));
+      Inc(P3, Length(name));
       Continue;
     end;
 
-    Inc(P1, Length(name));
+    Inc(P3, Length(name));
 
-    while (P1 < strend) and (P1^ = #32) do Inc(P1);
+    while (P3 < strend) and (P3^ = #32) do Inc(P3);
 
-    if P1 = strend then Break;
+    if P3 = strend then Break;
 
-    if P1^ <> '=' then Continue;
+    if P3^ <> '=' then Continue;
 
-    Inc(P1);
+    Inc(P3);
 
-    while (P1 < strend) and (P1^ = #32) do Inc(P1);
+    while (P3 < strend) and (P3^ = #32) do Inc(P3);
 
-    if P1 = strend then Break;
+    if P3 = strend then Break;
 
-    if (P1^ <> #39) and (P1^ <> '"') then Continue;
+    if (P3^ <> #39) and (P3^ <> '"') then Continue;
 
-    c := P1^;
+    c := P3^;
 
-    Inc(P1);
+    Inc(P3);
 
-    P2 := P1;
+    P4 := P3;
 
-    while (P2 < strend) and (P2^ <> c) do Inc(P2);
+    while (P4 < strend) and (P4^ <> c) do Inc(P4);
 
-    if P2 = strend then Break;
+    if P4 = strend then Break;
 
-    SetString(value, P1, P2 - P1);
+    P1 := P3;
+    P2 := P4;
     Result := True;
     Break;
   end;
 end;
 
-function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString;
-  out value: RawByteString): Boolean;
+function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString; out value: UnicodeString): Boolean;
 var
-  P1, P2, strend: PAnsiChar;
+  P1, P2: PWideChar;
+begin
+  Result := GetInputPropW(str, len, name, P1, P2);
+
+  if Result then SetString(value, P1, P2 - P1);
+end;
+
+function GetInputValueW(str: PWideChar; len: Integer; const name: UnicodeString; out value: UnicodeString): Boolean;
+var
+  P3, P4, P5, P6, strend: PWideChar;
+begin
+  Result := False;
+
+  P3 := str;
+  strend := str + len;
+
+  while P3 < strend do
+  begin
+    P3 := StrPosW('<input', 6, P3, strend - P3);
+
+    if P3 = nil then Break;
+
+    Inc(P3, 6);
+
+    P4 := P3;
+
+    while (P4 < strend) and (P4^ <> '>') do Inc(P4);
+
+    if P4 = strend then Break;
+
+    if GetInputPropW(P3, P4 - P3, 'name', P5, P6) and (StrCompareW(P5, P6 - P5, PWideChar(name), Length(name)) = 0) then
+    begin
+      Result := True;
+      GetInputPropW(P3, P4-P3, 'value', value);
+      Break;
+    end;
+
+    P3 := P4 + 1;
+  end;
+end;
+
+function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString; out P1, P2: PAnsiChar): Boolean;
+var
+  P3, P4, strend: PAnsiChar;
   c: AnsiChar;
 begin
   Result := False;
   strend := str + len;
 
-  P1 := str;
+  P3 := str;
 
-  while P1 < strend do
+  while P3 < strend do
   begin
-    P1 := StrPosA(PAnsiChar(name), Length(name), str, len);
+    P3 := StrPosA(PAnsiChar(name), Length(name), str, len);
 
-    if P1 = nil then Exit;
+    if P3 = nil then Exit;
 
-    if (P1 > str) and  ((P1-1)^ <> #32) and ((P1-1)^ <> #39) and ((P1-1)^ = '"') then
+    if (P3 > str) and  ((P3-1)^ <> #32) and ((P3-1)^ <> #39) and ((P3-1)^ = '"') then
     begin
-      Inc(P1, Length(name));
+      Inc(P3, Length(name));
       Continue;
     end;
 
-    Inc(P1, Length(name));
+    Inc(P3, Length(name));
 
-    while (P1 < strend) and (P1^ = #32) do Inc(P1);
+    while (P3 < strend) and (P3^ = #32) do Inc(P3);
 
-    if P1 = strend then Break;
+    if P3 = strend then Break;
 
-    if P1^ <> '=' then Continue;
+    if P3^ <> '=' then Continue;
 
-    Inc(P1);
+    Inc(P3);
 
-    while (P1 < strend) and (P1^ = #32) do Inc(P1);
+    while (P3 < strend) and (P3^ = #32) do Inc(P3);
 
-    if P1 = strend then Break;
+    if P3 = strend then Break;
 
-    if (P1^ <> #39) and (P1^ <> '"') then Continue;
+    if (P3^ <> #39) and (P3^ <> '"') then Continue;
 
-    c := P1^;
+    c := P3^;
 
-    Inc(P1);
+    Inc(P3);
 
-    P2 := P1;
+    P4 := P3;
 
-    while (P2 < strend) and (P2^ <> c) do Inc(P2);
+    while (P4 < strend) and (P4^ <> c) do Inc(P4);
 
-    if P2 = strend then Break;
+    if P4 = strend then Break;
 
-    SetString(value, P1, P2 - P1);
+    P1 := P3;
+    P2 := P4;
+
     Result := True;
     Break;
+  end;
+end;
+
+function GetInputPropA(str: PAnsiChar; len: Integer; const name: RawByteString; out value: RawByteString): Boolean;
+var
+  P1, P2: PAnsiChar;
+begin
+  Result := GetInputPropA(str, len, name, P1, P2);
+
+  if Result then SetString(value, P1, P2 - P1);
+end;
+
+function GetInputValueA(str: PAnsiChar; len: Integer; const name: RawByteString; out value: RawByteString): Boolean;
+var
+  P3, P4, P5, P6, strend: PAnsiChar;
+begin
+  Result := False;
+
+  P3 := str;
+  strend := str + len;
+
+  while P3 < strend do
+  begin
+    P3 := StrPosA('<input', 6, P3, strend - P3);
+
+    if P3 = nil then Break;
+
+    Inc(P3, 6);
+
+    P4 := P3;
+
+    while (P4 < strend) and (P4^ <> '>') do Inc(P4);
+
+    if P4 = strend then Break;
+
+    if GetInputPropA(P3, P4 - P3, 'name', P5, P6) and (StrCompareA(P5, P6 - P5, PAnsiChar(name), Length(name)) = 0) then
+    begin
+      Result := True;
+      GetInputPropA(P3, P4-P3, 'value', value);
+      Break;
+    end;
+
+    P3 := P4 + 1;
   end;
 end;
 
@@ -3901,6 +4016,7 @@ begin
       '0'..'9': Result := Result shl 4 + Ord(ptr^) - Ord('0');
       'A'..'F': Result := Result shl 4 + Ord(ptr^) - Ord('A') + 10;
       'a'..'f': Result := Result shl 4 + Ord(ptr^) - Ord('a') + 10;
+      ',':;
     else begin
         if Assigned(invalid) then invalid^ := ptr;
         Break;
@@ -3990,6 +4106,7 @@ begin
       '0'..'9': Result := Result shl 4 + Ord(ptr^) - Ord('0');
       'A'..'F': Result := Result shl 4 + Ord(ptr^) - Ord('A') + 10;
       'a'..'f': Result := Result shl 4 + Ord(ptr^) - Ord('a') + 10;
+      ',': ;
     else begin
         if Assigned(invalid) then invalid^ := ptr;
         Break;
@@ -4310,6 +4427,7 @@ begin
         dot := True;
       end;
     end
+    else if buf[i] = ',' then Continue
     else begin
       if Assigned(invalid) then invalid^ := buf + i;
       Break;
@@ -4499,8 +4617,7 @@ begin
   else Result := p - PAnsiChar(s) + 1;
 end;
 
-function StrPosA(substr: PAnsiChar; sublen: Integer;
-  str: PAnsiChar; len: Integer): PAnsiChar; overload;
+function StrPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar; overload;
 asm
       test  eax,eax
       je    @noWork
@@ -4674,8 +4791,12 @@ asm
 @noWork:
 end;
 
-function StrPosA(const substr, str: RawByteString;
-  StartIndex: Integer; EndIndex: Integer): Integer;
+function StrPosA(substr: PAnsiChar; str: PAnsiChar): PAnsiChar; overload;
+begin
+  Result := StrPosA(substr, StrLen(substr), str, StrLen(str));
+end;
+
+function StrPosA(const substr, str: RawByteString; StartIndex: Integer; EndIndex: Integer): Integer;
 var
   ptr: PAnsiChar;
 begin
@@ -4757,8 +4878,12 @@ begin
     end;
 end;
 
-function StrPosW(substr: PWideChar; sublen: Integer;
-  str: PWideChar; len: Integer): PWideChar;
+function StrPosW(substr, str: PWideChar): PWideChar; overload;
+begin
+  Result := StrPosW(substr, StrLenW(substr), str, StrLen(str));
+end;
+
+function StrPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar;
 var
   i, k, MR: Integer;
   match: Boolean;
@@ -5296,6 +5421,18 @@ begin
   end;
 end;
 
+function GetTrimedSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
+  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+begin
+  Result := GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit);
+
+  if Result then
+  begin
+    while (P1 < P2) and (src[P1] <= #32) do Inc(P1);
+    while (P2 > P1) and (src[P2] <= #32) do Dec(P2);
+  end;
+end;
+
 function GetSubstrBetweenA(const src, prefix, suffix: RawByteString;
   start: Integer = 1; limit: Integer = 0): RawByteString;
 var
@@ -5303,6 +5440,17 @@ var
 begin
   if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
     Result := Copy(src, P1, P2 - P1)
+  else
+    Result := '';
+end;
+
+function GetTrimedSubstrBetweenA(const src, prefix, suffix: RawByteString;
+  start: Integer = 1; limit: Integer = 0): RawByteString; overload;
+var
+  P1, P2: Integer;
+begin
+  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+    Result := TrimCopyA(src, P1, P2 - P1)
   else
     Result := '';
 end;
@@ -5315,7 +5463,7 @@ var
 begin
   Result := False;
 
-  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
   begin
     value := BufToInt64A(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
 
@@ -5330,7 +5478,7 @@ var
   P1, P2: Integer;
   c: PAnsiChar;
 begin
-  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
   begin
     Result := BufToInt64A(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
 
@@ -5345,7 +5493,7 @@ var
   P1, P2: Integer;
 begin
   value := 0;
-  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
   begin
     try
       value := BufToFloatA(PAnsiChar(src) +  P1 - 1, P2 - P1, nil);
@@ -5363,7 +5511,7 @@ var
   P1, P2: Integer;
   c: PAnsiChar;
 begin
-  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
   begin
     Result := BufToFloatA(PAnsiChar(src) +  P1 - 1, P2 - P1, @c);
 
@@ -5394,6 +5542,18 @@ begin
   end;
 end;
 
+function GetTrimedSectionBetweenW(const src, prefix, suffix: UnicodeString; out P1, P2: Integer;
+  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+begin
+  Result := GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit);
+
+  if Result then
+  begin
+    while (P1 < P2) and (src[P1] <= #32) do Inc(P1);
+    while (P2 > P1) and (src[P2] <= #32) do Dec(P2);
+  end;
+end;
+
 function GetSubstrBetweenW(const src, prefix, suffix: UnicodeString;
   start: Integer = 1; limit: Integer = 0): UnicodeString;
 var
@@ -5401,6 +5561,17 @@ var
 begin
   if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
     Result := Copy(src, P1, P2 - P1)
+  else
+    Result := '';
+end;
+
+function GetTrimedSubstrBetweenW(const src, prefix, suffix: UnicodeString;
+  start: Integer = 1; limit: Integer = 0): UnicodeString;
+var
+  P1, P2: Integer;
+begin
+  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+    Result := TrimCopyU(src, P1, P2 - P1)
   else
     Result := '';
 end;
@@ -5413,7 +5584,7 @@ var
 begin
   Result := False;
 
-  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
   begin
     c:= nil;
     value := BufToInt64W(PWideChar(src) + P1 - 1, P2 - P1, @c);
@@ -5429,7 +5600,7 @@ var
   P1, P2: Integer;
   c: PWideChar;
 begin
-  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
   begin
     c:= nil;
     
@@ -5446,7 +5617,7 @@ var
   P1, P2: Integer;
 begin
   value := 0;
-  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
   begin
     try
       value := BufToFloatW(PWideChar(src) +  P1 - 1, P2 - P1, nil);
@@ -5464,7 +5635,7 @@ var
   P1, P2: Integer;
   c: PWideChar;
 begin
-  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
   begin
     Result := BufToFloatW(PWideChar(src) +  P1 - 1, P2 - P1, @c);
 
@@ -5703,6 +5874,17 @@ begin
     Result := '';
 end;
 
+function GetTrimedSubstrBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): RawByteString;
+var
+  P1, P2: Integer;
+begin
+  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit, EndingNoSuffix) then
+    Result := TrimCopyA(src, P1, P2 - P1)
+  else
+    Result := '';
+end;
+
 //提取夹在prefix和suffix中任一字符之间的子串
 
 function GetSectionBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
@@ -5754,6 +5936,17 @@ var
 begin
   if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit, EndingNoSuffix) then
     Result := Copy(src, P1, P2 - P1)
+  else
+    Result := '';
+end;
+
+function GetTrimedSubstrBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
+  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): UnicodeString;
+var
+  P1, P2: Integer;
+begin
+  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit, EndingNoSuffix) then
+    Result := TrimCopyU(src, P1, P2 - P1)
   else
     Result := '';
 end;
