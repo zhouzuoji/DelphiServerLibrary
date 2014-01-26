@@ -5424,7 +5424,7 @@ end;
 function GetTrimedSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
   start: Integer = 1; limit: Integer = 0): Boolean; overload;
 begin
-  Result := GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit);
+  Result := GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit);
 
   if Result then
   begin
