@@ -1179,6 +1179,7 @@ type
     destructor Destroy; override;
     procedure clear;
     procedure push(item: Pointer);
+    procedure PushFront(item: Pointer);
     function pop: Pointer;
     property size: Integer read fSize;
   end;
@@ -1209,6 +1210,7 @@ type
     destructor Destroy; override;
     procedure ClearTask;
     function QueueTask(task: DSLRunnable): Boolean;
+    function QueueTaskFirst(task: DSLRunnable): Boolean;
     property CompletedTaskCount: Integer read fCompletedTaskCount;
     property PendingTaskCount: Integer read GetPendingTaskCount;
     property WaitingForTask: Boolean read fWaitingForTask;
@@ -7529,7 +7531,16 @@ end;
 function DSLWorkThread.QueueTask(task: DSLRunnable): Boolean;
 begin
   fTaskQueue.push(task);
-  
+
+  SetEvent(fTaskSemaphore);
+
+  Result := True;
+end;
+
+function DSLWorkThread.QueueTaskFirst(task: DSLRunnable): Boolean;
+begin
+  fTaskQueue.PushFront(task);
+
   SetEvent(fTaskSemaphore);
 
   Result := True;
@@ -7892,6 +7903,28 @@ begin
       fFirst := node;
       fLast := node;
     end;
+
+    Inc(fSize);
+  finally
+    InterlockedExchange(fLockState, 0);
+  end;
+end;
+
+procedure DSLFIFOQueue.PushFront(item: Pointer);
+var
+  node: PDSLLinkNode;
+begin
+  New(node);
+  node.data := item;
+  node.next := nil;
+
+  while InterlockedExchange(fLockState, 1) = 1 do;
+
+  try
+    node.next := fFirst;
+    fFirst := node;
+
+    if not Assigned(node.next) then fLast := node;
 
     Inc(fSize);
   finally
