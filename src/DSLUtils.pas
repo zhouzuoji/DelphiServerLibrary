@@ -3875,6 +3875,7 @@ begin
     end;
   end;
 end;
+
 procedure StrUpperW(str: PWideChar; len: Integer);
 var
   i: Integer;
