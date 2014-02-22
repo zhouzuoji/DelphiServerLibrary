@@ -5494,18 +5494,22 @@ function GetFloatBetweenA(const src, prefix, suffix: RawByteString; out value: D
   start: Integer = 1; limit: Integer = 0): Boolean;
 var
   P1, P2: Integer;
+  c: PAnsiChar;
 begin
+  Result := False;
+
   value := 0;
   if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
   begin
     try
-      value := BufToFloatA(PAnsiChar(src) +  P1 - 1, P2 - P1, nil);
-      Result := True;
+      value := BufToFloatA(PAnsiChar(src) +  P1 - 1, P2 - P1, @c);
+
+      if not Assigned(c) then
+        Result := True;
     except
-      Result := False;
+
     end;
-  end
-  else Result := False;
+  end;
 end;
 
 function GetFloatBetweenA(const src, prefix, suffix: RawByteString;
