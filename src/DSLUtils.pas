@@ -6911,9 +6911,10 @@ end;
 
 procedure ListViewSetRowCount(ListView: TListView; count: Integer);
 var
-  TopIndex: Integer;
+  TopIndex, ItemIndex: Integer;
 begin
   TopIndex := ListView_GetTopIndex(ListView.Handle);
+  ItemIndex := ListView.ItemIndex;
   ListView.Items.Count := count;
 
   if TopIndex <> -1 then
@@ -6926,6 +6927,9 @@ begin
     if TopIndex <> -1 then
       ListView.Items[TopIndex].MakeVisible(False);
   end;
+
+  if ItemIndex < count then ListView.ItemIndex := ItemIndex
+  else ListView.ItemIndex := -1;
 
   ListView.Refresh;
 end;
