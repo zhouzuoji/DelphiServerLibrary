@@ -1202,6 +1202,7 @@ type
     fTaskQueue: DSLFIFOQueue;
     fCompletedTaskCount: Integer;
     fWaitingForTask: Boolean;
+    fCurrentTaskName: string;
     function GetPendingTaskCount: Integer;
   protected
     procedure Execute; override;
@@ -1214,6 +1215,7 @@ type
     property CompletedTaskCount: Integer read fCompletedTaskCount;
     property PendingTaskCount: Integer read GetPendingTaskCount;
     property WaitingForTask: Boolean read fWaitingForTask;
+    property CurrentTaskName: string read fCurrentTaskName;
   end;
 
   DSLWorkThreadClass = class of DSLWorkThread;
@@ -5998,7 +6000,9 @@ begin
 
   if P1 <= 0 then P1 := 1;
 
-  P2 := start + len - 1;
+  P2 := P1 + len - 1;
+
+  if P2 > Length(s) then P2 := Length(s);
 
   if P1 <= Length(s) then
   begin
@@ -6019,7 +6023,9 @@ begin
 
   if P1 <= 0 then P1 := 1;
 
-  P2 := start + len - 1;
+  P2 := P1 + len - 1;
+
+  if P2 > Length(s) then P2 := Length(s);
 
   if P1 <= Length(s) then
   begin
@@ -6040,7 +6046,9 @@ begin
 
   if P1 <= 0 then P1 := 1;
 
-  P2 := start + len - 1;
+  P2 := P1 + len - 1;
+
+  if P2 > Length(s) then P2 := Length(s);
 
   if P1 <= Length(s) then
   begin
@@ -6917,25 +6925,29 @@ procedure ListViewSetRowCount(ListView: TListView; count: Integer);
 var
   TopIndex, ItemIndex: Integer;
 begin
-  TopIndex := ListView_GetTopIndex(ListView.Handle);
-  ItemIndex := ListView.ItemIndex;
-  ListView.Items.Count := count;
-
-  if TopIndex <> -1 then
-  begin
-    TopIndex := TopIndex + ListView.VisibleRowCount - 1;
-
-    if TopIndex >= count then
-      TopIndex := count - 1;
+  try
+    TopIndex := ListView_GetTopIndex(ListView.Handle);
+    ItemIndex := ListView.ItemIndex;
+    ListView.Items.Count := count;
 
     if TopIndex <> -1 then
-      ListView.Items[TopIndex].MakeVisible(False);
+    begin
+      TopIndex := TopIndex + ListView.VisibleRowCount - 1;
+
+      if TopIndex >= count then
+        TopIndex := count - 1;
+
+      if TopIndex <> -1 then
+        ListView.Items[TopIndex].MakeVisible(False);
+    end;
+
+    if ItemIndex >= count then ItemIndex := count - 1;
+
+    ListView.ItemIndex := ItemIndex;
+
+    ListView.Refresh;
+  except
   end;
-
-  if ItemIndex < count then ListView.ItemIndex := ItemIndex
-  else ListView.ItemIndex := -1;
-
-  ListView.Refresh;
 end;
 
 //弹出提示对话框
@@ -7517,11 +7529,14 @@ begin
         Inc(fCompletedTaskCount);
 
         try
+          fCurrentTaskName := task.ClassName;
           task.run(Self);
         except
           on e: Exception do
             DbgOutput(DSLRunnable.ClassName + '.run: ' + e.Message);
         end;
+
+        fCurrentTaskName := '';
 
         task.Release;
       end;
