@@ -852,6 +852,10 @@ procedure ThreadListInsert(list: TThreadList; index: Integer; item: Pointer);
 
 procedure ThreadListAdd(list: TThreadList; item: Pointer);
 
+procedure ThreadListDelete(list: TThreadList; index: Integer);
+
+procedure ThreadListRemove(list: TThreadList; item: Pointer);
+
 function ThreadListGetItem(list: TThreadList; index: Integer): Pointer;
 
 function ThreadListGetInternalList(list: TThreadList): TList;
@@ -6767,6 +6771,30 @@ begin
   _list := list.LockList;
   try
     _list.Add(item);
+  finally
+    list.UnlockList;
+  end;
+end;
+
+procedure ThreadListDelete(list: TThreadList; index: Integer);
+var
+  _list: TList;
+begin
+  _list := list.LockList;
+  try
+    _list.Delete(index);
+  finally
+    list.UnlockList;
+  end;
+end;
+
+procedure ThreadListRemove(list: TThreadList; item: Pointer);
+var
+  _list: TList;
+begin
+  _list := list.LockList;
+  try
+    _list.Remove(item);
   finally
     list.UnlockList;
   end;
