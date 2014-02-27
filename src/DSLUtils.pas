@@ -529,6 +529,9 @@ procedure DSLSetStringW(var s: UnicodeString; _begin, _end: PWideChar);
 
 (*************************string to integer****************************)
 
+function IntToStrBufA(value: Integer; buf: PAnsiChar): Integer;
+
+function IntToStrA(value: Integer): RawByteString;
 
 function DecimalStrToIntA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Integer;
 
@@ -4034,6 +4037,64 @@ begin
 
     Inc(ptr);
   end;
+end;
+
+
+function IntToStrBufA(value: Integer; buf: PAnsiChar): Integer;
+const
+  DIGITS: array [-9..9] of AnsiChar =
+    ('9', '8', '7', '6', '5', '4', '3', '2', '1', '0',
+    '1', '2', '3', '4', '5', '6', '7', '8', '9');
+var
+  i, L: Integer;
+  _buf: array [0..15] of AnsiChar;
+  m, _value: Integer;
+begin
+  if value = 0 then
+  begin
+    buf[0] := '0';
+    Result := 1;
+    Exit;
+  end;
+
+  Result := 0;
+  _value := value;
+
+  while _value <> 0 do
+  begin
+    m := _value mod 10;
+
+    _buf[Result] := DIGITS[m];
+
+    Inc(Result);
+
+    _value := _value div 10;
+  end;
+
+  L := Result;
+
+  if value > 0 then i := 0
+  else begin
+    buf[0] := '-';
+    i := 1;
+    Inc(Result);
+  end;
+
+  while L > 0 do
+  begin
+    Dec(L);
+    buf[i] := _buf[L];
+    Inc(i);
+  end;
+end;
+
+function IntToStrA(value: Integer): RawByteString;
+var
+  buf: array [0..15] of AnsiChar;
+  L: Integer;
+begin
+  L := IntToStrBufA(value, buf);
+  SetString(Result, buf, L);
 end;
 
 function DecimalStrToIntA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Integer;
