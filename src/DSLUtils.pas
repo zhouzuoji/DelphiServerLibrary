@@ -1677,12 +1677,12 @@ end;
 
 function BufToUnicodeTest(src: PAnsiChar; srclen: DWORD; CodePage: Integer): Integer;
 begin
-  Result := MultiByteToWideChar(CodePage, 0, src, srclen, nil, 0) - 1;
+  Result := MultiByteToWideChar(CodePage, 0, src, srclen, nil, 0);
 end;
 
 function BufToUnicode(src: PAnsiChar; srclen: DWORD; dst: PWideChar; CodePage: Integer): Integer; overload;
 begin
-  Result := MultiByteToWideChar(CodePage, 0, src, srclen, dst, MaxInt) - 1;
+  Result := MultiByteToWideChar(CodePage, 0, src, srclen, dst, MaxInt);
 end;
 
 function BufToUnicode(src: PAnsiChar; srclen: DWORD; CodePage: Integer): UnicodeString; overload;

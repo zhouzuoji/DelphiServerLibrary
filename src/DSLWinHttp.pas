@@ -27,7 +27,7 @@ const
     'Connection: Close'#13#10 +
     'Accept-Language: *'#13#10 +
     'Cache-Control: no-cache'#13#10 +
-    'Content-Type: application/x-www-form-urlencoded; charset=UTF-8';
+    'Content-Type: application/x-www-form-urlencoded';
 
 type
   DSLWinHttpExeption = class(Exception)
