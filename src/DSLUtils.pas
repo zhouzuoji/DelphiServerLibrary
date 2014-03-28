@@ -1210,6 +1210,7 @@ type
     fCompletedTaskCount: Integer;
     fWaitingForTask: Boolean;
     fCurrentTaskName: string;
+    FCurrentTaskStartTime: TDateTime;
     function GetPendingTaskCount: Integer;
   protected
     procedure Execute; override;
@@ -1223,6 +1224,7 @@ type
     property PendingTaskCount: Integer read GetPendingTaskCount;
     property WaitingForTask: Boolean read fWaitingForTask;
     property CurrentTaskName: string read fCurrentTaskName;
+    property CurrentTaskStartTime: TDateTime read FCurrentTaskStartTime;
   end;
 
   DSLWorkThreadClass = class of DSLWorkThread;
@@ -7617,6 +7619,8 @@ begin
 
         Inc(fCompletedTaskCount);
 
+        FCurrentTaskStartTime := Now;
+
         try
           fCurrentTaskName := task.ClassName;
           task.run(Self);
@@ -7625,6 +7629,7 @@ begin
             DbgOutput(DSLRunnable.ClassName + '.run: ' + e.Message);
         end;
 
+        FCurrentTaskStartTime := 0;
         fCurrentTaskName := '';
 
         task.Release;
