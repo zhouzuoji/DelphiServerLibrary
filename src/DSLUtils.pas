@@ -925,7 +925,7 @@ function HttpEncodeBuf2Buf(const buf; buflen: Integer; dst: PAnsiChar; const non
 
 function HttpEncodeBuf(const src; srclen: Integer; const non_conversions: RawByteString = '*._-'): RawByteString;
 
-function DSLHttpEncode(const src: RawByteString; const non_conversions: RawByteString = '*._-'): RawByteString;
+function HttpEncode(const src: RawByteString; const non_conversions: RawByteString = '*._-'): RawByteString;
 
 function HttpDecodeBufTest(const buf; buflen: Integer; invalid: PPAnsiChar = nil): Integer;
 
@@ -935,7 +935,7 @@ function HttpDecodeBuf2Buf(const buf; buflen: Integer; dst: PAnsiChar; invalid: 
 
 function HttpDecodeBuf(const buf; buflen: Integer; invalid: PPAnsiChar = nil): RawByteString;
 
-function DSLHttpDecode(const src: RawByteString; invalid: PPAnsiChar = nil): RawByteString;
+function HttpDecode(const src: RawByteString; invalid: PPAnsiChar = nil): RawByteString;
 
 function HttpDecodeCStrTest(src: PAnsiChar; invalid: PPAnsiChar = nil): Integer;
 
@@ -2536,7 +2536,7 @@ begin
   SetLength(Result, HttpEncodeBuf2Buf(src, srclen, PAnsiChar(Result), non_conversions));
 end;
 
-function DSLHttpEncode(const src, non_conversions: RawByteString): RawByteString;
+function HttpEncode(const src, non_conversions: RawByteString): RawByteString;
 begin
   SetLength(Result, Length(src) * 3);
 
@@ -2717,7 +2717,7 @@ begin
   else SetLength(Result, L);
 end;
 
-function DSLHttpDecode(const src: RawByteString; invalid: PPAnsiChar): RawByteString;
+function HttpDecode(const src: RawByteString; invalid: PPAnsiChar): RawByteString;
 begin
   Result := HttpDecodeBuf(Pointer(src)^, Length(src));
 end;
@@ -3152,7 +3152,7 @@ procedure HttpEncodeFile(const FileName: string);
 var
   s: RawByteString;
 begin
-  s := DSLHttpEncode(LoadStrFromFile(FileName));
+  s := HttpEncode(LoadStrFromFile(FileName));
   SaveStrToFile(FileName, s);
 end;
 
@@ -3160,7 +3160,7 @@ procedure HttpDecodeFile(const FileName: string);
 var
   s: RawByteString;
 begin
-  s := DSLHttpDecode(LoadStrFromFile(FileName));
+  s := HttpDecode(LoadStrFromFile(FileName));
   SaveStrToFile(FileName, s);
 end;
 
