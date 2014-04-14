@@ -3,7 +3,7 @@ unit DSLHttp;
 interface
 
 uses
-  SysUtils, Classes, Windows, ZLibExApi, DSLUtils;
+  SysUtils, Classes, Windows, DSLUtils;
 
 function HttpCheckHostNameA(host: PAnsiChar; len: Integer): Boolean;
 
@@ -178,13 +178,13 @@ begin
 
   schema_begin := url;
 
-  if IBeginWithW(url, 'http://') then
+  if IBeginWithW(url, PWideChar(UnicodeString('http://'))) then
   begin
     schema_end := url + 4;
     port := 80;
     host_begin := url + 7;
   end
-  else if IBeginWithW(url, 'https://') then
+  else if IBeginWithW(url, PWideChar(UnicodeString('https://'))) then
   begin
     schema_end := url + 5;
     port := 443;

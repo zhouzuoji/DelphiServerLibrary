@@ -8,7 +8,9 @@ uses
 {$ifndef UNICODE}
 type
   UnicodeString = WideString;
+  PUnicodeString = ^UnicodeString;
   RawByteString = AnsiString;
+  PRawByteString = ^RawByteString;
 {$endif}
 
 const
@@ -30,7 +32,7 @@ const
     'Content-Type: application/x-www-form-urlencoded';
 
 type
-  DSLWinHttpExeption = class(Exception)
+  TWinHttpException = class(Exception)
   private
     fFunctionName: string;
     fErrorCode: Integer;
@@ -41,16 +43,16 @@ type
     property ErrorCode: Integer read fErrorCode write fErrorCode;
   end;
   
-  DSLGzipException = class(Exception);
+  TGzipException = class(Exception);
   
-  DSLHttpRequestOptions = record
+  THttpRequestOptions = record
     AutoCookie: Boolean;
     AutoRedirect: Boolean;
     PragmaNoCache: Boolean;
   end;
-  PDSLHttpRequestOptions = ^DSLHttpRequestOptions;
+  PTHttpRequestOptions = ^THttpRequestOptions;
 
-  DSLHttpRequest = record
+  THttpRequest = record
     schema: PWideChar;
     method: PWideChar;
     host: PWideChar;
@@ -66,7 +68,7 @@ type
     AutoDecompress: Boolean;
     SendingTimeout: DWORD;
     ReceivingTimeout: DWORD;
-    options: DSLHttpRequestOptions;
+    options: THttpRequestOptions;
     procedure init;
     procedure InitWithUrl(url: PWideChar);
   end;
@@ -93,7 +95,7 @@ function XMLGetCharset(content: PAnsiChar; ContentLength: Integer; charset: PAns
 function HTMLGetCharset(content: PAnsiChar; ContentLength: Integer; charset: PAnsiChar): Integer;
 
 type
-  DSLWinHttpSession = class
+  TWinHttpSession = class
   private
     FHandle: HINTERNET;
   public
@@ -110,37 +112,37 @@ type
 
     procedure SetTimeout(ResolvingTimeout, ConnectingTimeout, SendingTimeout, ReceivingTimeout: DWORD);
 
-    procedure DoRequest(const request: DSLHttpRequest; ResponseContent: TStream; pLocation: PUnicodeString = nil); overload;
+    procedure DoRequest(const request: THttpRequest; ResponseContent: TStream; pLocation: PUnicodeString = nil); overload;
 
-    function DoRequest(const request: DSLHttpRequest; pLocation: PUnicodeString = nil): RawByteString; overload;
+    function DoRequest(const request: THttpRequest; pLocation: PUnicodeString = nil): RawByteString; overload;
 
-    procedure DoRequest(const request: DSLHttpRequest; ResponseContent: TStream; TimesErrorRetry: DWORD;
+    procedure DoRequest(const request: THttpRequest; ResponseContent: TStream; TimesErrorRetry: DWORD;
       pLocation: PUnicodeString = nil); overload;
 
-    function DoRequest(const request: DSLHttpRequest; TimesErrorRetry: DWORD;
+    function DoRequest(const request: THttpRequest; TimesErrorRetry: DWORD;
       pLocation: PUnicodeString = nil): RawByteString; overload;
 
-    function DoRequestAndDecode(const request: DSLHttpRequest; pLocation: PUnicodeString = nil): UnicodeString; overload;
+    function DoRequestAndDecode(const request: THttpRequest; pLocation: PUnicodeString = nil): UnicodeString; overload;
 
-    function DoRequestAndDecode(const request: DSLHttpRequest; TimesErrorRetry: DWORD;
+    function DoRequestAndDecode(const request: THttpRequest; TimesErrorRetry: DWORD;
       pLocation: PUnicodeString = nil): UnicodeString; overload;
 
-    function DoRequestEx(const request: DSLHttpRequest; ResponseContent: TStream): HINTERNET; overload;
+    function DoRequestEx(const request: THttpRequest; ResponseContent: TStream): HINTERNET; overload;
 
-    function DoRequestEx(const request: DSLHttpRequest; out ResponseContent: RawByteString): HINTERNET; overload;
+    function DoRequestEx(const request: THttpRequest; out ResponseContent: RawByteString): HINTERNET; overload;
 
     procedure DoRequest(url, method, referer, RequestHeaders: PWideChar; param: Pointer;
-      ParamLength: DWORD; ParamStream: TStream; content: TStream; pOptions: PDSLHttpRequestOptions = nil;
+      ParamLength: DWORD; ParamStream: TStream; content: TStream; pOptions: PTHttpRequestOptions = nil;
       pLocation: PUnicodeString = nil; _AutoDecompress: Boolean = True; _TimesErrorRetry: DWORD = 0;
       _SendingTimeout: DWORD = 0; _ReceivingTimeout: DWORD = 0); overload;
 
     function DoRequest(url, method, referer, RequestHeaders: PWideChar; param: Pointer;
-      ParamLength: DWORD; ParamStream: TStream; pOptions: PDSLHttpRequestOptions = nil;
+      ParamLength: DWORD; ParamStream: TStream; pOptions: PTHttpRequestOptions = nil;
       pLocation: PUnicodeString = nil; _AutoDecompress: Boolean = True; _TimesErrorRetry: DWORD = 0;
       _SendingTimeout: DWORD = 0; _ReceivingTimeout: DWORD = 0): RawByteString; overload;
 
     function DoRequestAndDecode(url, method, referer, RequestHeaders: PWideChar; param: Pointer;
-      ParamLength: DWORD; ParamStream: TStream; pOptions: PDSLHttpRequestOptions = nil;
+      ParamLength: DWORD; ParamStream: TStream; pOptions: PTHttpRequestOptions = nil;
       pLocation: PUnicodeString = nil; _AutoDecompress: Boolean = True; _TimesErrorRetry: DWORD = 0;
       _SendingTimeout: DWORD = 0; _ReceivingTimeout: DWORD = 0): UnicodeString; overload;
 
@@ -170,13 +172,13 @@ type
       pLocation: PUnicodeString = nil): UnicodeString; overload;
 
     procedure PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream, content: TStream;
-      ParamType: PWideChar = nil; pOptions: PDSLHttpRequestOptions = nil; pLocation: PUnicodeString = nil); overload;
+      ParamType: PWideChar = nil; pOptions: PTHttpRequestOptions = nil; pLocation: PUnicodeString = nil); overload;
 
     function PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-      ParamType: PWideChar = nil; pOptions: PDSLHttpRequestOptions = nil; pLocation: PUnicodeString = nil): RawByteString; overload;
+      ParamType: PWideChar = nil; pOptions: PTHttpRequestOptions = nil; pLocation: PUnicodeString = nil): RawByteString; overload;
 
     function PostAndDecodeEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-      ParamType: PWideChar = nil; pOptions: PDSLHttpRequestOptions = nil; pLocation: PUnicodeString = nil): UnicodeString;
+      ParamType: PWideChar = nil; pOptions: PTHttpRequestOptions = nil; pLocation: PUnicodeString = nil): UnicodeString;
 
     procedure post(url, referer: PWideChar; const param: RawByteString; content: TStream; ParamType: PWideChar = nil); overload;
     function post(url, referer: PWideChar; const param: RawByteString; ParamType: PWideChar = nil): RawByteString; overload;
@@ -212,13 +214,37 @@ type
     function PostWithoutRedirectAndDecode(const url, referer: UnicodeString; const param: RawByteString; const ParamType: UnicodeString = ''; pLoacation: PUnicodeString = nil): UnicodeString; overload;
     function PostWithoutRedirectAndDecode(const url, referer: UnicodeString; param: TStream; const ParamType: UnicodeString = ''; pLoacation: PUnicodeString = nil): UnicodeString; overload;
 
+    function upload(url, referer: PWideChar; const FileDatas: array of TStream;
+      const ParamNames, ParamValues, FileKeys, FileNames, MimeTypes: array of AnsiString;
+      const charset: AnsiString = ''): RawByteString; overload;
+
+    procedure upload(url, referer: PWideChar; const FileDatas: array of TStream;
+      const ParamNames, ParamValues, FileKeys, FileNames, MimeTypes: array of AnsiString;
+      content: TStream; const charset: AnsiString = ''); overload;
+
+    function UploadAndDecode(url, referer: PWideChar; const FileDatas: array of TStream;
+      const ParamNames, ParamValues, FileKeys, FileNames, MimeTypes: array of AnsiString;
+      const charset: AnsiString = ''): UnicodeString;
+      
     property Handle: HINTERNET read FHandle;
   end;
+
+procedure HttpFillUploadStream(
+  const boundary: AnsiString;
+  const FileKeys: array of AnsiString;
+  const FileDatas: array of TStream;
+  const FileNames: array of AnsiString;
+  const MimeTypes: array of AnsiString;
+  ParamNames: array of AnsiString;
+  ParamValues: array of AnsiString;
+  PostParam: TStream);
 
 implementation
 
 const
-  NoRedirectOptions: DSLHttpRequestOptions = (AutoCookie: True; AutoRedirect: False; PragmaNoCache: True);
+  S_GET: PWideChar = 'GET';
+  S_POST: PWideChar = 'POST';
+  NoRedirectOptions: THttpRequestOptions = (AutoCookie: True; AutoRedirect: False; PragmaNoCache: True);
 
 function wcslen(s: PWideChar): Integer;
 var
@@ -290,6 +316,106 @@ begin
   if s2^ <> #0 then Result := -1;
 end;
 
+procedure HttpFillUploadStream(
+  const boundary: AnsiString;
+  const FileKeys: array of AnsiString;
+  const FileDatas: array of TStream;
+  const FileNames: array of AnsiString;
+  const MimeTypes: array of AnsiString;
+  ParamNames: array of AnsiString;
+  ParamValues: array of AnsiString;
+  PostParam: TStream);
+const
+  SContentDisposition: AnsiString = 'Content-Disposition: form-data; name="';
+  SFileName: AnsiString = '"; filename="';
+  SContentType: AnsiString = '"'#13#10'Content-Type: ';
+  STextPlainContentType: AnsiString = '"'#13#10'Content-Type: text/plain'#13#10#13#10;
+  SNameTag = 'name';
+  SCRLF: AnsiString = #13#10;
+  SDoubleMinus: AnsiString = '--';
+var
+  i, L: Integer;
+begin
+  L := 0;
+  
+  for i := Low(ParamNames) to High(ParamNames) do
+  begin
+    // \r\n--boundary\r\n
+    Inc(L, Length(SCRLF) + Length(SDoubleMinus) + Length(boundary) + Length(SCRLF));
+
+    // Content-Disposition: form-data; name="ParamName"\r\nContent-Type:text/plain\r\n\r\n
+    Inc(L, Length(SContentDisposition) + Length(ParamNames[i]) + Length(STextPlainContentType));
+
+    // ParamValue
+    Inc(L, Length(ParamValues[i]));
+  end;
+
+  for i := Low(FileKeys) to High(FileKeys) do
+  begin
+    // \r\n--boundary\r\n
+    Inc(L, Length(SCRLF) + Length(SDoubleMinus) + Length(boundary) + Length(SCRLF));
+
+    // Content-Disposition: form-data; name="tmpname"; filename="FileName"\r\nContent-Type: MimeType\r\n
+    Inc(L, Length(SContentDisposition) + Length(FileKeys[i]) + Length(SFileName) + Length(FileNames[i])
+      + Length(SContentType) + Length(MimeTypes[i]) + Length(SCRLF) * 2);
+
+    // FileContent
+    Inc(L, FileDatas[i].Size);
+  end;
+
+  // \r\n--boundary--\r\n
+  Inc(L, Length(SCRLF) + Length(SDoubleMinus) + Length(boundary) +
+    Length(SDoubleMinus) + Length(SCRLF));
+
+  PostParam.Size := L;
+
+  for i := Low(ParamNames) to High(ParamNames) do
+  begin
+    // \r\n--boundary\r\n
+    StreamWriteStrA(PostParam, SCRLF);
+    StreamWriteStrA(PostParam, SDoubleMinus);
+    StreamWriteStrA(PostParam, boundary);
+    StreamWriteStrA(PostParam, SCRLF);
+
+    // Content-Disposition: form-data; name="ParamName"\r\nContent-Type:text/plain\r\n\r\n
+    StreamWriteStrA(PostParam, SContentDisposition);
+    StreamWriteStrA(PostParam, ParamNames[i]);
+    StreamWriteStrA(PostParam, STextPlainContentType);
+
+    // ParamValue
+    StreamWriteStrA(PostParam, ParamValues[i]);
+  end;
+
+  for i := Low(FileKeys) to High(FileKeys) do
+  begin
+    // \r\n--boundary\r\n
+    StreamWriteStrA(PostParam, SCRLF);
+    StreamWriteStrA(PostParam, SDoubleMinus);
+    StreamWriteStrA(PostParam, boundary);
+    StreamWriteStrA(PostParam, SCRLF);
+
+    // Content-Disposition: form-data; name="tmpname"; filename="FileName"\r\nContent-Type: MimeType\r\n
+    StreamWriteStrA(PostParam, SContentDisposition);
+    StreamWriteStrA(PostParam, FileKeys[i]);
+    StreamWriteStrA(PostParam, SFileName);
+    StreamWriteStrA(PostParam, FileNames[i]);
+    StreamWriteStrA(PostParam, SContentType);
+    StreamWriteStrA(PostParam, MimeTypes[i]);
+    StreamWriteStrA(PostParam, SCRLF);
+    StreamWriteStrA(PostParam, SCRLF);
+
+    // FileContent
+    PostParam.CopyFrom(FileDatas[i], 0);
+  end;
+
+  // \r\n--boundary--\r\n
+  StreamWriteStrA(PostParam, SCRLF);
+  StreamWriteStrA(PostParam, SDoubleMinus);
+  StreamWriteStrA(PostParam, boundary);
+  StreamWriteStrA(PostParam, SDoubleMinus);
+  StreamWriteStrA(PostParam, SCRLF);
+end;
+
 procedure WinHttpParseURI(url: PWideChar; out port: Word; out scheme, host,
   UserName, password, PathWithParams: UnicodeString);
 var
@@ -306,7 +432,7 @@ begin
   urlcomp.align := 0;
 
   if not WinHttpCrackUrl(url, wcslen(url), 0, urlcomp) then
-    raise DSLWinHttpExeption.Create('WinHttpCrackUrl', GetLastError);
+    raise TWinHttpException.Create('WinHttpCrackUrl', GetLastError);
 
   SetString(host, urlcomp.lpszHostName, urlcomp.dwHostNameLength);
   SetString(UserName, urlcomp.lpszUserName, urlcomp.dwUserNameLength);
@@ -363,12 +489,12 @@ begin
 
     if not WinHttpQueryHeaders(request, info, WINHTTP_HEADER_NAME_BY_INDEX,
       Pointer(Result), BufferLength, WINHTTP_NO_HEADER_INDEX) then
-      raise DSLWinHttpExeption.Create('WinHttpQueryHeaders', GetLastError);
+      raise TWinHttpException.Create('WinHttpQueryHeaders', GetLastError);
   end
   else if LastError = ERROR_WINHTTP_HEADER_NOT_FOUND then
     Result := ''
   else
-    raise DSLWinHttpExeption.Create('WinHttpQueryHeaders', LastError);;
+    raise TWinHttpException.Create('WinHttpQueryHeaders', LastError);;
 end;
 
 function WinHttpGetStringHeader(request: HINTERNET; info: DWORD; buf: PWideChar): Integer;
@@ -377,8 +503,6 @@ var
 begin
   BufferLength := 1024;
 
-  //因为提供的buffer为nil，这个调用一定会失败，且如果header存在的话，
-  //返回错误码应该是ERROR_INSUFFICIENT_BUFFER
   if WinHttpQueryHeaders(request, info, WINHTTP_HEADER_NAME_BY_INDEX, Pointer(buf), BufferLength,
     WINHTTP_NO_HEADER_INDEX) then Result := (BufferLength shr 1)
   else begin
@@ -400,7 +524,7 @@ begin
   while len > 0 do
   begin
     if not WinHttpWriteData(request, ptr, len, @BytesWritten) then
-      raise DSLWinHttpExeption.Create('WinHttpWriteData', GetLastError);
+      raise TWinHttpException.Create('WinHttpWriteData', GetLastError);
 
     Dec(len, BytesWritten);
     Inc(PByte(ptr), BytesWritten);
@@ -455,7 +579,7 @@ begin
   while True do
   begin
     if not WinHttpReadData(request, @buffer, SizeOf(buffer), BytesRead) then
-      raise DSLWinHttpExeption.Create('WinHttpReadData', GetLastError);
+      raise TWinHttpException.Create('WinHttpReadData', GetLastError);
 
     if BytesRead = 0 then
     begin
@@ -477,25 +601,25 @@ begin
         if zres in [Z_OK, Z_STREAM_END] then
           stream.WriteBuffer(dest, SizeOf(dest) - zlibStrm.avail_out)
         else
-          raise DSLGzipException.Create('invalid gzip stream.');
+          raise TGzipException.Create('invalid gzip stream.');
       end;
     end;
 
   end;
 end;
 
-{ DSLHttpRequest }
+{ THttpRequest }
 
-procedure DSLHttpRequest.init;
+procedure THttpRequest.init;
 begin
-  FillChar(Self, sizeof(DSLHttpRequest), 0);
+  FillChar(Self, sizeof(THttpRequest), 0);
   Self.AutoDecompress := True;
   Self.options.AutoCookie := True;
   Self.options.AutoRedirect := True;
   Self.options.PragmaNoCache := True;
 end;
 
-procedure DSLHttpRequest.InitWithUrl(url: PWideChar);
+procedure THttpRequest.InitWithUrl(url: PWideChar);
 var
   _scheme, _host, _username, _password, _PathWithParams: UnicodeString;
 begin
@@ -511,9 +635,9 @@ begin
   Self.PathWithParams := PWideChar(_PathWithParams);
 end;
 
-{ DSLWinHttpExeption }
+{ TWinHttpException }
 
-constructor DSLWinHttpExeption.Create(const _func: string; _code: Integer);
+constructor TWinHttpException.Create(const _func: string; _code: Integer);
 var
   _msg: string;
 begin
@@ -528,31 +652,31 @@ begin
     inherited CreateFmt('%s(%d): %s', [_func, _code, _msg]);
 end;
 
-constructor DSLWinHttpExeption.Create(const _func: string; _code: Integer; const msg: string);
+constructor TWinHttpException.Create(const _func: string; _code: Integer; const msg: string);
 begin
   fFunctionName := _func;
   fErrorCode := _code;
   inherited Create(msg);
 end;
 
-{ DSLWinHttpSession }
+{ TWinHttpSession }
 
-constructor DSLWinHttpSession.Create(user_agent: PWideChar; access_type: DWORD;
+constructor TWinHttpSession.Create(user_agent: PWideChar; access_type: DWORD;
   ProxyName, ProxyBypass: PWideChar; flags: DWORD);
 begin
   FHandle := WinHttpOpen(user_agent, access_type, ProxyName, ProxyBypass, flags);
 
   if not Assigned(FHandle) then
-    raise DSLWinHttpExeption.Create('WinHttpOpen', GetLastError);
+    raise TWinHttpException.Create('WinHttpOpen', GetLastError);
 end;
 
-constructor DSLWinHttpSession.Create;
+constructor TWinHttpSession.Create;
 begin
   Create(IE8_USER_AGENT, WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME,
     WINHTTP_NO_PROXY_BYPASS, 0);
 end;
 
-destructor DSLWinHttpSession.Destroy;
+destructor TWinHttpSession.Destroy;
 begin
   if Assigned(FHandle) then
   begin
@@ -563,7 +687,7 @@ begin
   inherited;
 end;
 
-function DSLWinHttpSession.SetProxy(proxy: PWideChar): Boolean;
+function TWinHttpSession.SetProxy(proxy: PWideChar): Boolean;
 var
   info: WINHTTP_PROXY_INFO;
 begin
@@ -581,25 +705,101 @@ begin
   Result := WinHttpSetOption(Self.Handle, WINHTTP_OPTION_PROXY, @info, SizeOf(info));
 end;
 
-function DSLWinHttpSession.SetProxy(proxy: UnicodeString): Boolean;
+function TWinHttpSession.SetProxy(proxy: UnicodeString): Boolean;
 begin
   Result := Self.SetProxy(PWideChar(proxy));
 end;
 
-procedure DSLWinHttpSession.SetTimeout(ResolvingTimeout, ConnectingTimeout, SendingTimeout, ReceivingTimeout: DWORD);
+procedure TWinHttpSession.SetTimeout(ResolvingTimeout, ConnectingTimeout, SendingTimeout, ReceivingTimeout: DWORD);
 begin
   WinHttpSetTimeouts(FHandle, ResolvingTimeout, ConnectingTimeout,
     SendingTimeout, ReceivingTimeout);
 end;
 
-function DSLWinHttpSession.DoRequest(url, method, referer, RequestHeaders: PWideChar;
-  param: Pointer; ParamLength: DWORD; ParamStream: TStream; pOptions: PDSLHttpRequestOptions;
+function TWinHttpSession.upload(url, referer: PWideChar; const FileDatas: array of TStream; const ParamNames,
+  ParamValues, FileKeys, FileNames, MimeTypes: array of AnsiString; const charset: AnsiString): RawByteString;
+var
+  PostParam: TMemoryStream;
+  boundary: RawByteString;
+  ContentType: UnicodeString;
+begin
+  boundary := RandomAlphaDigitStringA(38, [chAlphaLowerCase]);
+  PostParam := TMemoryStream.Create;
+
+  if charset = '' then ContentType := 'multipart/form-data; boundary=' + boundary
+  else ContentType := 'multipart/form-data; charset=' + charset + '; boundary=' + boundary;
+
+  try
+    HttpFillUploadStream(boundary, FileKeys, FileDatas, FileNames, MimeTypes, ParamNames, ParamValues, PostParam);
+
+    PostParam.Position := 0;
+
+    Result := Self.PostEx(url, referer, nil, 0, PostParam, PWideChar(ContentType));
+
+  finally
+    PostParam.Free;
+  end;
+end;
+
+procedure TWinHttpSession.upload(url, referer: PWideChar; const FileDatas: array of TStream; const ParamNames,
+  ParamValues, FileKeys, FileNames, MimeTypes: array of AnsiString; content: TStream; const charset: AnsiString);
+var
+  PostParam: TMemoryStream;
+  boundary: RawByteString;
+  ContentType: UnicodeString;
+begin
+  boundary := RandomAlphaDigitStringA(38, [chAlphaLowerCase]);
+  PostParam := TMemoryStream.Create;
+
+  if charset = '' then ContentType := 'multipart/form-data; boundary=' + boundary
+  else ContentType := 'multipart/form-data; charset=' + charset + '; boundary=' + boundary;
+  
+  try
+    HttpFillUploadStream(boundary, FileKeys, FileDatas, FileNames, MimeTypes, ParamNames, ParamValues, PostParam);
+
+    PostParam.Position := 0;
+
+    Self.PostEx(url, referer, nil, 0, PostParam, content, PWideChar(ContentType));
+    
+  finally
+    PostParam.Free;
+  end;
+end;
+
+function TWinHttpSession.UploadAndDecode(url, referer: PWideChar; const FileDatas: array of TStream;
+  const ParamNames, ParamValues, FileKeys, FileNames, MimeTypes: array of AnsiString;
+  const charset: AnsiString): UnicodeString;
+var
+  PostParam: TMemoryStream;
+  boundary: RawByteString;
+  ContentType: UnicodeString;
+begin
+  boundary := RandomAlphaDigitStringA(38, [chAlphaLowerCase]);
+  PostParam := TMemoryStream.Create;
+
+  if charset = '' then ContentType := 'multipart/form-data; boundary=' + boundary
+  else ContentType := 'multipart/form-data; charset=' + charset + '; boundary=' + boundary;
+
+  try
+    HttpFillUploadStream(boundary, FileKeys, FileDatas, FileNames, MimeTypes, ParamNames, ParamValues, PostParam);
+
+    PostParam.Position := 0;
+
+    Result := Self.PostAndDecodeEx(url, referer, nil, 0, PostParam, PWideChar(ContentType));
+
+  finally
+    PostParam.Free;
+  end;
+end;
+
+function TWinHttpSession.DoRequest(url, method, referer, RequestHeaders: PWideChar;
+  param: Pointer; ParamLength: DWORD; ParamStream: TStream; pOptions: PTHttpRequestOptions;
   pLocation: PUnicodeString; _AutoDecompress: Boolean;
   _TimesErrorRetry, _SendingTimeout, _ReceivingTimeout: DWORD): RawByteString;
 var
   scheme, host, username, password, PathWithParams: UnicodeString;
   port: Word;
-  request: DSLHttpRequest;
+  request: THttpRequest;
 begin
   WinHttpParseURI(url, port, scheme, host, username, password, PathWithParams);
 
@@ -626,7 +826,7 @@ begin
   Result := Self.DoRequest(request, _TimesErrorRetry, pLocation);
 end;
 
-function DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; pLocation: PUnicodeString): RawByteString;
+function TWinHttpSession.DoRequest(const request: THttpRequest; pLocation: PUnicodeString): RawByteString;
 var
   ResponseContent: TMemoryStream;
 begin
@@ -643,14 +843,14 @@ begin
   end;
 end;
 
-procedure DSLWinHttpSession.DoRequest(url, method, referer, RequestHeaders: PWideChar;
+procedure TWinHttpSession.DoRequest(url, method, referer, RequestHeaders: PWideChar;
   param: Pointer; ParamLength: DWORD; ParamStream, content: TStream;
-  pOptions: PDSLHttpRequestOptions; pLocation: PUnicodeString;
+  pOptions: PTHttpRequestOptions; pLocation: PUnicodeString;
   _AutoDecompress: Boolean; _TimesErrorRetry, _SendingTimeout, _ReceivingTimeout: DWORD);
 var
   scheme, host, username, password, PathWithParams: UnicodeString;
   port: Word;
-  request: DSLHttpRequest;
+  request: THttpRequest;
 begin
   WinHttpParseURI(url, port, scheme, host, username, password, PathWithParams);
 
@@ -678,7 +878,7 @@ begin
   Self.DoRequest(request, content, _TimesErrorRetry, pLocation);
 end;
 
-function DSLWinHttpSession.DoRequestEx(const request: DSLHttpRequest;
+function TWinHttpSession.DoRequestEx(const request: THttpRequest;
   out ResponseContent: RawByteString): HINTERNET;
 var
   ResponseStream: TMemoryStream;
@@ -794,7 +994,7 @@ begin
 end;
 
 
-function DSLWinHttpSession.DoRequestAndDecode(const request: DSLHttpRequest; TimesErrorRetry: DWORD;
+function TWinHttpSession.DoRequestAndDecode(const request: THttpRequest; TimesErrorRetry: DWORD;
   pLocation: PUnicodeString): UnicodeString;
 var
   i: DWORD;
@@ -811,102 +1011,102 @@ begin
   end;
 end;
 
-procedure DSLWinHttpSession.get(const url: UnicodeString; content: TStream; const referer: UnicodeString);
+procedure TWinHttpSession.get(const url: UnicodeString; content: TStream; const referer: UnicodeString);
 begin
-  Self.DoRequest(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil, content);
+  Self.DoRequest(PWideChar(url), S_GET, PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil, content);
 end;
 
-function DSLWinHttpSession.get(const url, referer: UnicodeString): RawByteString;
+function TWinHttpSession.get(const url, referer: UnicodeString): RawByteString;
 begin
-  Result := Self.DoRequest(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
+  Result := Self.DoRequest(PWideChar(url), S_GET, PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
 end;
 
-function DSLWinHttpSession.GetAndDecode(url, referer: PWideChar): UnicodeString;
+function TWinHttpSession.GetAndDecode(url, referer: PWideChar): UnicodeString;
 begin
-  Result := Self.DoRequestAndDecode(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
+  Result := Self.DoRequestAndDecode(url, S_GET, referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
 end;
 
-function DSLWinHttpSession.GetAndDecode(const url, referer: UnicodeString): UnicodeString;
+function TWinHttpSession.GetAndDecode(const url, referer: UnicodeString): UnicodeString;
 begin
-  Result := Self.DoRequestAndDecode(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
+  Result := Self.DoRequestAndDecode(PWideChar(url), S_GET, PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
 end;
 
-function DSLWinHttpSession.GetWithoutRedirect(const url, referer: UnicodeString;
+function TWinHttpSession.GetWithoutRedirect(const url, referer: UnicodeString;
   pLocation: PUnicodeString): RawByteString;
 begin
-  Result := Self.DoRequest(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
+  Result := Self.DoRequest(PWideChar(url), S_GET, PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
     nil, 0, nil, @NoRedirectOptions, pLocation);
 end;
 
-procedure DSLWinHttpSession.GetWithoutRedirect(const url: UnicodeString; content: TStream;
+procedure TWinHttpSession.GetWithoutRedirect(const url: UnicodeString; content: TStream;
   const referer: UnicodeString; pLocation: PUnicodeString);
 begin
-  Self.DoRequest(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
+  Self.DoRequest(PWideChar(url), S_GET, PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
     nil, 0, nil, content, @NoRedirectOptions, pLocation);
 end;
 
-procedure DSLWinHttpSession.GetWithoutRedirect(url: PWideChar; content: TStream; referer: PWideChar;
+procedure TWinHttpSession.GetWithoutRedirect(url: PWideChar; content: TStream; referer: PWideChar;
   pLocation: PUnicodeString);
 begin
-  Self.DoRequest(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil, content,
+  Self.DoRequest(url, S_GET, referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil, content,
     @NoRedirectOptions, pLocation);
 end;
 
-function DSLWinHttpSession.GetWithoutRedirect(url, referer: PWideChar; pLocation: PUnicodeString): RawByteString;
+function TWinHttpSession.GetWithoutRedirect(url, referer: PWideChar; pLocation: PUnicodeString): RawByteString;
 begin
-  Result := Self.DoRequest(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil,
+  Result := Self.DoRequest(url, S_GET, referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil,
     @NoRedirectOptions, pLocation);
 end;
 
-function DSLWinHttpSession.GetWithoutRedirectAndDecode(const url, referer: UnicodeString;
+function TWinHttpSession.GetWithoutRedirectAndDecode(const url, referer: UnicodeString;
   pLocation: PUnicodeString): UnicodeString;
 begin
-  Result := Self.DoRequestAndDecode(PWideChar(url), 'GET', PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
+  Result := Self.DoRequestAndDecode(PWideChar(url), S_GET, PWideChar(referer), PWideChar(DEFAULT_HTTP_HEADERS),
     nil, 0, nil, @NoRedirectOptions, pLocation);
 end;
 
-function DSLWinHttpSession.GetWithoutRedirectAndDecode(url, referer: PWideChar;
+function TWinHttpSession.GetWithoutRedirectAndDecode(url, referer: PWideChar;
   pLocation: PUnicodeString): UnicodeString;
 begin
-  Result := Self.DoRequestAndDecode(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS),
+  Result := Self.DoRequestAndDecode(url, S_GET, referer, PWideChar(DEFAULT_HTTP_HEADERS),
     nil, 0, nil, @NoRedirectOptions, pLocation);
 end;
 
-function DSLWinHttpSession.post(const url, referer: UnicodeString; const param: RawByteString;
+function TWinHttpSession.post(const url, referer: UnicodeString; const param: RawByteString;
   const ParamType: UnicodeString): RawByteString;
 begin
   Result := Self.PostEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType));
 end;
 
-procedure DSLWinHttpSession.post(const url, referer: UnicodeString; const param: RawByteString;
+procedure TWinHttpSession.post(const url, referer: UnicodeString; const param: RawByteString;
   content: TStream; const ParamType: UnicodeString);
 begin
   Self.PostEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType));
 end;
 
-function DSLWinHttpSession.post(const url, referer: UnicodeString; param: TStream;
+function TWinHttpSession.post(const url, referer: UnicodeString; param: TStream;
   const ParamType: UnicodeString): RawByteString;
 begin
   Result := Self.PostEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType));
 end;
 
-function DSLWinHttpSession.PostAndDecode(url, referer: PWideChar; param: TStream; ParamType: PWideChar): UnicodeString;
+function TWinHttpSession.PostAndDecode(url, referer: PWideChar; param: TStream; ParamType: PWideChar): UnicodeString;
 begin
   Result := Self.PostAndDecodeEx(url, referer, nil, 0, param, ParamType);
 end;
 
-function DSLWinHttpSession.PostAndDecode(url, referer: PWideChar; const param: RawByteString; ParamType: PWideChar): UnicodeString;
+function TWinHttpSession.PostAndDecode(url, referer: PWideChar; const param: RawByteString; ParamType: PWideChar): UnicodeString;
 begin
   Result := Self.PostAndDecodeEx(url, referer, Pointer(param), Length(param), nil, ParamType);
 end;
 
-function DSLWinHttpSession.PostAndDecode(const url, referer: UnicodeString; param: TStream; const ParamType: UnicodeString): UnicodeString;
+function TWinHttpSession.PostAndDecode(const url, referer: UnicodeString; param: TStream; const ParamType: UnicodeString): UnicodeString;
 begin
   Result := Self.PostAndDecodeEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType));
 end;
 
-function DSLWinHttpSession.PostAndDecodeEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-  ParamType: PWideChar; pOptions: PDSLHttpRequestOptions; pLocation: PUnicodeString): UnicodeString;
+function TWinHttpSession.PostAndDecodeEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
+  ParamType: PWideChar; pOptions: PTHttpRequestOptions; pLocation: PUnicodeString): UnicodeString;
 var
   RequestHeaders: PWideChar;
   _RequestHeaders: UnicodeString;
@@ -918,18 +1118,18 @@ begin
   end
   else RequestHeaders := PWideChar(DEFAULT_POST_HTTP_HEADERS);
 
-  Result := Self.DoRequestAndDecode(url, 'POST', referer, RequestHeaders, param, ParamLength, ParamStream, pOptions, pLocation);
+  Result := Self.DoRequestAndDecode(url, S_POST, referer, RequestHeaders, param, ParamLength, ParamStream, pOptions, pLocation);
 end;
 
-function DSLWinHttpSession.PostAndDecode(const url, referer: UnicodeString; const param: RawByteString;
+function TWinHttpSession.PostAndDecode(const url, referer: UnicodeString; const param: RawByteString;
   const ParamType: UnicodeString): UnicodeString;
 begin
   Result := Self.PostAndDecodeEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil,
     PWideChar(ParamType));
 end;
 
-function DSLWinHttpSession.PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
-  ParamType: PWideChar; pOptions: PDSLHttpRequestOptions; pLocation: PUnicodeString): RawByteString;
+function TWinHttpSession.PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD; ParamStream: TStream;
+  ParamType: PWideChar; pOptions: PTHttpRequestOptions; pLocation: PUnicodeString): RawByteString;
 var
   RequestHeaders: PWideChar;
   _RequestHeaders: UnicodeString;
@@ -941,123 +1141,123 @@ begin
   end
   else RequestHeaders := PWideChar(DEFAULT_POST_HTTP_HEADERS);
 
-  Result := Self.DoRequest(url, 'POST', referer, RequestHeaders, param, ParamLength,
+  Result := Self.DoRequest(url, S_POST, referer, RequestHeaders, param, ParamLength,
     ParamStream, pOptions, pLocation);
 end;
 
-procedure DSLWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; param, content: TStream; ParamType: PWideChar;
+procedure TWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; param, content: TStream; ParamType: PWideChar;
   pLoacation: PUnicodeString);
 begin
   Self.PostEx(url, referer, nil, 0, param, ParamType, @NoRedirectOptions, pLoacation);
 end;
 
-function DSLWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; param: TStream; ParamType: PWideChar;
+function TWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; param: TStream; ParamType: PWideChar;
   pLoacation: PUnicodeString): RawByteString;
 begin
   Result := Self.PostEx(url, referer, nil, 0, param, ParamType, @NoRedirectOptions, pLoacation);
 end;
 
-procedure DSLWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; const param: RawByteString; content: TStream;
+procedure TWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; const param: RawByteString; content: TStream;
   ParamType: PWideChar; pLoacation: PUnicodeString);
 begin
   Self.PostEx(url, referer, Pointer(param), Length(param), nil, ParamType, @NoRedirectOptions, pLoacation);
 end;
 
-function DSLWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; const param: RawByteString;
+function TWinHttpSession.PostWithoutRedirect(url, referer: PWideChar; const param: RawByteString;
   ParamType: PWideChar; pLoacation: PUnicodeString): RawByteString;
 begin
   Result := Self.PostEx(url, referer, Pointer(param), Length(param), nil, ParamType, @NoRedirectOptions, pLoacation);
 end;
 
-procedure DSLWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; param, content: TStream;
+procedure TWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; param, content: TStream;
   const ParamType: UnicodeString; pLoacation: PUnicodeString);
 begin
   Self.PostEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
 end;
 
-function DSLWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; param: TStream;
+function TWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; param: TStream;
   const ParamType: UnicodeString; pLoacation: PUnicodeString): RawByteString;
 begin
   Result := Self.PostEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
 end;
 
-function DSLWinHttpSession.PostWithoutRedirectAndDecode(url, referer: PWideChar; param: TStream; ParamType: PWideChar;
+function TWinHttpSession.PostWithoutRedirectAndDecode(url, referer: PWideChar; param: TStream; ParamType: PWideChar;
   pLoacation: PUnicodeString): UnicodeString;
 begin
   Result := Self.PostAndDecodeEx(url, referer, nil, 0, param, ParamType, @NoRedirectOptions, pLoacation);
 end;
 
-function DSLWinHttpSession.PostWithoutRedirectAndDecode(url, referer: PWideChar; const param: RawByteString;
+function TWinHttpSession.PostWithoutRedirectAndDecode(url, referer: PWideChar; const param: RawByteString;
   ParamType: PWideChar; pLoacation: PUnicodeString): UnicodeString;
 begin
   Result := Self.PostAndDecodeEx(url, referer, Pointer(param), Length(param), nil, ParamType, @NoRedirectOptions, pLoacation);
 end;
 
-function DSLWinHttpSession.PostWithoutRedirectAndDecode(const url, referer: UnicodeString; param: TStream;
+function TWinHttpSession.PostWithoutRedirectAndDecode(const url, referer: UnicodeString; param: TStream;
   const ParamType: UnicodeString; pLoacation: PUnicodeString): UnicodeString;
 begin
   Result := Self.PostAndDecodeEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
 end;
 
-function DSLWinHttpSession.PostWithoutRedirectAndDecode(const url, referer: UnicodeString; const param: RawByteString;
+function TWinHttpSession.PostWithoutRedirectAndDecode(const url, referer: UnicodeString; const param: RawByteString;
   const ParamType: UnicodeString; pLoacation: PUnicodeString): UnicodeString;
 begin
   Result := Self.PostAndDecodeEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
 end;
 
-procedure DSLWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; const param: RawByteString;
+procedure TWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; const param: RawByteString;
   content: TStream; const ParamType: UnicodeString; pLoacation: PUnicodeString);
 begin
   Self.PostEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
 end;
 
-function DSLWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; const param: RawByteString;
+function TWinHttpSession.PostWithoutRedirect(const url, referer: UnicodeString; const param: RawByteString;
   const ParamType: UnicodeString; pLoacation: PUnicodeString): RawByteString;
 begin
   Result := Self.PostEx(PWideChar(url), PWideChar(referer), Pointer(param), Length(param), nil, PWideChar(ParamType), @NoRedirectOptions, pLoacation);
 end;
 
-procedure DSLWinHttpSession.post(const url, referer: UnicodeString; param, content: TStream;
+procedure TWinHttpSession.post(const url, referer: UnicodeString; param, content: TStream;
   const ParamType: UnicodeString);
 begin
   Self.PostEx(PWideChar(url), PWideChar(referer), nil, 0, param, PWideChar(ParamType));
 end;
 
-function DSLWinHttpSession.get(url, referer: PWideChar): RawByteString;
+function TWinHttpSession.get(url, referer: PWideChar): RawByteString;
 begin
-  Result := Self.DoRequest(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
+  Result := Self.DoRequest(url, S_GET, referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil);
 end;
 
-procedure DSLWinHttpSession.get(url: PWideChar; content: TStream; referer: PWideChar);
+procedure TWinHttpSession.get(url: PWideChar; content: TStream; referer: PWideChar);
 begin
-  Self.DoRequest(url, 'GET', referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil, content);
+  Self.DoRequest(url, S_GET, referer, PWideChar(DEFAULT_HTTP_HEADERS), nil, 0, nil, content);
 end;
 
-procedure DSLWinHttpSession.post(url, referer: PWideChar; const param: RawByteString;
+procedure TWinHttpSession.post(url, referer: PWideChar; const param: RawByteString;
   content: TStream; ParamType: PWideChar);
 begin
   Self.PostEx(url, referer, Pointer(param), Length(param), nil, ParamType);
 end;
 
-function DSLWinHttpSession.post(url, referer: PWideChar; param: TStream; ParamType: PWideChar): RawByteString;
+function TWinHttpSession.post(url, referer: PWideChar; param: TStream; ParamType: PWideChar): RawByteString;
 begin
   Result := Self.PostEx(url, referer, nil, 0, param, ParamType);
 end;
 
-function DSLWinHttpSession.post(url, referer: PWideChar; const param: RawByteString;
+function TWinHttpSession.post(url, referer: PWideChar; const param: RawByteString;
   ParamType: PWideChar): RawByteString;
 begin
   Result := Self.PostEx(url, referer, Pointer(param), Length(param), nil, ParamType);
 end;
 
-procedure DSLWinHttpSession.post(url, referer: PWideChar; param, content: TStream; ParamType: PWideChar);
+procedure TWinHttpSession.post(url, referer: PWideChar; param, content: TStream; ParamType: PWideChar);
 begin
-  Self.DoRequest(url, 'POST', referer, nil, nil, 0, param, content);
+  Self.DoRequest(url, S_POST, referer, nil, nil, 0, param, content);
   Self.PostEx(url, referer, nil, 0, param, ParamType);
 end;
 
-procedure DSLWinHttpSession.PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD;
-  ParamStream, content: TStream; ParamType: PWideChar; pOptions: PDSLHttpRequestOptions;
+procedure TWinHttpSession.PostEx(url, referer: PWideChar; param: Pointer; ParamLength: DWORD;
+  ParamStream, content: TStream; ParamType: PWideChar; pOptions: PTHttpRequestOptions;
   pLocation: PUnicodeString);
 var
   RequestHeaders: PWideChar;
@@ -1070,11 +1270,11 @@ begin
   end
   else RequestHeaders := PWideChar(DEFAULT_POST_HTTP_HEADERS);
   
-  Self.DoRequest(url, 'POST', referer, RequestHeaders, param, ParamLength, ParamStream, content,
+  Self.DoRequest(url, S_POST, referer, RequestHeaders, param, ParamLength, ParamStream, content,
     pOptions, pLocation);
 end;
 
-function DSLWinHttpSession.DoRequestEx(const request: DSLHttpRequest;
+function TWinHttpSession.DoRequestEx(const request: THttpRequest;
   ResponseContent: TStream): HINTERNET;
 var
   connection, RequestHandle: HINTERNET;
@@ -1104,14 +1304,14 @@ begin
     connection := WinHttpConnect(Self.FHandle, PWideChar(request.host), request.port, 0);
 
     if not Assigned(connection) then
-      raise DSLWinHttpExeption.Create('WinHttpConnect', GetLastError);
+      raise TWinHttpException.Create('WinHttpConnect', GetLastError);
 
     RequestHandle := WinHttpOpenRequest(connection, request.method,
       PWideChar(request.PathWithParams), 'HTTP/1.1',
       request.referer, WINHTTP_DEFAULT_ACCEPT_TYPES, rflags);
 
     if not Assigned(RequestHandle) then
-      raise DSLWinHttpExeption.Create('WinHttpOpenRequest', GetLastError);
+      raise TWinHttpException.Create('WinHttpOpenRequest', GetLastError);
 
     if request.SendingTimeout <> 0 then
       WinHttpSetDWORDOption(RequestHandle, WINHTTP_OPTION_SENDING_TIMEOUT, request.SendingTimeout);
@@ -1134,7 +1334,7 @@ begin
 
     if not WinHttpSendRequest(RequestHandle, request.RequestHeaders, DWORD(-1),
       request.param, request.ParamLength, TotalInputLength, 0) then
-      raise DSLWinHttpExeption.Create('WinHttpSendRequest', GetLastError);
+      raise TWinHttpException.Create('WinHttpSendRequest', GetLastError);
 
     if Assigned(request.ParamStream) then
     begin
@@ -1143,7 +1343,7 @@ begin
     end;
 
     if not WinHttpReceiveResponse(RequestHandle, nil) then
-      raise DSLWinHttpExeption.Create('WinHttpReceiveResponse', GetLastError);
+      raise TWinHttpException.Create('WinHttpReceiveResponse', GetLastError);
 
     if Assigned(ResponseContent) then
       WinHttpReceiveStream(RequestHandle, ResponseContent, request.AutoDecompress);
@@ -1162,7 +1362,7 @@ begin
   end;
 end;
 
-procedure DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; ResponseContent: TStream;
+procedure TWinHttpSession.DoRequest(const request: THttpRequest; ResponseContent: TStream;
   pLocation: PUnicodeString);
 var
   hResponse: HINTERNET;
@@ -1177,7 +1377,7 @@ begin
   end;
 end;
 
-procedure DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; ResponseContent: TStream;
+procedure TWinHttpSession.DoRequest(const request: THttpRequest; ResponseContent: TStream;
   TimesErrorRetry: DWORD; pLocation: PUnicodeString);
 var
   i: DWORD;
@@ -1194,7 +1394,7 @@ begin
   end;
 end;
 
-function DSLWinHttpSession.DoRequest(const request: DSLHttpRequest; TimesErrorRetry: DWORD;
+function TWinHttpSession.DoRequest(const request: THttpRequest; TimesErrorRetry: DWORD;
   pLocation: PUnicodeString): RawByteString;
 var
   i: DWORD;
@@ -1211,14 +1411,14 @@ begin
   end;
 end;
 
-function DSLWinHttpSession.DoRequestAndDecode(url, method, referer, RequestHeaders: PWideChar;
-  param: Pointer; ParamLength: DWORD; ParamStream: TStream; pOptions: PDSLHttpRequestOptions;
+function TWinHttpSession.DoRequestAndDecode(url, method, referer, RequestHeaders: PWideChar;
+  param: Pointer; ParamLength: DWORD; ParamStream: TStream; pOptions: PTHttpRequestOptions;
   pLocation: PUnicodeString; _AutoDecompress: Boolean;
   _TimesErrorRetry, _SendingTimeout, _ReceivingTimeout: DWORD): UnicodeString;
 var
   scheme, host, username, password, PathWithParams: UnicodeString;
   port: Word;
-  request: DSLHttpRequest;
+  request: THttpRequest;
 begin
   WinHttpParseURI(url, port, scheme, host, username, password, PathWithParams);
 
@@ -1245,8 +1445,13 @@ begin
   Result := Self.DoRequestAndDecode(request, _TimesErrorRetry, pLocation);
 end;
 
-function DSLWinHttpSession.DoRequestAndDecode(const request: DSLHttpRequest;
+function TWinHttpSession.DoRequestAndDecode(const request: THttpRequest;
   pLocation: PUnicodeString): UnicodeString;
+const
+  PWCCharsetTag: PWideChar = 'charset=';
+  PWCContentTypeHTML: PWideChar = 'text/html';
+  PWCContentTypeTextXml: PWideChar = 'text/xml';
+  PWCContentTypeApplicationXml: PWideChar = 'application/xml';
 var
   hRequest: HINTERNET;
   ContentType: array [0..128] of WideChar;
@@ -1270,7 +1475,7 @@ begin
 
       if hdrlen > 0 then
       begin
-        charset := StrPosW('charset=', 8, ContentType, StrLenW(ContentType));
+        charset := StrPosW(PWCCharsetTag, 8, ContentType, StrLenW(ContentType));
 
         if Assigned(charset) then
         begin
@@ -1288,12 +1493,12 @@ begin
           Codepage := CodePageName2ID(tmp, i);
         end
         else begin
-          if IBeginWithW('text/html', ContentType) then
+          if IBeginWithW(PWCContentTypeHTML, ContentType) then
           begin
             HTMLGetCharset(PAnsiChar(ResponseContent.Memory), ResponseContent.Size, tmp);
             if tmp[0] <> #0 then Codepage := CodePageName2ID(tmp, StrLen(tmp));
           end
-          else if IBeginWithW('text/xml', ContentType) or IBeginWithW('application/xml', ContentType) then
+          else if IBeginWithW(PWCContentTypeTextXml, ContentType) or IBeginWithW(PWCContentTypeApplicationXml, ContentType) then
           begin
             XMLGetCharset(PAnsiChar(ResponseContent.Memory), ResponseContent.Size, tmp);
             if tmp[0] <> #0 then Codepage := CodePageName2ID(tmp, StrLen(tmp));

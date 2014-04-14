@@ -5,6 +5,14 @@ interface
 uses
   SysUtils, Classes;
 
+{$IFNDEF UNICODE}
+type
+  RawByteString = AnsiString;
+  PRawByteString = ^RawByteString;
+  UnicodeString = WideString;
+  PUnicodeString = ^UnicodeString;
+{$ENDIF}
+
 type
   UINT4 = LongWord;
 
@@ -40,7 +48,7 @@ type
   end;
   PMD5Context = ^TMD5Context;
 
-procedure MD5ContextInit(var context: TMD5Context);
+procedure MD5Init(var context: TMD5Context);
 procedure MD5Update(var context: TMD5Context; Input: PByteArray; InputLen: LongWord); overload;
 procedure MD5Update(var context: TMD5Context; const s: RawByteString); overload;
 procedure MD5Final(var context: TMD5Context; var digest: TMD5Digest);
@@ -76,7 +84,7 @@ begin
   MemHex(buffer, Size, PAnsiChar(Result), UpperCase);
 end;
 
-procedure MD5ContextInit(var context: TMD5Context);
+procedure MD5Init(var context: TMD5Context);
 begin
   FillChar(context, SizeOf(context), 0);
   context.State[0] := $67452301;
@@ -142,7 +150,7 @@ procedure MD5Calc(const buffer; Size: Integer; out digest: TMD5Digest);
 var
   context: TMD5Context;
 begin
-  MD5ContextInit(context);
+  MD5Init(context);
   MD5Update(context, PByteArray(@buffer), Size);
   MD5Final(context, digest);
 end;
@@ -178,7 +186,7 @@ var
   ReadBytes : Integer;
   Bookmark: Int64;
 begin
-  MD5ContextInit(context);
+  MD5Init(context);
   Bookmark := stream.Position;
   if (Len <= 0) or (Len > stream.Size - Bookmark) then Len := stream.Size - Bookmark;
   try

@@ -3,27 +3,31 @@ unit DSLUtils;
 interface
 
 uses
-  SysUtils, Classes, AnsiStrings, Windows, ShellAPI, StrUtils, DateUtils, Controls, RTLConsts,
-  Dialogs, Forms, Graphics, ComCtrls, CommCtrl, ComObj, ShlObj, ActiveX, SyncObjs;
-
-type
+  SysUtils, Classes, Windows, ShellAPI, StrUtils, DateUtils, Controls, RTLConsts,
+  Dialogs, Forms, Graphics, ComCtrls, CommCtrl, ComObj, ShlObj, ActiveX, SyncObjs
+  {$IFDEF UNICODE},AnsiStrings{$ENDIF}
+  ;
 
 {$ifndef UNICODE}
+type
   UnicodeString = WideString;
+  PUnicodeString = ^UnicodeString;
   RawByteString = AnsiString;
+  PRawByteString = ^RawByteString;
 {$endif}
 
-  DSLPointerCompareProc = function(first, second: Pointer): Integer;
-  DSLPointerProc = procedure(first, second: Pointer);
+type
+  TPointerCompareProc = function(first, second: Pointer): Integer;
+  TPointerProc = procedure(first, second: Pointer);
 
-  DSLCodePageInfo = record
+  TCodePageInfo = record
     Name: AnsiString;
     ID: integer;
   end;
-  PCodePage = ^DSLCodePageInfo;
+  PCodePage = ^TCodePageInfo;
 
 const
-  NAME_SORTED_CODE_PAGES: array[0..143] of DSLCodePageInfo =
+  NAME_SORTED_CODE_PAGES: array[0..143] of TCodePageInfo =
   (
     (Name: 'IBM037'; ID: 37),
     (Name: 'IBM437'; ID: 437),
@@ -171,7 +175,7 @@ const
     (Name: 'utf-8'; ID: 65001)
   );
 
-  ID_SORTED_CODE_PAGES: array[0..142] of DSLCodePageInfo =
+  ID_SORTED_CODE_PAGES: array[0..142] of TCodePageInfo =
   (
     (Name: 'IBM037'; ID: 37),
     (Name: 'IBM437'; ID: 437),
@@ -323,12 +327,12 @@ function CodePageName2ID(const Name: AnsiString): Integer; overload;
 function CodePageID2Name(ID: Integer): AnsiString; overload;
 
 type
-  DSLPointerType = Cardinal;
+  TPointerType = Cardinal;
 
-  DSLCharType = (chAlphaUpperCase, chAlphaLowerCase, chDigit);
-  DSLCharTypes = set of DSLCharType;
+  TCharType = (chAlphaUpperCase, chAlphaLowerCase, chDigit);
+  TCharTypes = set of TCharType;
 
-  DSLOperationResult = (orUnknown, orException, orFail, orSuccess, orPending, orAlready, orRetry);
+  TOperationResult = (orUnknown, orException, orFail, orSuccess, orPending, orAlready, orRetry);
 
 function IsEqualFloat(d1, d2: Double): Boolean;
 
@@ -393,22 +397,22 @@ function ReplaceIfNotEqual(var dst: Boolean; const src: Boolean;
 
 function RandomStringA(CharSet: RawByteString; CharCount: Integer): RawByteString;
 
-function RandomAlphaStringA(CharCount: Integer; types: DSLCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): RawByteString;
+function RandomAlphaStringA(CharCount: Integer; types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): RawByteString;
 
 function RandomDigitStringA(CharCount: Integer): RawByteString;
 
 function RandomAlphaDigitStringA(CharCount: Integer;
-  types: DSLCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): RawByteString;
+  types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): RawByteString;
 
 function RandomStringW(CharSet: UnicodeString; CharCount: Integer): UnicodeString;
 
 function RandomAlphaStringW(CharCount: Integer;
-  types: DSLCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): UnicodeString;
+  types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): UnicodeString;
 
 function RandomDigitStringW(CharCount: Integer): UnicodeString;
 
 function RandomAlphaDigitStringW(CharCount: Integer;
-  types: DSLCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): UnicodeString;
+  types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): UnicodeString;
 
 function RandomCNMobile: RawByteString;
 
@@ -523,9 +527,9 @@ procedure StrLowerA(str: PAnsiChar; len: Integer); overload;
 
 procedure StrLowerA(const str: RawByteString); overload;
 
-procedure DSLSetStringA(var s: RawByteString; _begin, _end: PAnsiChar);
+procedure SetStringA(var s: RawByteString; _begin, _end: PAnsiChar);
 
-procedure DSLSetStringW(var s: UnicodeString; _begin, _end: PWideChar);
+procedure SetUString(var s: UnicodeString; _begin, _end: PWideChar);
 
 (*************************string to integer****************************)
 
@@ -584,6 +588,8 @@ function BufToFloatW(buf: PWideChar; len: Integer; invalid: PPWideChar): Double;
 function UStrToFloat(const str: UnicodeString): Double;
 
 function BStrToFloat(const str: WideString): Double;
+
+function AnsiFormat(const fmt: AnsiString; const args: array of const): AnsiString;
 
 (*************************sub string search****************************)
 
@@ -952,7 +958,7 @@ function StrLenW(s: PWideChar): Integer; overload;
 procedure MsgSleep(period: DWORD);
 
 type
-  DSLConfirmDlgButtons = (
+  TConfirmDlgButtons = (
     cdbOK,
     cdbOKCancel,
     cdbAbortRetryIgnore,
@@ -960,7 +966,7 @@ type
     cdbYesNo,
     cdbRetryCancel);
 
-  DSLConfirmDlgResult = (
+  TConfirmDlgResult = (
     cdrOK,
     cdrCancel,
     cdrAbort,
@@ -974,7 +980,7 @@ type
     cdrContinue);
 
 function ConfirmDialog(const msg: string; const parent: THandle = 0; const title: string = '';
-  const buttons: DSLConfirmDlgButtons = cdbYesNo): DSLConfirmDlgResult;
+  const buttons: TConfirmDlgButtons = cdbYesNo): TConfirmDlgResult;
 
 function UrlGetParamA(const url, name: RawByteString): RawByteString;
 
@@ -1068,28 +1074,28 @@ function SHCreateShortcut(const TargetFile, desc, CreateAt: string): Boolean;
 function SHGetSpecialFolderPath(FolderID: TSpecialFolderID): string;
 
 procedure HeapSort(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; pSwap: DSLPointerProc);
+  pCompare: TPointerCompareProc; pSwap: TPointerProc);
 
 procedure QuickSort(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; pSwap: DSLPointerProc);
+  pCompare: TPointerCompareProc; pSwap: TPointerProc);
 
 function BinarySearch(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; const Value): Integer;
+  pCompare: TPointerCompareProc; const Value): Integer;
 
 //使用二分查找确定要插入的新元素的位置
 function BinarySearchInsertPos(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; const Value): Integer;
+  pCompare: TPointerCompareProc; const Value): Integer;
 
 //顺序查找
 function Search(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; const Value): Integer;
+  pCompare: TPointerCompareProc; const Value): Integer;
 
 type
-  DSLDynamicArray = array of Pointer;
+  TDynamicArray = array of Pointer;
 
-  DSLCircularList= class
+  TCircularList= class
   private
-    fList: DSLDynamicArray;
+    fList: TDynamicArray;
     fCapacity: Integer;
     fFirst: Integer;
     fCount: Integer;
@@ -1107,14 +1113,14 @@ type
     procedure clear;
     function remove(Item: Pointer): Integer;
     function GetInternalIndex(Index: Integer): Integer;
-    property InternalList: DSLDynamicArray read fList;
+    property InternalList: TDynamicArray read fList;
     property capacity: Integer read fCapacity;
     property first: Integer read fFirst;
     property count: Integer read fCount write SetCount;
     property items[Index: Integer]: Pointer read GetItem write SetItem; default;
   end;
 
-  DSLRefCountedObject = class
+  TRefCountedObject = class
   private
     fRefCount: Integer;
   public
@@ -1124,11 +1130,11 @@ type
     property RefCount: Integer read fRefCount;
   end;
 
-  IDSLAutoObject = interface
+  IAutoObject = interface
     function GetInstance: TObject;
   end;
 
-  DSLAutoObject = class(TInterfacedObject)
+  TAutoObject = class(TInterfacedObject)
   private
     fInstance: TObject;
   public
@@ -1138,7 +1144,7 @@ type
     property Instance: TObject read fInstance;
   end;
 
-  DSLRunnable = class(DSLRefCountedObject)
+  TRunnable = class(TRefCountedObject)
   protected
     fStatusCode: Integer;
     fStatusText: UnicodeString;
@@ -1148,7 +1154,7 @@ type
     property StatusText: UnicodeString read fStatusText;
   end;
 
-  DSLSignalThread = class(TThread)
+  TSignalThread = class(TThread)
   private
     fStopSignal: THandle;
   protected
@@ -1162,24 +1168,24 @@ type
     procedure StopAndWait;
   end;
 
-  PDSLLinkNode = ^DSLLinkNode;
-  DSLLinkNode = record
-    next: PDSLLinkNode;
+  PTLinkNode = ^TLinkNode;
+  TLinkNode = record
+    next: PTLinkNode;
     data: Pointer;
   end;
 
-  PDSLDblLinkNode = ^DSLDblLinkNode;
-  DSLDblLinkNode = record
-    prev: PDSLDblLinkNode;
-    next: PDSLDblLinkNode;
+  PTDblLinkNode = ^TDblLinkNode;
+  TDblLinkNode = record
+    prev: PTDblLinkNode;
+    next: PTDblLinkNode;
     data: Pointer;
   end;
 
-  DSLFIFOQueue = class
+  TFIFOQueue = class
   private
     fLockState: Integer;
-    fFirst: PDSLLinkNode;
-    fLast: PDSLLinkNode;
+    fFirst: PTLinkNode;
+    fLast: PTLinkNode;
     fSize: Integer;
   public
     constructor Create;
@@ -1191,10 +1197,10 @@ type
     property size: Integer read fSize;
   end;
 
-  DSLLIFOQueue = class
+  TLIFOQueue = class
   private
     fLockState: Integer;
-    fFirst: PDSLLinkNode;
+    fFirst: PTLinkNode;
   public
     constructor Create;
     destructor Destroy; override;
@@ -1203,10 +1209,10 @@ type
     function pop: Pointer;
   end;
 
-  DSLWorkThread = class(DSLSignalThread)
+  TWorkThread = class(TSignalThread)
   private
     fTaskSemaphore: THandle;
-    fTaskQueue: DSLFIFOQueue;
+    fTaskQueue: TFIFOQueue;
     fCompletedTaskCount: Integer;
     fWaitingForTask: Boolean;
     fCurrentTaskName: string;
@@ -1218,8 +1224,8 @@ type
     constructor Create(CreateSuspended: Boolean);
     destructor Destroy; override;
     procedure ClearTask;
-    function QueueTask(task: DSLRunnable): Boolean;
-    function QueueTaskFirst(task: DSLRunnable): Boolean;
+    function QueueTask(task: TRunnable): Boolean;
+    function QueueTaskFirst(task: TRunnable): Boolean;
     property CompletedTaskCount: Integer read fCompletedTaskCount;
     property PendingTaskCount: Integer read GetPendingTaskCount;
     property WaitingForTask: Boolean read fWaitingForTask;
@@ -1227,34 +1233,34 @@ type
     property CurrentTaskStartTime: TDateTime read FCurrentTaskStartTime;
   end;
 
-  DSLWorkThreadClass = class of DSLWorkThread;
+  TWorkThreadClass = class of TWorkThread;
 
-  PDSLDelayRunnable = ^DSLDelayRunnable;
-  DSLDelayRunnable = record
-    next: PDSLDelayRunnable;
+  PDslDelayRunnable = ^TDelayRunnable;
+  TDelayRunnable = record
+    next: PDslDelayRunnable;
     runtime: TDateTime;
-    task: DSLRunnable;
+    task: TRunnable;
   end;
 
-  DSLDelayRunnableQueue = class
+  TDelayRunnableQueue = class
   private
-    fFirstTask: PDSLDelayRunnable;
+    fFirstTask: PDslDelayRunnable;
     fLock: TRTLCriticalSection;
     fSize: Integer;
   public
     constructor Create;
     destructor Destroy; override;
     procedure clear;
-    function push(task: DSLRunnable; DelayMS: Int64): Boolean; overload;
-    function push(task: DSLRunnable; runtime: TDateTime): Boolean; overload;
-    function pop(var delay: DWORD): DSLRunnable;
+    function push(task: TRunnable; DelayMS: Int64): Boolean; overload;
+    function push(task: TRunnable; runtime: TDateTime): Boolean; overload;
+    function pop(var delay: DWORD): TRunnable;
     property size: Integer read fSize;
   end;
 
-  DSLDelayRunnableThread = class(DSLSignalThread)
+  TDelayRunnableThread = class(TSignalThread)
   private
     fTaskEvent: THandle;
-    fTaskQueue: DSLDelayRunnableQueue;
+    fTaskQueue: TDelayRunnableQueue;
     fCompletedTaskCount: Integer;
     function GetPendingTaskCount: Integer;
   protected
@@ -1262,18 +1268,18 @@ type
   public
     constructor Create(CreateSuspended: Boolean);
     destructor Destroy; override;
-    function QueueTask(task: DSLRunnable; DelayMS: Int64): Boolean; overload;
-    function QueueTask(task: DSLRunnable; runtime: TDateTime): Boolean; overload;
+    function QueueTask(task: TRunnable; DelayMS: Int64): Boolean; overload;
+    function QueueTask(task: TRunnable; runtime: TDateTime): Boolean; overload;
     property PendingTaskCount: Integer read GetPendingTaskCount;
     property CompletedTaskCount: Integer read fCompletedTaskCount;
   end;
 
-  DSLWorkThreadPool = class
+  TWorkThreadPool = class
   private
     fThreads: TList;
     fActive: Boolean;
     fThreadCount: Integer;
-    fThreadClass: DSLWorkThreadClass;
+    fThreadClass: TWorkThreadClass;
     procedure SetActive(const Value: Boolean);
     procedure SetThreadCount(const Value: Integer);
   protected
@@ -1282,13 +1288,13 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    function QueueTask(task: DSLRunnable): Boolean;
+    function QueueTask(task: TRunnable): Boolean;
     property Active: Boolean read fActive write SetActive;
     property ThreadCount: Integer read fThreadCount write SetThreadCount;
-    property ThreadClass: DSLWorkThreadClass read fThreadClass write fThreadClass;
+    property ThreadClass: TWorkThreadClass read fThreadClass write fThreadClass;
   end;
 
-  DSLFileStream = class(TFileStream)
+  TThreadFileStream = class(TFileStream)
   private
     fLock: TCriticalSection;
   public
@@ -1302,57 +1308,57 @@ type
 (****************************trace utils***************************************)
 
 type
-  DSLMessageLevel = (mlDebug, mlInformation, mlWarning, mlError);
-  DSLMessageVerbosity = set of DSLMessageLevel;
+  TMessageLevel = (mlDebug, mlInformation, mlWarning, mlError);
+  TMessageVerbosity = set of TMessageLevel;
 
 const
   TRACE_SEVERITIES_ALL = [mlDebug, mlInformation, mlWarning, mlError];
 
-  SEVERITY_NAMESA: array [DSLMessageLevel] of RawByteString =
+  SEVERITY_NAMESA: array [TMessageLevel] of RawByteString =
   ('DEBUG', 'INFO', 'WARN', 'ERROR');
-  SEVERITY_NAMESW: array [DSLMessageLevel] of UnicodeString =
+  SEVERITY_NAMESW: array [TMessageLevel] of UnicodeString =
   ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 type
-  DSLDateTimePart = (dtpYear, dtpMonth, dtpDay, dtpHour, dtpMinute, dtpSecond);
+  TDateTimePart = (dtpYear, dtpMonth, dtpDay, dtpHour, dtpMinute, dtpSecond);
   
-  DSLTextEncoding = (teAnsi, teUTF8, teUTF16);
+  TTextEncoding = (teAnsi, teUTF8, teUTF16);
   
-  DSLMessageTag = (mtServerity, mtTime);
-  DSLMessageTags = set of DSLMessageTag;
+  TMessageTag = (mtServerity, mtTime);
+  TMessageTags = set of TMessageTag;
 
-  DSLLogWritter = class
+  TLogWritter = class
   protected
-    fVerbosity: DSLMessageVerbosity;
-    fOptions: DSLMessageTags;
+    fVerbosity: TMessageVerbosity;
+    fOptions: TMessageTags;
     fDateTimeFormat: string;
-    procedure SetVerbosity(const value: DSLMessageVerbosity); dynamic;
-    procedure SetOptions(const value: DSLMessageTags); dynamic;
+    procedure SetVerbosity(const value: TMessageVerbosity); dynamic;
+    procedure SetOptions(const value: TMessageTags); dynamic;
     procedure SetDateTimeFormat(const value: string); dynamic;
     procedure WriteAnsi(const text: RawByteString); virtual; aBStract;
     procedure WriteUnicode(const text: UnicodeString); virtual; aBStract;
   public
     constructor Create;
-    procedure write(sev: DSLMessageLevel; const text: RawByteString); overload;
-    procedure write(sev: DSLMessageLevel; const text: UnicodeString); overload;
-    procedure writeln(sev: DSLMessageLevel; const text: RawByteString); overload;
-    procedure writeln(sev: DSLMessageLevel; const text: UnicodeString); overload;
+    procedure write(sev: TMessageLevel; const text: RawByteString); overload;
+    procedure write(sev: TMessageLevel; const text: UnicodeString); overload;
+    procedure Writeln(sev: TMessageLevel; const text: RawByteString); overload;
+    procedure Writeln(sev: TMessageLevel; const text: UnicodeString); overload;
 
-    procedure FormatWrite(sev: DSLMessageLevel; const fmt: RawByteString;
+    procedure FormatWrite(sev: TMessageLevel; const fmt: RawByteString;
       const args: array of const); overload;
 
-    procedure FormatWrite(sev: DSLMessageLevel; const fmt: UnicodeString;
+    procedure FormatWrite(sev: TMessageLevel; const fmt: UnicodeString;
       const args: array of const); overload;
       
     procedure flush; virtual; 
-    property Verbosity: DSLMessageVerbosity read fVerbosity write fVerbosity;
-    property options: DSLMessageTags read fOptions write fOptions;
+    property Verbosity: TMessageVerbosity read fVerbosity write fVerbosity;
+    property options: TMessageTags read fOptions write fOptions;
     property DateTimeFormat: string read fDateTimeFormat write fDateTimeFormat;
   end;
 
-  DSLFileLogWritter = class(DSLLogWritter)
+  TFileLogWritter = class(TLogWritter)
   private
-    fEncoding: DSLTextEncoding;
+    fEncoding: TTextEncoding;
     fFileStream: TFileStream;
     function GetFileSize: Integer;
   protected
@@ -1363,34 +1369,34 @@ type
     destructor Destroy; override;
     procedure flush; override;
     property FileSize: Integer read GetFileSize;
-    property Encoding: DSLTextEncoding read fEncoding write fEncoding;
+    property Encoding: TTextEncoding read fEncoding write fEncoding;
   end;
 
-  DSLConsoleLogWritter = class(DSLLogWritter)
+  TConsoleLogWritter = class(TLogWritter)
   protected
     procedure WriteAnsi(const text: RawByteString); override;
     procedure WriteUnicode(const text: UnicodeString); override;
   end;
 
-  DSLDebugLogWritter = class(DSLLogWritter)
+  TDebugLogWritter = class(TLogWritter)
   protected
     procedure WriteAnsi(const text: RawByteString); override;
     procedure WriteUnicode(const text: UnicodeString); override;
   end;
 
-  DSLMultiFileLogWritter = class
+  TMultiFileLogWritter = class
   private
     fLogFileDir: string;
     fLastLogTime: TDateTime;
-    fLogSeparate: DSLDateTimePart;
-    fWritter: DSLFileLogWritter;
+    fLogSeparate: TDateTimePart;
+    fWritter: TFileLogWritter;
     fDateTimeFormat: string;
-    fVerbosity: DSLMessageVerbosity;
-    fOptions: DSLMessageTags;
-    fEncoding: DSLTextEncoding;
+    fVerbosity: TMessageVerbosity;
+    fOptions: TMessageTags;
+    fEncoding: TTextEncoding;
   protected
-    procedure SetVerbosity(const Value: DSLMessageVerbosity);
-    procedure SetOptions(const Value: DSLMessageTags);
+    procedure SetVerbosity(const Value: TMessageVerbosity);
+    procedure SetOptions(const Value: TMessageTags);
     procedure SetDateTimeFormat(const Value: string);
   protected
     procedure CreateFileTracer(Tick: TDateTime);
@@ -1398,24 +1404,24 @@ type
     constructor Create(const dir: string);
     destructor Destroy; override;
 
-    procedure write(sev: DSLMessageLevel; const Text: RawByteString); overload;
-    procedure write(sev: DSLMessageLevel; const Text: UnicodeString); overload;
-    procedure writeln(sev: DSLMessageLevel; const Text: RawByteString); overload;
-    procedure writeln(sev: DSLMessageLevel; const Text: UnicodeString); overload;
+    procedure write(sev: TMessageLevel; const Text: RawByteString); overload;
+    procedure write(sev: TMessageLevel; const Text: UnicodeString); overload;
+    procedure Writeln(sev: TMessageLevel; const Text: RawByteString); overload;
+    procedure Writeln(sev: TMessageLevel; const Text: UnicodeString); overload;
 
-    procedure FormatWrite(sev: DSLMessageLevel; const fmt: RawByteString;
+    procedure FormatWrite(sev: TMessageLevel; const fmt: RawByteString;
       const args: array of const); overload;
 
-    procedure FormatWrite(sev: DSLMessageLevel; const fmt: UnicodeString;
+    procedure FormatWrite(sev: TMessageLevel; const fmt: UnicodeString;
       const args: array of const); overload;
 
     procedure flush;
 
-    property LogSeparate: DSLDateTimePart read fLogSeparate write fLogSeparate;
-    property severity: DSLMessageVerbosity read fVerbosity write fVerbosity;
-    property options: DSLMessageTags read fOptions write fOptions;
+    property LogSeparate: TDateTimePart read fLogSeparate write fLogSeparate;
+    property severity: TMessageVerbosity read fVerbosity write fVerbosity;
+    property options: TMessageTags read fOptions write fOptions;
     property DateTimeFormat: string read fDateTimeFormat write fDateTimeFormat;
-    property encoding: DSLTextEncoding read fEncoding write fEncoding;
+    property encoding: TTextEncoding read fEncoding write fEncoding;
   end;
 
 implementation
@@ -1481,19 +1487,19 @@ end;
 
 function SafeWriteln(const s: RawByteString): Boolean;
 begin
-  if IsConsole then writeln(s);
+  if IsConsole then Writeln(s);
   Result := True;
 end;
 
 function SafeWriteln(const s: UnicodeString): Boolean;
 begin
-  if IsConsole then writeln(s);
+  if IsConsole then Writeln(s);
   Result := True;
 end;
 
 function WritelnException(e: Exception): Boolean;
 begin
-  writeln(e.ClassName, ': ', e.Message);
+  Writeln(e.ClassName, ': ', e.Message);
   Result := True;
 end;
 
@@ -1527,7 +1533,9 @@ begin
     vtCurrency:     write(FloatToStr(vr.VCurrency^));
     vtVariant:      write(vr.VVariant^);
     vtInterface:    write('interface');
+    {$IFDEF UNICODE}
     vtUnicodeString:   write(UnicodeString(vr.VUnicodeString));
+    {$ENDIF}
     vtInt64:        write(vr.VInt64^);
   end;
 end;
@@ -1548,14 +1556,14 @@ begin
     end;
   end;
 
-  if LineFeed then writeln;
+  if LineFeed then Writeln;
 
   Result := True;
 end;
 
 function WritelnException(const func: string; e: Exception): Boolean;
 begin
-  writeln(func, '(', e.ClassName, '): ', e.Message);
+  Writeln(func, '(', e.ClassName, '): ', e.Message);
   Result := True;
 end;
 
@@ -1592,7 +1600,9 @@ begin
       vtCurrency:   str := str + FloatToStr(vr.VCurrency^);
       vtVariant:    str := str + vr.VVariant^;
       vtInterface:  str := str + 'interface';
+      {$IFDEF UNICODE}
       vtUnicodeString: str := str + UnicodeString(vr.VUnicodeString);
+      {$ENDIF}
       vtInt64:      str := str + IntToStr(vr.VInt64^);
     end;
   end;
@@ -1629,21 +1639,21 @@ end;
 
 function DbgOutputA(const msg: RawByteString): Boolean;
 begin
-  if IsConsole then writeln(msg)
+  if IsConsole then Writeln(msg)
   else OutputDebugStringA(PAnsiChar(msg));
   Result := True;
 end;
 
 function DbgOutputW(const msg: UnicodeString): Boolean;
 begin
-  if IsConsole then writeln(msg)
+  if IsConsole then Writeln(msg)
   else OutputDebugStringW(PWideChar(msg));
   Result := True;
 end;
 
 function DbgOutput(const msg: string): Boolean;
 begin
-  if IsConsole then writeln(msg)
+  if IsConsole then Writeln(msg)
   else OutputDebugString(PChar(msg));
   Result := True;
 end;
@@ -1658,21 +1668,21 @@ end;
 
 function DbgOutputFmtA(const fmt: RawByteString; const args: array of const): Boolean;
 begin
-  if IsConsole then writeln(AnsiStrings.Format(fmt, args))
-  else OutputDebugStringA(PAnsiChar(AnsiStrings.Format(fmt, args)));
+  if IsConsole then Writeln(AnsiFormat(fmt, args))
+  else OutputDebugStringA(PAnsiChar(AnsiFormat(fmt, args)));
   Result := True;
 end;
 
 function DbgOutputFmtW(const fmt: UnicodeString; const args: array of const): Boolean;
 begin
-  if IsConsole then writeln(WideFormat(fmt, args))
+  if IsConsole then Writeln(WideFormat(fmt, args))
   else OutputDebugStringW(PWideChar(WideFormat(fmt, args)));
   Result := True;
 end;
 
 function DbgOutputFmt(const fmt: string; const args: array of const): Boolean;
 begin
-  if IsConsole then writeln(Format(fmt, args))
+  if IsConsole then Writeln(Format(fmt, args))
   else OutputDebugString(PChar(Format(fmt, args)));
   Result := True;
 end;
@@ -1930,29 +1940,29 @@ begin
       if (P2 < len) and (s[P2] = ';') then
         Inc(P2);
     end
-    else if BeginWithW(s + P2, len - P2, 'lt;', 3) then
+    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('lt;')), 3) then
     begin
       dst^ := '<'; Inc(P2, 3);
     end
-    else if BeginWithW(s + P2, len - P2, 'gt;', 3) then
+    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('gt;')), 3) then
     begin
       dst^ := '>'; Inc(P2, 3);
     end
-    else if BeginWithW(s + P2, len - P2, 'amp;', 4) then
+    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('amp;')), 4) then
     begin
       dst^ := '&'; Inc(P2, 4);
     end
-    else if BeginWithW(s + P2, len - P2, 'apos;', 5) then
+    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('apos;')), 5) then
     begin
       dst^ := #39; Inc(P2, 5);
     end
-    else if BeginWithW(s + P2, len - P2, 'quot;', 5) then
+    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('quot;')), 5) then
     begin
       dst^ := '"'; Inc(P2, 5);
     end
-    else if BeginWithW(s + P2, len - P2, 'mdash;', 6) then
+    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('mdash;')), 6) then
     begin
-      dst^ := '—'; Inc(P2, 6);
+      dst^ := UnicodeString('—')[1]; Inc(P2, 6);
     end
     else begin
       dst^ := '&'; Inc(P2);
@@ -2050,7 +2060,7 @@ begin
 
   while P3 < strend do
   begin
-    P3 := StrPosW('<input', 6, P3, strend - P3);
+    P3 := StrPosW(PWideChar(UnicodeString('<input')), 6, P3, strend - P3);
 
     if P3 = nil then Break;
 
@@ -2680,8 +2690,8 @@ begin
       end;
 
       if (Sp^ >= '0') and (Sp^ <= '9') then Inc(v, Ord(Sp^) - 48)
-      else if (Cp^ >= 'A') and (Cp^ <= 'Z') then Inc(v, Ord(Sp^) - 55)
-      else if (Cp^ >= 'a') and (Cp^ <= 'z') then Inc(v, Ord(Sp^) - 87)
+      else if (Sp^ >= 'A') and (Sp^ <= 'Z') then Inc(v, Ord(Sp^) - 55)
+      else if (Sp^ >= 'a') and (Sp^ <= 'z') then Inc(v, Ord(Sp^) - 87)
       else begin
         if Assigned(invalid) then invalid^ := Sp - 2;
         Break;
@@ -3300,7 +3310,7 @@ begin
     pch[I] := CharSet[Random(Length(CharSet)) + 1];
 end;
 
-function RandomAlphaStringA(CharCount: Integer; types: DSLCharTypes): RawByteString;
+function RandomAlphaStringA(CharCount: Integer; types: TCharTypes): RawByteString;
 var
   charset: RawByteString;
 begin
@@ -3322,7 +3332,7 @@ begin
   Result := RandomStringA('0123456789', CharCount);
 end;
 
-function RandomAlphaDigitStringA(CharCount: Integer; types: DSLCharTypes): RawByteString;
+function RandomAlphaDigitStringA(CharCount: Integer; types: TCharTypes): RawByteString;
 var
   charset: RawByteString;
 begin
@@ -3350,7 +3360,7 @@ begin
     pch[I] := CharSet[Random(Length(CharSet)) + 1];
 end;
 
-function RandomAlphaStringW(CharCount: Integer; types: DSLCharTypes): UnicodeString;
+function RandomAlphaStringW(CharCount: Integer; types: TCharTypes): UnicodeString;
 var
   charset: UnicodeString;
 begin
@@ -3372,7 +3382,7 @@ begin
   Result := RandomStringW('0123456789', CharCount);
 end;
 
-function RandomAlphaDigitStringW(CharCount: Integer; types: DSLCharTypes): UnicodeString;
+function RandomAlphaDigitStringW(CharCount: Integer; types: TCharTypes): UnicodeString;
 var
   charset: UnicodeString;
 begin
@@ -3973,13 +3983,13 @@ begin
   StrLowerA(PAnsiChar(str), Length(str));
 end;
 
-procedure DSLSetStringA(var s: RawByteString; _begin, _end: PAnsiChar);
+procedure SetStringA(var s: RawByteString; _begin, _end: PAnsiChar);
 begin
   if not Assigned(_begin) or not Assigned(_end) or (_end = _begin) then s := ''
   else SetString(s, _begin, _end - _begin);
 end;
 
-procedure DSLSetStringW(var s: UnicodeString; _begin, _end: PWideChar);
+procedure SetUString(var s: UnicodeString; _begin, _end: PWideChar);
 begin
   if not Assigned(_begin) or not Assigned(_end) or (_end = _begin) then s := ''
   else SetString(s, _begin, _end - _begin);
@@ -4654,6 +4664,23 @@ begin
   Result := BufToFloatW(PWideChar(str), Length(str), nil);
 end;
 
+function AnsiFormat(const fmt: AnsiString; const args: array of const): AnsiString;
+begin
+  {$IFDEF UNICODE}
+  Result := AnsiStrings.Format(fmt, args);
+  {$ELSE}
+  Result := Format(fmt, args);
+  {$ENDIF}
+end;
+
+function UStrFormat(const fmt: UnicodeString; const args: array of const): UnicodeString;
+begin
+  {$IFDEF UNICODE}
+  Result := Format(fmt, args);
+  {$ELSE}
+  Result := WideFormat(fmt, args);
+  {$ENDIF}
+end;
 
 function StrScanA(s: PAnsiChar; len: Integer; c: AnsiChar): PAnsiChar;
 var
@@ -4952,7 +4979,7 @@ end;
 
 function StrPosW(substr, str: PWideChar): PWideChar; overload;
 begin
-  Result := StrPosW(substr, StrLenW(substr), str, StrLen(str));
+  Result := StrPosW(substr, StrLenW(substr), str, StrLenW(str));
 end;
 
 function StrPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar;
@@ -5851,23 +5878,23 @@ begin
 
     if P2 >= len then Break;
 
-    if BeginWithW(s + P2 + 1, len - P2 - 1, 'lt;', 3) then
+    if BeginWithW(s + P2 + 1, len - P2 - 1, PWideChar(UnicodeString('lt;')), 3) then
     begin
       dst^ := '<'; Inc(dst); Inc(P2, 3);
     end
-    else if BeginWithW(s + P2 + 1, len - P2 - 1, 'gt;', 3) then
+    else if BeginWithW(s + P2 + 1, len - P2 - 1, PWideChar(UnicodeString('gt;')), 3) then
     begin
       dst^ := '>'; Inc(dst); Inc(P2, 3);
     end
-    else if BeginWithW(s + P2 + 1, len - P2 - 1, 'amp;', 4) then
+    else if BeginWithW(s + P2 + 1, len - P2 - 1, PWideChar(UnicodeString('amp;')), 4) then
     begin
       dst^ := '&'; Inc(dst); Inc(P2, 4);
     end
-    else if BeginWithW(s + P2 + 1, len - P2 - 1, 'apos;', 5) then
+    else if BeginWithW(s + P2 + 1, len - P2 - 1, PWideChar(UnicodeString('apos;')), 5) then
     begin
       dst^ := #39; Inc(dst); Inc(P2, 5);
     end
-    else if BeginWithW(s + P2 + 1, len - P2 - 1, 'quot;', 5) then
+    else if BeginWithW(s + P2 + 1, len - P2 - 1, PWideChar(UnicodeString('quot;')), 5) then
     begin
       dst^ := '"'; Inc(dst); Inc(P2, 5);
     end
@@ -6498,8 +6525,8 @@ begin
   begin
     TThread(threads[I]).Terminate;
 
-    if TThread(threads[I]) is DSLSignalThread then
-      DSLSignalThread(threads[I]).SendStopSignal;
+    if TThread(threads[I]) is TSignalThread then
+      TSignalThread(threads[I]).SendStopSignal;
   end;
 
   P1 := 0;
@@ -6935,12 +6962,12 @@ begin
         TThreadList(objlist).UnlockList;
       end;
     end
-    else if objlist is DSLCircularList then
+    else if objlist is TCircularList then
     begin
-      for i := 0 to DSLCircularList(objlist).Count - 1 do
-        TObject(DSLCircularList(objlist)[i]).Free;
+      for i := 0 to TCircularList(objlist).Count - 1 do
+        TObject(TCircularList(objlist)[i]).Free;
 
-      DSLCircularList(objlist).Clear;
+      TCircularList(objlist).Clear;
     end;
   end;
 end;
@@ -7061,20 +7088,20 @@ begin
 end;
 
 function ConfirmDialog(const msg: string; const parent: THandle = 0; const title: string = '';
-  const buttons: DSLConfirmDlgButtons = cdbYesNo): DSLConfirmDlgResult;
+  const buttons: TConfirmDlgButtons = cdbYesNo): TConfirmDlgResult;
 var
   _title: string;
 begin
   if title = '' then _title := '确认'
   else _title := title;
 
-  Result := DSLConfirmDlgResult(Application.MessageBox(PChar(msg), PChar(_title),
+  Result := TConfirmDlgResult(Application.MessageBox(PChar(msg), PChar(_title),
     MB_ICONQUESTION or Ord(buttons)) - 1);
 end;
 
 function InternetExplorerGetCookie(const url: PAnsiChar; HttpOnly: Boolean): RawByteString;
 const
-  INTERNET_COOKIE_HTTPONLY = 8192;
+  INTERNET_COOKIE_HTPONLY = 8192;
 var
   hModule: THandle;
 
@@ -7098,7 +7125,7 @@ begin
 
     if Assigned(fnInternetGetCookieEx) then
     begin
-      if HttpOnly then flags := INTERNET_COOKIE_HTTPONLY
+      if HttpOnly then flags := INTERNET_COOKIE_HTPONLY
       else flags := 0;
 
       CookieSize := 0;
@@ -7229,10 +7256,10 @@ begin
 end;
 
 procedure HeapAdjust(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  iRoot: LongWord; pCompare: DSLPointerCompareProc; pSwap: DSLPointerProc); forward;
+  iRoot: LongWord; pCompare: TPointerCompareProc; pSwap: TPointerProc); forward;
 
 procedure HeapSort(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; pSwap: DSLPointerProc);
+  pCompare: TPointerCompareProc; pSwap: TPointerProc);
 var
   i: LongWord;
 begin
@@ -7248,7 +7275,7 @@ begin
 end;
 
 procedure QuickSort(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; pSwap: DSLPointerProc);
+  pCompare: TPointerCompareProc; pSwap: TPointerProc);
 var
   i, j, pidx: LongWord;
   LItem, RItem, Pivot: Pointer;
@@ -7293,7 +7320,7 @@ begin
 end;
 
 function BinarySearch(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; const Value): Integer;
+  pCompare: TPointerCompareProc; const Value): Integer;
 var
   L, R, M, CR: Integer;
   ItemAddr: Pointer;
@@ -7317,7 +7344,7 @@ begin
 end;
 
 function BinarySearchInsertPos(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; const Value): Integer;
+  pCompare: TPointerCompareProc; const Value): Integer;
 var
   L, R, M, CR: Integer;
   ItemAddr: Pointer;
@@ -7357,7 +7384,7 @@ begin
 end;
 
 function Search(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: DSLPointerCompareProc; const Value): Integer;
+  pCompare: TPointerCompareProc; const Value): Integer;
 var
   i: LongWord;
 begin
@@ -7374,7 +7401,7 @@ begin
 end;
 
 procedure HeapAdjust(pArray: Pointer; nItemSize, nItemCount, iRoot: LongWord;
-  pCompare: DSLPointerCompareProc; pSwap: DSLPointerProc);
+  pCompare: TPointerCompareProc; pSwap: TPointerProc);
 var
   iChild: LongWord;
   Parent, Child1, Child2: Pointer;
@@ -7451,7 +7478,7 @@ var
   PtrLen: TAnsiStrPtrAndLen;
 begin
   PtrLen.Ptr := Name; PtrLen.Len := NameLen;
-  Result := BinarySearch(@NAME_SORTED_CODE_PAGES, SizeOf(DSLCodePageInfo),
+  Result := BinarySearch(@NAME_SORTED_CODE_PAGES, SizeOf(TCodePageInfo),
     Length(NAME_SORTED_CODE_PAGES), @CodePageNameSearchCmp, PtrLen);
   if Result >= 0 then Result := NAME_SORTED_CODE_PAGES[Result].ID;
 end;
@@ -7470,15 +7497,15 @@ function CodePageID2Name(ID: Integer): AnsiString; overload;
 var
   Index: Integer;
 begin
-  Index := BinarySearch(@ID_SORTED_CODE_PAGES, SizeOf(DSLCodePageInfo),
+  Index := BinarySearch(@ID_SORTED_CODE_PAGES, SizeOf(TCodePageInfo),
     Length(ID_SORTED_CODE_PAGES), @CodePageIDSearchCmp, ID);
   if Index >= 0 then Result := ID_SORTED_CODE_PAGES[Index].Name
   else Result := '';
 end;
 
-{ DSLRefCountedObject }
+{ TRefCountedObject }
 
-function DSLRefCountedObject.AddRef: Integer;
+function TRefCountedObject.AddRef: Integer;
 begin
   if Self <> nil then
     Result := InterlockedIncrement(fRefCount)
@@ -7486,12 +7513,12 @@ begin
     Result := 0;
 end;
 
-constructor DSLRefCountedObject.Create;
+constructor TRefCountedObject.Create;
 begin
   fRefCount := 1;
 end;
 
-function DSLRefCountedObject.Release: Integer;
+function TRefCountedObject.Release: Integer;
 begin
   if Self <> nil then
   begin
@@ -7503,33 +7530,33 @@ begin
   else Result := 0;
 end;
 
-{ DSLSignalThread }
+{ TSignalThread }
 
-constructor DSLSignalThread.Create(CreateSuspended: Boolean);
+constructor TSignalThread.Create(CreateSuspended: Boolean);
 begin
   fStopSignal := CreateEvent(nil, False, False, nil);
   inherited Create(Suspended);
 end;
 
-destructor DSLSignalThread.Destroy;
+destructor TSignalThread.Destroy;
 begin
   CloseHandle(fStopSignal);
   inherited;
 end;
 
-procedure DSLSignalThread.SendStopSignal;
+procedure TSignalThread.SendStopSignal;
 begin
   SetEvent(fStopSignal);
 end;
 
-procedure DSLSignalThread.StopAndWait;
+procedure TSignalThread.StopAndWait;
 begin
   Self.Terminate;
   Self.SendStopSignal;
   Self.WaitFor;
 end;
 
-function DSLSignalThread.WaitForMultiObjects(handles: array of THandle; timeout: DWORD): DWORD;
+function TSignalThread.WaitForMultiObjects(handles: array of THandle; timeout: DWORD): DWORD;
 var
   WaitHandles: TWOHandleArray;
   i, j: DWORD;
@@ -7553,7 +7580,7 @@ begin
   else Result := wr;
 end;
 
-function DSLSignalThread.WaitForSingleObject(handle: THandle; timeout: DWORD): DWORD;
+function TSignalThread.WaitForSingleObject(handle: THandle; timeout: DWORD): DWORD;
 var
   handles: array [0..0] of THandle;
 begin
@@ -7561,34 +7588,34 @@ begin
   Result := Self.WaitForMultiObjects(handles, timeout);
 end;
 
-function DSLSignalThread.WaitForStopSignal(timeout: DWORD): Boolean;
+function TSignalThread.WaitForStopSignal(timeout: DWORD): Boolean;
 begin
   Result := WaitForSingleObjectEx(fStopSignal, timeout, True) = WAIT_OBJECT_0;
 end;
 
-{ DSLWorkThread }
+{ TWorkThread }
 
-procedure DSLWorkThread.ClearTask;
+procedure TWorkThread.ClearTask;
 var
-  task: DSLRunnable;
+  task: TRunnable;
 begin
   while True do
   begin
-    task := DSLRunnable(fTaskQueue.pop);
+    task := TRunnable(fTaskQueue.pop);
 
     if Assigned(task) then task.Release
     else Break;
   end;
 end;
 
-constructor DSLWorkThread.Create(CreateSuspended: Boolean);
+constructor TWorkThread.Create(CreateSuspended: Boolean);
 begin
   fTaskSemaphore := CreateEvent(nil, False, False, nil); 
-  fTaskQueue := DSLFIFOQueue.Create;
+  fTaskQueue := TFIFOQueue.Create;
   inherited Create(CreateSuspended);
 end;
 
-destructor DSLWorkThread.Destroy;
+destructor TWorkThread.Destroy;
 begin
   Self.ClearTask;
   fTaskQueue.Free;
@@ -7596,9 +7623,9 @@ begin
   inherited;
 end;
 
-procedure DSLWorkThread.Execute;
+procedure TWorkThread.Execute;
 var
-  task: DSLRunnable;
+  task: TRunnable;
 begin
   inherited;
 
@@ -7613,7 +7640,7 @@ begin
 
       while not Self.Terminated do
       begin      
-        task := DSLRunnable(fTaskQueue.pop);
+        task := TRunnable(fTaskQueue.pop);
 
         if not Assigned(task) then Break;
 
@@ -7626,7 +7653,7 @@ begin
           task.run(Self);
         except
           on e: Exception do
-            DbgOutput(DSLRunnable.ClassName + '.run: ' + e.Message);
+            DbgOutput(TRunnable.ClassName + '.run: ' + e.Message);
         end;
 
         FCurrentTaskStartTime := 0;
@@ -7636,17 +7663,17 @@ begin
       end;
     except
       on e: Exception do
-        DbgOutputException('DSLWorkThread.Execute', e);
+        DbgOutputException('TWorkThread.Execute', e);
     end;
   end;
 end;
 
-function DSLWorkThread.GetPendingTaskCount: Integer;
+function TWorkThread.GetPendingTaskCount: Integer;
 begin
   Result := fTaskQueue.size;
 end;
 
-function DSLWorkThread.QueueTask(task: DSLRunnable): Boolean;
+function TWorkThread.QueueTask(task: TRunnable): Boolean;
 begin
   fTaskQueue.push(task);
 
@@ -7655,7 +7682,7 @@ begin
   Result := True;
 end;
 
-function DSLWorkThread.QueueTaskFirst(task: DSLRunnable): Boolean;
+function TWorkThread.QueueTaskFirst(task: TRunnable): Boolean;
 begin
   fTaskQueue.PushFront(task);
 
@@ -7664,26 +7691,26 @@ begin
   Result := True;
 end;
 
-{ DSLDelayRunnableThread }
+{ TDelayRunnableThread }
 
 
-constructor DSLDelayRunnableThread.Create(CreateSuspended: Boolean);
+constructor TDelayRunnableThread.Create(CreateSuspended: Boolean);
 begin
-  fTaskQueue := DSLDelayRunnableQueue.Create;
+  fTaskQueue := TDelayRunnableQueue.Create;
   fTaskEvent := CreateEvent(nil, False, False, nil);
   inherited Create(CreateSuspended);
 end;
 
-destructor DSLDelayRunnableThread.Destroy;
+destructor TDelayRunnableThread.Destroy;
 begin
   fTaskQueue.Free;
   CloseHandle(fTaskEvent);
   inherited;
 end;
 
-procedure DSLDelayRunnableThread.Execute;
+procedure TDelayRunnableThread.Execute;
 var
-  task: DSLRunnable;
+  task: TRunnable;
   delay: DWORD;
 begin
   inherited;
@@ -7699,7 +7726,7 @@ begin
           task.run(Self);
         except
           on e: Exception do
-            DbgOutput(DSLRunnable.ClassName + '.run: ' + e.Message);
+            DbgOutput(TRunnable.ClassName + '.run: ' + e.Message);
         end;
 
         Inc(fCompletedTaskCount);
@@ -7709,55 +7736,55 @@ begin
       else Self.WaitForSingleObject(fTaskEvent, delay);
     except
       on e: Exception do
-        DbgOutput('DSLDelayRunnableThread.loop: ' + e.Message);
+        DbgOutput('TDelayRunnableThread.loop: ' + e.Message);
     end;
   end;
 end;
 
-function DSLDelayRunnableThread.GetPendingTaskCount: Integer;
+function TDelayRunnableThread.GetPendingTaskCount: Integer;
 begin
   Result := fTaskQueue.size;
 end;
 
-function DSLDelayRunnableThread.QueueTask(task: DSLRunnable; DelayMS: Int64): Boolean;
+function TDelayRunnableThread.QueueTask(task: TRunnable; DelayMS: Int64): Boolean;
 begin
   Result := fTaskQueue.push(task, DelayMS);
 
   if Result then SetEvent(fTaskEvent);
 end;
 
-function DSLDelayRunnableThread.QueueTask(task: DSLRunnable; runtime: TDateTime): Boolean;
+function TDelayRunnableThread.QueueTask(task: TRunnable; runtime: TDateTime): Boolean;
 begin
   Result := fTaskQueue.push(task, runtime);
 
   if Result then SetEvent(fTaskEvent);
 end;
 
-{ DSLWorkThreadPool }
+{ TWorkThreadPool }
 
-constructor DSLWorkThreadPool.Create;
+constructor TWorkThreadPool.Create;
 begin
   fActive := False;
   fThreads := TList.Create;
   fThreadCount := 1;
 end;
 
-destructor DSLWorkThreadPool.Destroy;
+destructor TWorkThreadPool.Destroy;
 begin
   Active := False;
   fThreads.Free;
   inherited;
 end;
 
-function DSLWorkThreadPool.QueueTask(task: DSLRunnable): Boolean;
+function TWorkThreadPool.QueueTask(task: TRunnable): Boolean;
 begin
   if fActive then
-    Result := DSLWorkThread(fThreads[Random(fThreads.Count)]).QueueTask(task)
+    Result := TWorkThread(fThreads[Random(fThreads.Count)]).QueueTask(task)
   else
     Result := False;
 end;
 
-procedure DSLWorkThreadPool.SetActive(const Value: Boolean);
+procedure TWorkThreadPool.SetActive(const Value: Boolean);
 begin
   if fActive <> Value then
   begin
@@ -7767,7 +7794,7 @@ begin
   end;
 end;
 
-procedure DSLWorkThreadPool.SetThreadCount(const Value: Integer);
+procedure TWorkThreadPool.SetThreadCount(const Value: Integer);
 begin
   if not fActive then
   begin
@@ -7778,7 +7805,7 @@ begin
   end;
 end;
 
-procedure DSLWorkThreadPool.start;
+procedure TWorkThreadPool.start;
 var
   i: Integer;
 begin
@@ -7788,14 +7815,14 @@ begin
     fThreads[i] := ThreadClass.Create(False);
 end;
 
-procedure DSLWorkThreadPool.stop;
+procedure TWorkThreadPool.stop;
 begin
   StopAndWaitForThread(fThreads);
 end;
 
-{ DSLCircularList }
+{ TCircularList }
 
-procedure DSLCircularList.add(Item: Pointer);
+procedure TCircularList.add(Item: Pointer);
 var
   i: Integer;
 begin
@@ -7808,7 +7835,7 @@ begin
   end;
 end;
 
-function DSLCircularList.add: Pointer;
+function TCircularList.add: Pointer;
 var
   i: Integer;
 begin
@@ -7820,13 +7847,13 @@ begin
   Result := fList[i];
 end;
 
-procedure DSLCircularList.clear;
+procedure TCircularList.clear;
 begin
   fFirst := 0;
   fCount := 0;
 end;
 
-constructor DSLCircularList.Create(_capacity: Integer);
+constructor TCircularList.Create(_capacity: Integer);
 begin
   SetLength(fList, _capacity);
   fCapacity := _capacity;
@@ -7834,7 +7861,7 @@ begin
   fFirst := 0;
 end;
 
-procedure DSLCircularList.delete(Index: Integer);
+procedure TCircularList.delete(Index: Integer);
 var
   I, J, K: Integer;
 begin
@@ -7865,13 +7892,13 @@ begin
   Dec(fCount);
 end;
 
-destructor DSLCircularList.Destroy;
+destructor TCircularList.Destroy;
 begin
   SetLength(fList, 0);
   inherited;
 end;
 
-function DSLCircularList.GetItem(Index: Integer): Pointer;
+function TCircularList.GetItem(Index: Integer): Pointer;
 begin
   if (Index < 0) or (Index >= fCount) then
     TList.Error(SListIndexError, Index);
@@ -7879,12 +7906,12 @@ begin
   Result := fList[(fFirst + Index) mod fCapacity];
 end;
 
-function DSLCircularList.GetInternalIndex(Index: Integer): Integer;
+function TCircularList.GetInternalIndex(Index: Integer): Integer;
 begin
   Result := (fFirst + index) mod fCapacity;
 end;
 
-function DSLCircularList.IndexOf(Item: Pointer): Integer;
+function TCircularList.IndexOf(Item: Pointer): Integer;
 var
   i: Integer;
 begin
@@ -7900,7 +7927,7 @@ begin
   end;
 end;
 
-procedure DSLCircularList.MoveHead(num: Integer);
+procedure TCircularList.MoveHead(num: Integer);
 begin
   if num <= fCount then
   begin
@@ -7912,7 +7939,7 @@ begin
   end;
 end;
 
-function DSLCircularList.remove(Item: Pointer): Integer;
+function TCircularList.remove(Item: Pointer): Integer;
 begin
   Result := Self.IndexOf(Item);
 
@@ -7920,14 +7947,14 @@ begin
     Self.Delete(Result);
 end;
 
-procedure DSLCircularList.SetCount(const Value: Integer);
+procedure TCircularList.SetCount(const Value: Integer);
 begin
   if Value > Capacity then Exit;
 
   fCount := Value;
 end;
 
-procedure DSLCircularList.SetItem(Index: Integer; const Value: Pointer);
+procedure TCircularList.SetItem(Index: Integer; const Value: Pointer);
 begin
   if (Index < 0) or (Index >= fCount) then
     TList.Error(SListIndexError, Index);
@@ -7935,11 +7962,11 @@ begin
   fList[(fFirst + Index) mod fCapacity] := Value;
 end;
 
-{ DSLFIFOQueue }
+{ TFIFOQueue }
 
-procedure DSLFIFOQueue.clear;
+procedure TFIFOQueue.clear;
 var
-  node: PDSLLinkNode;
+  node: PTLinkNode;
 begin
   while InterlockedExchange(fLockState, 1) = 1 do;
 
@@ -7959,22 +7986,22 @@ begin
   end;
 end;
 
-constructor DSLFIFOQueue.Create;
+constructor TFIFOQueue.Create;
 begin
   fLockState := 0;
   fFirst := nil;
   fLast := nil;
 end;
 
-destructor DSLFIFOQueue.Destroy;
+destructor TFIFOQueue.Destroy;
 begin
   Self.clear;
   inherited;
 end;
 
-function DSLFIFOQueue.pop: Pointer;
+function TFIFOQueue.pop: Pointer;
 var
-  node: PDSLLinkNode;
+  node: PTLinkNode;
 begin
 
   while InterlockedExchange(fLockState, 1) = 1 do;
@@ -8001,9 +8028,9 @@ begin
   if Assigned(node) then Dispose(node);
 end;
 
-procedure DSLFIFOQueue.push(item: Pointer);
+procedure TFIFOQueue.push(item: Pointer);
 var
-  node: PDSLLinkNode;
+  node: PTLinkNode;
 begin
   New(node);
   node.data := item;
@@ -8028,9 +8055,9 @@ begin
   end;
 end;
 
-procedure DSLFIFOQueue.PushFront(item: Pointer);
+procedure TFIFOQueue.PushFront(item: Pointer);
 var
-  node: PDSLLinkNode;
+  node: PTLinkNode;
 begin
   New(node);
   node.data := item;
@@ -8050,11 +8077,11 @@ begin
   end;
 end;
 
-{ DSLLIFOQueue }
+{ TLIFOQueue }
 
-procedure DSLLIFOQueue.clear;
+procedure TLIFOQueue.clear;
 var
-  node: PDSLLinkNode;
+  node: PTLinkNode;
 begin
   while InterlockedExchange(fLockState, 1) = 1 do;
 
@@ -8071,21 +8098,21 @@ begin
   end;
 end;
 
-constructor DSLLIFOQueue.Create;
+constructor TLIFOQueue.Create;
 begin
   fFirst := nil;
   fLockState := 0;
 end;
 
-destructor DSLLIFOQueue.Destroy;
+destructor TLIFOQueue.Destroy;
 begin
   Self.clear;
   inherited;
 end;
 
-function DSLLIFOQueue.pop: Pointer;
+function TLIFOQueue.pop: Pointer;
 var
-  node: PDSLLinkNode;
+  node: PTLinkNode;
 begin
   while InterlockedExchange(fLockState, 1) = 1 do;
 
@@ -8106,9 +8133,9 @@ begin
   if Assigned(node) then Dispose(node);
 end;
 
-procedure DSLLIFOQueue.push(item: Pointer);
+procedure TLIFOQueue.push(item: Pointer);
 var
-  node: PDSLLinkNode;
+  node: PTLinkNode;
 begin
   New(node);
   node.data := item;
@@ -8123,9 +8150,9 @@ begin
   end;
 end;
 
-{ DSLLogWritter }
+{ TLogWritter }
 
-procedure DSLLogWritter.write(sev: DSLMessageLevel; const text: RawByteString);
+procedure TLogWritter.write(sev: TMessageLevel; const text: RawByteString);
 begin
   if sev in fVerbosity then
   begin
@@ -8143,7 +8170,7 @@ begin
   end;
 end;
 
-procedure DSLLogWritter.write(sev: DSLMessageLevel; const text: UnicodeString);
+procedure TLogWritter.write(sev: TMessageLevel; const text: UnicodeString);
 begin
   if sev in fVerbosity then
   begin
@@ -8161,7 +8188,7 @@ begin
   end;
 end;
 
-procedure DSLLogWritter.writeln(sev: DSLMessageLevel; const text: RawByteString);
+procedure TLogWritter.Writeln(sev: TMessageLevel; const text: RawByteString);
 begin
   if sev in fVerbosity then
   begin
@@ -8181,7 +8208,7 @@ begin
   end;
 end;
 
-procedure DSLLogWritter.writeln(sev: DSLMessageLevel; const text: UnicodeString);
+procedure TLogWritter.Writeln(sev: TMessageLevel; const text: UnicodeString);
 begin
   if sev in fVerbosity then
   begin
@@ -8200,48 +8227,48 @@ begin
   end;
 end;
 
-constructor DSLLogWritter.Create;
+constructor TLogWritter.Create;
 begin
   fDateTimeFormat := 'yyyy-mm-dd hh:nn:ss';
   fVerbosity := TRACE_SEVERITIES_ALL;
   fOptions := [mtServerity, mtTime];
 end;
 
-procedure DSLLogWritter.FormatWrite(sev: DSLMessageLevel; const fmt: RawByteString;
+procedure TLogWritter.FormatWrite(sev: TMessageLevel; const fmt: RawByteString;
   const args: array of const);
 begin
   Self.write(sev, RawByteString(Format(string(fmt), args)));
 end;
 
-procedure DSLLogWritter.flush;
+procedure TLogWritter.flush;
 begin
 
 end;
 
-procedure DSLLogWritter.FormatWrite(sev: DSLMessageLevel; const fmt: UnicodeString;
+procedure TLogWritter.FormatWrite(sev: TMessageLevel; const fmt: UnicodeString;
   const args: array of const);
 begin
   Self.write(sev, WideFormat(fmt, args));
 end;
 
-procedure DSLLogWritter.SetDateTimeFormat(const value: string);
+procedure TLogWritter.SetDateTimeFormat(const value: string);
 begin
   DateTimeFormat := value;
 end;
 
-procedure DSLLogWritter.SetOptions(const value: DSLMessageTags);
+procedure TLogWritter.SetOptions(const value: TMessageTags);
 begin
   options := value;
 end;
 
-procedure DSLLogWritter.SetVerbosity(const value: DSLMessageVerbosity);
+procedure TLogWritter.SetVerbosity(const value: TMessageVerbosity);
 begin
   fVerbosity := value;
 end;
 
-{ DSLFileLogWritter }
+{ TFileLogWritter }
 
-constructor DSLFileLogWritter.Create(const fileName: string);
+constructor TFileLogWritter.Create(const fileName: string);
 begin
   inherited Create;
 
@@ -8258,23 +8285,23 @@ begin
   fFileStream.Seek(0, soFromEnd);
 end;
 
-destructor DSLFileLogWritter.Destroy;
+destructor TFileLogWritter.Destroy;
 begin
   fFileStream.Free;
   inherited;
 end;
 
-procedure DSLFileLogWritter.flush;
+procedure TFileLogWritter.flush;
 begin
   Windows.FlushFileBuffers(fFileStream.Handle);
 end;
 
-function DSLFileLogWritter.GetFileSize: Integer;
+function TFileLogWritter.GetFileSize: Integer;
 begin
   Result := fFileStream.Size;
 end;
 
-procedure DSLFileLogWritter.WriteAnsi(const text: RawByteString);
+procedure TFileLogWritter.WriteAnsi(const text: RawByteString);
 var
   utf8str: UTF8String;
   utf16str: UnicodeString;
@@ -8294,7 +8321,7 @@ begin
   end;
 end;
 
-procedure DSLFileLogWritter.WriteUnicode(const text: UnicodeString);
+procedure TFileLogWritter.WriteUnicode(const text: UnicodeString);
 var
   ansistr: RawByteString;
   utf8str: UTF8String;
@@ -8314,33 +8341,33 @@ begin
   end;
 end;
 
-{ DSLConsoleLogWritter }
+{ TConsoleLogWritter }
 
-procedure DSLConsoleLogWritter.WriteAnsi(const text: RawByteString);
+procedure TConsoleLogWritter.WriteAnsi(const text: RawByteString);
 begin
   System.write(text);
 end;
 
-procedure DSLConsoleLogWritter.WriteUnicode(const text: UnicodeString);
+procedure TConsoleLogWritter.WriteUnicode(const text: UnicodeString);
 begin
   System.write(text);
 end;
 
-{ DSLDebugLogWritter }
+{ TDebugLogWritter }
 
-procedure DSLDebugLogWritter.WriteAnsi(const text: RawByteString);
+procedure TDebugLogWritter.WriteAnsi(const text: RawByteString);
 begin
   OutputDebugStringA(PAnsiChar(text));
 end;
 
-procedure DSLDebugLogWritter.WriteUnicode(const text: UnicodeString);
+procedure TDebugLogWritter.WriteUnicode(const text: UnicodeString);
 begin
   OutputDebugStringW(PWideChar(text));
 end;
 
 { TSliceLogWritter }
 
-constructor DSLMultiFileLogWritter.Create(const dir: string);
+constructor TMultiFileLogWritter.Create(const dir: string);
 begin
   inherited Create;
   fDateTimeFormat := 'yyyy-mm-dd hh:nn:ss';
@@ -8353,30 +8380,30 @@ begin
     fLogFileDir := fLogFileDir + '\';
 end;
 
-destructor DSLMultiFileLogWritter.Destroy;
+destructor TMultiFileLogWritter.Destroy;
 begin
   fWritter.Free;
   inherited;
 end;
 
-procedure DSLMultiFileLogWritter.flush;
+procedure TMultiFileLogWritter.flush;
 begin
   fWritter.flush;  
 end;
 
-procedure DSLMultiFileLogWritter.FormatWrite(sev: DSLMessageLevel;
+procedure TMultiFileLogWritter.FormatWrite(sev: TMessageLevel;
   const fmt: UnicodeString; const args: array of const);
 begin
   Self.write(sev, WideFormat(fmt, args));
 end;
 
-procedure DSLMultiFileLogWritter.FormatWrite(sev: DSLMessageLevel;
+procedure TMultiFileLogWritter.FormatWrite(sev: TMessageLevel;
   const fmt: RawByteString; const args: array of const);
 begin
   Self.write(sev, RawByteString(Format(string(fmt), args)));
 end;
 
-procedure DSLMultiFileLogWritter.CreateFileTracer(Tick: TDateTime);
+procedure TMultiFileLogWritter.CreateFileTracer(Tick: TDateTime);
 var
   FileName: string;
   Changed: Boolean;
@@ -8401,62 +8428,62 @@ begin
     else FileName := fLogFileDir + FormatDateTime('yyyymmddhh', Tick) + '.log';
   end;
 
-  fWritter := DSLFileLogWritter.Create(FileName);
+  fWritter := TFileLogWritter.Create(FileName);
   fWritter.Encoding := Encoding;
   fWritter.DateTimeFormat := DateTimeFormat;
   fWritter.options := options;
   fWritter.Verbosity := severity;
 end;
 
-procedure DSLMultiFileLogWritter.SetDateTimeFormat(const Value: string);
+procedure TMultiFileLogWritter.SetDateTimeFormat(const Value: string);
 begin
   DateTimeFormat := Value;
   if fWritter <> nil then fWritter.DateTimeFormat := Value;
 end;
 
-procedure DSLMultiFileLogWritter.SetOptions(const Value: DSLMessageTags);
+procedure TMultiFileLogWritter.SetOptions(const Value: TMessageTags);
 begin
   options := Value;
   if fWritter <> nil then fWritter.options := Value;
 end;
 
-procedure DSLMultiFileLogWritter.SetVerbosity(const Value: DSLMessageVerbosity);
+procedure TMultiFileLogWritter.SetVerbosity(const Value: TMessageVerbosity);
 begin
   severity := Value;
   if fWritter <> nil then fWritter.Verbosity := Value;
 end;
 
-procedure DSLMultiFileLogWritter.write(sev: DSLMessageLevel;
+procedure TMultiFileLogWritter.write(sev: TMessageLevel;
   const Text: UnicodeString);
 begin
   CreateFileTracer(Now);
   fWritter.write(sev, Text);
 end;
 
-procedure DSLMultiFileLogWritter.writeln(sev: DSLMessageLevel; const Text: RawByteString);
+procedure TMultiFileLogWritter.Writeln(sev: TMessageLevel; const Text: RawByteString);
 begin
   CreateFileTracer(Now);
-  fWritter.writeln(sev, Text);
+  fWritter.Writeln(sev, Text);
 end;
 
-procedure DSLMultiFileLogWritter.writeln(sev: DSLMessageLevel; const Text: UnicodeString);
+procedure TMultiFileLogWritter.Writeln(sev: TMessageLevel; const Text: UnicodeString);
 begin
   CreateFileTracer(Now);
-  fWritter.writeln(sev, Text);
+  fWritter.Writeln(sev, Text);
 end;
 
-procedure DSLMultiFileLogWritter.write(sev: DSLMessageLevel;
+procedure TMultiFileLogWritter.write(sev: TMessageLevel;
   const Text: RawByteString);
 begin
   CreateFileTracer(Now);
   fWritter.write(sev, Text);
 end;
 
-{ DSLDelayRunnableQueue }
+{ TDelayRunnableQueue }
 
-procedure DSLDelayRunnableQueue.clear;
+procedure TDelayRunnableQueue.clear;
 var
-  tmp: PDSLDelayRunnable;
+  tmp: PDslDelayRunnable;
 begin
   EnterCriticalSection(fLock);
 
@@ -8476,14 +8503,14 @@ begin
   end;
 end;
 
-constructor DSLDelayRunnableQueue.Create;
+constructor TDelayRunnableQueue.Create;
 begin
   InitializeCriticalSection(fLock);
 end;
 
-function DSLDelayRunnableQueue.pop(var delay: DWORD): DSLRunnable;
+function TDelayRunnableQueue.pop(var delay: DWORD): TRunnable;
 var
-  node: PDSLDelayRunnable;
+  node: PDslDelayRunnable;
   dt: TDateTime;
   flag: Boolean;
 begin
@@ -8523,14 +8550,14 @@ begin
     Dispose(node);
 end;
 
-destructor DSLDelayRunnableQueue.Destroy;
+destructor TDelayRunnableQueue.Destroy;
 begin
   Self.clear;
   DeleteCriticalSection(fLock);
   inherited;
 end;
 
-function DSLDelayRunnableQueue.push(task: DSLRunnable; DelayMS: Int64): Boolean;
+function TDelayRunnableQueue.push(task: TRunnable; DelayMS: Int64): Boolean;
 var
   dt: TDateTime;
 begin
@@ -8538,9 +8565,9 @@ begin
   Result := Self.push(task, dt);
 end;
 
-function DSLDelayRunnableQueue.push(task: DSLRunnable; runtime: TDateTime): Boolean;
+function TDelayRunnableQueue.push(task: TRunnable; runtime: TDateTime): Boolean;
 var
-  n1, n2, node: PDSLDelayRunnable;
+  n1, n2, node: PDslDelayRunnable;
 begin
   New(node);
   node.task := task;
@@ -8572,27 +8599,27 @@ begin
   end;
 end;
 
-{ DSLAutoObject }
+{ TAutoObject }
 
-constructor DSLAutoObject.Create(_instance: TObject);
+constructor TAutoObject.Create(_instance: TObject);
 begin
   fInstance := _instance;
 end;
 
-destructor DSLAutoObject.Destroy;
+destructor TAutoObject.Destroy;
 begin
   fInstance.Free;
   inherited;
 end;
 
-function DSLAutoObject.GetInstance: TObject;
+function TAutoObject.GetInstance: TObject;
 begin
   Result := fInstance;
 end;
 
 procedure SwapCodePage(First, Second: PCodePage);
 var
-  Temp: DSLCodePageInfo;
+  Temp: TCodePageInfo;
 begin
   Temp := First^;
   First^ := Second^;
@@ -8609,32 +8636,32 @@ begin
   Result := First^.ID - Second^.ID;
 end;
 
-{ DSLFileStream }
+{ TThreadFileStream }
 
-constructor DSLFileStream.Create(const AFileName: string; Mode: Word);
+constructor TThreadFileStream.Create(const AFileName: string; Mode: Word);
 begin
   inherited;
   fLock := TCriticalSection.Create;
 end;
 
-constructor DSLFileStream.Create(const AFileName: string; Mode: Word; Rights: Cardinal);
+constructor TThreadFileStream.Create(const AFileName: string; Mode: Word; Rights: Cardinal);
 begin
   inherited;
   fLock := TCriticalSection.Create;
 end;
 
-destructor DSLFileStream.Destroy;
+destructor TThreadFileStream.Destroy;
 begin
   fLock.Free;
   inherited;
 end;
 
-procedure DSLFileStream.lock;
+procedure TThreadFileStream.lock;
 begin
   fLock.Enter;
 end;
 
-procedure DSLFileStream.unlock;
+procedure TThreadFileStream.unlock;
 begin
   fLock.Leave;
 end;
@@ -8642,10 +8669,10 @@ end;
 initialization
   JAVA_TIME_START := EncodeDateTime(1970, 1, 1, 0, 0, 0, 0);
 
-  QuickSort(@NAME_SORTED_CODE_PAGES, SizeOf(DSLCodePageInfo), Length(NAME_SORTED_CODE_PAGES),
+  QuickSort(@NAME_SORTED_CODE_PAGES, SizeOf(TCodePageInfo), Length(NAME_SORTED_CODE_PAGES),
     @CompareCodePageByName, @SwapCodePage);
 
-  QuickSort(@ID_SORTED_CODE_PAGES, SizeOf(DSLCodePageInfo), Length(ID_SORTED_CODE_PAGES),
+  QuickSort(@ID_SORTED_CODE_PAGES, SizeOf(TCodePageInfo), Length(ID_SORTED_CODE_PAGES),
     @CompareCodePageByID, @SwapCodePage);
 
 end.
