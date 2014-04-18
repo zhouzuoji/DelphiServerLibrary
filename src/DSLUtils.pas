@@ -955,6 +955,20 @@ function BStrLen(const s: WideString): Integer;
 
 function StrLenW(s: PWideChar): Integer; overload;
 
+function WCharArrayStrLen(const chars: array of WideChar): Integer;
+
+function Array2WStr(const chars: array of WideChar): WideString;
+
+function Array2UStr(const chars: array of WideChar): UnicodeString;
+
+procedure WStr2Array(var dst: array of WideChar; const src: WideString);
+
+procedure UStr2Array(var dst: array of WideChar; const src: UnicodeString);
+
+function ByteArrayStrLen(const chars: array of AnsiChar): Integer;
+
+procedure RawByteStr2Array(var dst: array of AnsiChar; const src: RawByteString);
+
 procedure MsgSleep(period: DWORD);
 
 type
@@ -2281,6 +2295,113 @@ begin
       Inc(s);
     end;
   end;
+end;
+
+function WCharArrayStrLen(const chars: array of WideChar): Integer;
+var
+  i: Integer;
+begin
+  Result := Length(chars);
+
+  for i := Low(chars) to High(chars) do
+  begin
+    if chars[i] = #0 then
+    begin
+      Result := i - Low(chars);
+      Break;
+    end;
+  end;
+end;
+
+function Array2WStr(const chars: array of WideChar): WideString;
+var
+  L: Integer;
+begin
+  L := WCharArrayStrLen(chars);
+
+  SetLength(Result, L);
+
+  Move(chars[Low(chars)], Pointer(Result)^, L shl 1);
+end;
+
+function Array2UStr(const chars: array of WideChar): UnicodeString;
+var
+  L: Integer;
+begin
+  L := WCharArrayStrLen(chars);
+
+  SetLength(Result, L);
+
+  Move(chars[Low(chars)], Pointer(Result)^, L shl 1);
+end;
+
+procedure WStr2Array(var dst: array of WideChar; const src: WideString);
+var
+  L: Integer;
+begin
+  L := Length(src);
+
+  if L > Length(dst) then L := Length(dst);
+
+  Move(Pointer(src)^, dst[Low(dst)], L shl 1);
+
+  if L < Length(dst) then
+    dst[Low(dst) + L] := #0;
+end;
+
+procedure UStr2Array(var dst: array of WideChar; const src: UnicodeString);
+var
+  L: Integer;
+begin
+  L := Length(src);
+
+  if L > Length(dst) then L := Length(dst);
+
+  Move(Pointer(src)^, dst[Low(dst)], L shl 1);
+
+  if L < Length(dst) then
+    dst[Low(dst) + L] := #0;
+end;
+
+function ByteArrayStrLen(const chars: array of AnsiChar): Integer;
+var
+  i: Integer;
+begin
+  Result := Length(chars);
+
+  for i := Low(chars) to High(chars) do
+  begin
+    if chars[i] = #0 then
+    begin
+      Result := i - Low(chars);
+      Break;
+    end;
+  end;
+end;
+
+function ByteArray2Str(const chars: array of AnsiChar): RawByteString;
+var
+  L: Integer;
+begin
+  L := ByteArrayStrLen(chars);
+
+  SetLength(Result, L);
+
+  Move(chars[Low(chars)], Pointer(Result)^, L);
+end;
+
+procedure RawByteStr2Array(var dst: array of AnsiChar; const src: RawByteString);
+var
+  L: Integer;
+begin
+  L := Length(src);
+
+  if L > Length(dst) then L := Length(dst);
+
+  Move(Pointer(src)^, dst[Low(dst)], L);
+
+  if L < Length(dst) then
+    dst[Low(dst) + L] := #0;
 end;
 
 function RegisterCOMComponet(pFileName: PChar): Boolean;
