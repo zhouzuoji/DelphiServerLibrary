@@ -965,6 +965,8 @@ procedure WStr2Array(var dst: array of WideChar; const src: WideString);
 
 procedure UStr2Array(var dst: array of WideChar; const src: UnicodeString);
 
+function ByteArray2Str(const chars: array of AnsiChar): RawByteString;
+
 function ByteArrayStrLen(const chars: array of AnsiChar): Integer;
 
 procedure RawByteStr2Array(var dst: array of AnsiChar; const src: RawByteString);
@@ -2313,6 +2315,22 @@ begin
   end;
 end;
 
+function ByteArrayStrLen(const chars: array of AnsiChar): Integer;
+var
+  i: Integer;
+begin
+  Result := Length(chars);
+
+  for i := Low(chars) to High(chars) do
+  begin
+    if chars[i] = #0 then
+    begin
+      Result := i - Low(chars);
+      Break;
+    end;
+  end;
+end;
+
 function Array2WStr(const chars: array of WideChar): WideString;
 var
   L: Integer;
@@ -2361,22 +2379,6 @@ begin
 
   if L < Length(dst) then
     dst[Low(dst) + L] := #0;
-end;
-
-function ByteArrayStrLen(const chars: array of AnsiChar): Integer;
-var
-  i: Integer;
-begin
-  Result := Length(chars);
-
-  for i := Low(chars) to High(chars) do
-  begin
-    if chars[i] = #0 then
-    begin
-      Result := i - Low(chars);
-      Break;
-    end;
-  end;
 end;
 
 function ByteArray2Str(const chars: array of AnsiChar): RawByteString;
