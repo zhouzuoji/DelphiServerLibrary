@@ -853,7 +853,8 @@ procedure StopAndWaitForThread(threads: TList);
 
 procedure StreamWriteStrA(stream: TStream; const str: RawByteString);
 
-function MemHex(const Buffer; Size: Integer; UpperCase: Boolean = True): RawByteString;
+function MemHex(const Buffer; Size: Integer; UpperCase: Boolean = True): RawByteString; overload;
+function MemHex(const s: RawByteString; UpperCase: Boolean = True): RawByteString; overload;
 
 function CloneList(src: TList): TList;
 
@@ -1162,12 +1163,12 @@ type
 
   TRunnable = class(TRefCountedObject)
   protected
-    fStatusCode: Integer;
-    fStatusText: UnicodeString;
+    FStatusCode: Integer;
+    FStatusText: UnicodeString;
   public
-    procedure run(context: TObject); virtual; aBStract;
-    property StatusCode: Integer read fStatusCode;
-    property StatusText: UnicodeString read fStatusText;
+    procedure run(context: TObject); virtual; abStract;
+    property StatusCode: Integer read FStatusCode write FStatusCode;
+    property StatusText: UnicodeString read FStatusText write FStatusText;
   end;
 
   TSignalThread = class(TThread)
@@ -4146,6 +4147,11 @@ begin
 
     PAnsiChar(Result)[2 * i + 1] := HEXADECIMAL_CHARS[l];
   end;
+end;
+
+function MemHex(const s: RawByteString; UpperCase: Boolean = True): RawByteString; overload;
+begin
+  Result := MemHex(Pointer(s)^, Length(s), UpperCase);
 end;
 
 function HexStrToIntA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Integer;

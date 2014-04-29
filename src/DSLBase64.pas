@@ -36,10 +36,10 @@ function Base64Decode(const Input: AnsiString): AnsiString; overload;
 implementation
 
 type
-  FourBytes = array[0..3] of Byte;
-  ThreeBytes = array[0..2] of Byte;
-  PFourBytes = ^FourBytes;
-  PThreeBytes = ^ThreeBytes;
+  TFourBytes = array[0..3] of Byte;
+  TThreeBytes = array[0..2] of Byte;
+  PFourBytes = ^TFourBytes;
+  PThreeBytes = ^TThreeBytes;
 
 function Base64Encode(Input: Pointer; InputSize: Integer;
   Output: Pointer): Integer;
@@ -101,6 +101,7 @@ function Base64Decode(Input: Pointer; InputSize: Integer;
   Output: Pointer): Integer;
 var
   IPtr: PFourBytes;
+  tmp: TFourBytes;
   OPtr: PThreeBytes;
   i: Integer;
 begin
@@ -112,19 +113,21 @@ begin
   OPtr := PThreeBytes(Output);
   for i := 1 to InputSize div 4 do
   begin
-    IPtr[0] := BASE64_ALPHABET_INDEXES[IPtr[0]];
-    IPtr[1] := BASE64_ALPHABET_INDEXES[IPtr[1]];
-    IPtr[2] := BASE64_ALPHABET_INDEXES[IPtr[2]];
-    IPtr[3] := BASE64_ALPHABET_INDEXES[IPtr[3]];
-    OPtr[0] := (IPtr[0] shl 2) or (IPtr[1] shr 4);
-    if (IPtr[2] <> 64) then
+    tmp[0] := BASE64_ALPHABET_INDEXES[IPtr[0]];
+    tmp[1] := BASE64_ALPHABET_INDEXES[IPtr[1]];
+    tmp[2] := BASE64_ALPHABET_INDEXES[IPtr[2]];
+    tmp[3] := BASE64_ALPHABET_INDEXES[IPtr[3]];
+
+    OPtr[0] := (tmp[0] shl 2) or (tmp[1] shr 4);
+
+    if (tmp[2] <> 64) then
     begin
-      OPtr[1] := (IPtr[1] shl 4) or (IPtr[2] shr 2);
+      OPtr[1] := (tmp[1] shl 4) or (tmp[2] shr 2);
     end;
 
-    if (IPtr[3] <> 64) then
+    if (tmp[3] <> 64) then
     begin
-      OPtr[2] := (IPtr[2] shl 6) or IPtr[3];
+      OPtr[2] := (tmp[2] shl 6) or tmp[3];
     end;
 
     Inc(IPtr);
