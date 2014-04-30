@@ -812,6 +812,9 @@ function StrSliceA(const s: RawByteString; offset: Integer; num: Integer = -1): 
 
 procedure StrSplit(const str, delimiter: string; list: TStrings);
 
+procedure TrimStrings(strs: TStrings);
+procedure DeleteBlankStrings(strs: TStrings);
+
 function StrSplitA(const str: RawByteString; const delimiters: array of AnsiChar;
   var strs: array of RawByteString): Integer;
 
@@ -881,6 +884,8 @@ procedure ClearObjectListAndFree(objlist: TObject);
 procedure dir_list(const ParentDir: string; strs: TStrings);
 
 procedure SafeForceDirectories(const dir: string);
+
+function ConcatFolderPath(const s1, s2: string): string;
 
 procedure SaveBufToFile(const FileName: string; buf: Pointer; len: Integer);
 
@@ -3193,6 +3198,13 @@ begin
     ForceDirectories(dir);
   except
   end;
+end;
+
+function ConcatFolderPath(const s1, s2: string): string;
+begin
+  if s1 = '' then Result := s2
+  else if s1[Length(s1)] = '\' then Result := s1 + s2
+  else Result := s1 + '\' + s2;
 end;
 
 procedure SaveBufToFile(const FileName: string; buf: Pointer; len: Integer);
@@ -5543,8 +5555,7 @@ begin
   Result := StringReplace(S, OldPattern, NewPattern, Flags);
 end;
 
-function StrCompareW(const S1: PWideChar; L1: Integer;
-  S2: PWideChar; L2: Integer; CaseSensitive: Boolean): Integer;
+function StrCompareW(const S1: PWideChar; L1: Integer; S2: PWideChar; L2: Integer; CaseSensitive: Boolean): Integer;
 var
   CmpFlags: DWORD;
 begin
@@ -6536,6 +6547,34 @@ begin
     list.Add(Copy(str, P1, P2 - P1));
 
     P1 := P2 + 1;
+  end;
+end;
+
+procedure TrimStrings(strs: TStrings);
+var
+  i: Integer;
+begin
+  strs.BeginUpdate;
+
+  try
+    for i := 0 to strs.Count - 1 do
+      strs[i] := Trim(strs[i]);
+  finally
+    strs.EndUpdate;
+  end;
+end;
+
+procedure DeleteBlankStrings(strs: TStrings);
+var
+  i: Integer;
+begin
+  strs.BeginUpdate;
+
+  try
+    for i := strs.Count - 1 downto 0 do
+      if strs[i] = '' then strs.Delete(i);      
+  finally
+    strs.EndUpdate;
   end;
 end;
 
