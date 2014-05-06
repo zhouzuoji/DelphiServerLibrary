@@ -5648,14 +5648,17 @@ begin
     if limit <= 0 then
       limit := Length(src);
 
-    p1 := StrPosA(prefix, src, start, limit);
+    if prefix = '' then P1 := start
+    else P1 := StrPosA(prefix, src, start, limit);
 
-    if p1 > 0 then
+    if P1 > 0 then
     begin
-      Inc(p1, Integer(Length(prefix)));
-      p2 := StrPosA(suffix, src, p1, limit);
+      Inc(P1, Length(prefix));
 
-      Result := p2 > 0;
+      if suffix = '' then P2 := limit
+      else P2 := StrPosA(suffix, src, P1, limit);
+
+      Result := P2 > 0;
     end;
   end;
 end;
@@ -5773,14 +5776,17 @@ begin
     if limit <= 0 then
       limit := Length(src);
 
-    p1 := UStrPos(prefix, src, start, limit);
+    if prefix = '' then P1 := start
+    else P1 := UStrPos(prefix, src, start, limit);
 
-    if p1 > 0 then
+    if P1 > 0 then
     begin
-      Inc(p1, Integer(Length(prefix)));
-      p2 := UStrPos(suffix, src, p1, limit);
+      Inc(P1, Length(prefix));
 
-      Result := p2 > 0;
+      if suffix = '' then P2 := limit
+      else P2 := UStrPos(suffix, src, P1, limit);
+
+      Result := P2 > 0;
     end;
   end;
 end;
