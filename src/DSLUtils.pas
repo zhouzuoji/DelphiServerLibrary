@@ -789,14 +789,18 @@ function BStrGetFloatBefore(const s, suffix: WideString; out number: Double): Bo
 (*************************格式验证*********************************)
 
 function IsIntegerA(str: PAnsiChar; len: Integer): Boolean; overload;
-
 function IsIntegerA(const str: RawByteString): Boolean; overload;
 
-function IsIntegerW(str: PWideChar; len: Integer): Boolean; overload;
-
+function IsIntegerW(str: PWideChar; len: Integer): Boolean;
 function UStrIsInteger(const str: UnicodeString): Boolean;
-
 function BStrIsInteger(const str: WideString): Boolean;
+
+function IsValidEmailA(str: PAnsiChar; len: Integer): Boolean; overload;
+function IsValidEmailA(const s: RawByteString): Boolean; overload;
+
+function IsValidEmailW(str: PWideChar; len: Integer): Boolean; overload;
+function IsValidEmailW(const s: WideString): Boolean; overload;
+function IsValidEmailU(const s: UnicodeString): Boolean;
 
 function IsChinaIDCardNoA(const idc: RawByteString): Boolean;
 
@@ -6299,29 +6303,87 @@ begin
   end;
 end;
 
-function CheckMail(const s: string): Boolean;
-//检测是否邮箱帐号
+function IsValidEmailA(str: PAnsiChar; len: Integer): Boolean;
 var
   i, _dot, _at: Integer;
 begin
   Result := False;
 
-  _dot := 0;
-  _at := 0;
+  _dot := -1;
+  _at := -1;
 
-  if Length(s) <= 5 then Exit;
-
-  for i := 1 to Length(s) do
+  for i := 0 to len - 1 do
   begin
-    case s[i] of
+    case str[i] of
       '0'..'9', 'a'..'z', 'A'..'Z', '_', '-': ;
-      '.': _dot := i; 
-      '@': _at := i;
+
+      '.':
+        begin
+          if _at = -1 then Exit;
+
+          _dot := i;
+        end;
+
+      '@':
+        begin
+          if _at <> -1 then Exit;
+          
+          _at := i;
+        end
       else Exit;
     end;
   end;
-  
-  Result := (_dot <> 0) and (_at <> 0);
+
+  Result := (_at <> -1) and (_dot <> -1);
+end;
+
+function IsValidEmailA(const s: RawByteString): Boolean;
+begin
+  Result := IsValidEmailA(PAnsiChar(s), Length(s));
+end;
+
+function IsValidEmailW(str: PWideChar; len: Integer): Boolean;
+var
+  i, _dot, _at: Integer;
+begin
+  Result := False;
+
+  _dot := -1;
+  _at := -1;
+
+  for i := 0 to len - 1 do
+  begin
+    case str[i] of
+      '0'..'9', 'a'..'z', 'A'..'Z', '_', '-': ;
+
+      '.':
+        begin
+          if _at = -1 then Exit;
+
+          _dot := i;
+        end;
+
+      '@':
+        begin
+          if _at <> -1 then Exit;
+          
+          _at := i;
+        end
+      else Exit;
+    end;
+  end;
+
+  Result := (_at <> -1) and (_dot <> -1);
+end;
+
+function IsValidEmailU(const s: UnicodeString): Boolean;
+begin
+  Result := IsValidEmailW(PWideChar(s), Length(s));
+end;
+
+function IsValidEmailW(const s: WideString): Boolean; 
+begin
+  Result := IsValidEmailW(PWideChar(s), Length(s));
 end;
 
 function ExtractIntegerA(const str: RawByteString): Integer;
@@ -7242,14 +7304,10 @@ begin
   end;
 end;
 
-//弹出提示对话框
-
 procedure ShowInfoDialog(const msg: string; hwnd: THandle);
 begin
   Application.MessageBox(PChar(Msg), '提示', MB_ICONINFORMATION or MB_OK);
 end;
-
-//弹出错误对话框
 
 procedure ShowErrorDialog(const msg: string; hwnd: THandle);
 begin
