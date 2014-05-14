@@ -603,7 +603,8 @@ function StrScanW(s: PWideChar; len: Integer; c: WideChar): PWideChar; overload;
 
 function StrScanW(s: PWideChar; c: WideChar): PWideChar; overload;
 
-function UStrScan(const s: UnicodeString; c: WideChar): Integer; overload;
+function UStrScan(const s: UnicodeString; c: WideChar; BeginIndex: Integer = 1;
+  EndIndex: Integer = 0): Integer; overload;
 
 function BStrScan(const s: WideString; c: WideChar): Integer; overload;
 
@@ -815,6 +816,9 @@ function StrSliceA(s: PAnsiChar; len, offset: Integer; num: Integer = -1): RawBy
 function StrSliceA(const s: RawByteString; offset: Integer; num: Integer = -1): RawByteString; overload;
 
 procedure StrSplit(const str, delimiter: string; list: TStrings);
+
+procedure UStrSplit2(const s, delimiter: UnicodeString; out s1, s2: UnicodeString;
+  BeginIndex: Integer = 1; EndIndex: Integer = 0);
 
 procedure TrimStrings(strs: TStrings);
 procedure DeleteBlankStrings(strs: TStrings);
@@ -5088,14 +5092,25 @@ begin
   else Result := s;
 end;
 
-function UStrScan(const s: UnicodeString; c: WideChar): Integer;
+function UStrScan(const s: UnicodeString; c: WideChar; BeginIndex, EndIndex: Integer): Integer;
 var
-  p: PWideChar;
+  i: Integer;
 begin
-  p := StrScanW(PWideChar(s), Length(s), c);
+  if BeginIndex <= 0 then BeginIndex := 1;
 
-  if p = nil then Result := 0
-  else Result := p - PWideChar(s) + 1;
+  if (EndIndex <= 0) or (EndIndex > Integer(Length(s))) then
+    EndIndex := Length(s);
+
+  Result := 0;
+  
+  for i := BeginIndex to EndIndex do
+  begin
+    if s[i] = c then
+    begin
+      Result := i;
+      Break;
+    end;
+  end;
 end;
 
 function BStrScan(const s: WideString; c: WideChar): Integer;
@@ -6615,6 +6630,37 @@ begin
     list.Add(Copy(str, P1, P2 - P1));
 
     P1 := P2 + 1;
+  end;
+end;
+
+procedure UStrSplit2(const s, delimiter: UnicodeString; out s1, s2: UnicodeString;
+  BeginIndex, EndIndex: Integer);
+var
+  P: Integer;
+begin
+  if BeginIndex <= 0 then BeginIndex := 1;
+
+  if (EndIndex <= 0) or (EndIndex > Integer(Length(s))) then
+    EndIndex := Length(s);
+
+  if EndIndex < BeginIndex then
+  begin
+    s1 := '';
+    s2 := '';
+  end
+  else begin
+    P := UStrPos(delimiter, s, BeginIndex, EndIndex);
+
+    if P <= 0 then
+    begin
+      s1 := Copy(s, BeginIndex, EndIndex + 1 - BeginIndex);
+      s2 := '';
+    end
+    else begin
+      s1 := Copy(s, BeginIndex, P - BeginIndex);
+      Inc(P, Length(delimiter));
+      s2 := Copy(s, P, EndIndex + 1 - P);
+    end;
   end;
 end;
 
