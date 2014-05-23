@@ -682,7 +682,7 @@ function GetSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2
   start: Integer = 1; limit: Integer = 0): Boolean; overload;
 
 function GetTrimedSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+  start: Integer = 1; limit: Integer = 0): Boolean;
 
 function GetSubstrBetweenA(const src, prefix, suffix: RawByteString;
   start: Integer = 1; limit: Integer = 0): RawByteString; overload;
@@ -690,17 +690,23 @@ function GetSubstrBetweenA(const src, prefix, suffix: RawByteString;
 function GetTrimedSubstrBetweenA(const src, prefix, suffix: RawByteString;
   start: Integer = 1; limit: Integer = 0): RawByteString; overload;
 
-function GetIntegerBetweenA(const src, prefix, suffix: RawByteString;
-  out value: Int64; start: Integer = 1; limit: Integer = 0): Boolean; overload;
+function TryGetIntegerBetweenA(const src, prefix, suffix: RawByteString;
+  out value: Integer; start: Integer = 1; limit: Integer = 0): Boolean;
 
 function GetIntegerBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): Int64; overload;
+  start: Integer = 1; limit: Integer = 0): Integer;
 
-function GetFloatBetweenA(const src, prefix, suffix: RawByteString; out value: Double;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+function TryGetInt64BetweenA(const src, prefix, suffix: RawByteString;
+  out value: Int64; start: Integer = 1; limit: Integer = 0): Boolean;
+
+function GetInt64BetweenA(const src, prefix, suffix: RawByteString;
+  start: Integer = 1; limit: Integer = 0): Int64;
+
+function TryGetFloatBetweenA(const src, prefix, suffix: RawByteString; out value: Double;
+  start: Integer = 1; limit: Integer = 0): Boolean;
 
 function GetFloatBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): Double; overload;
+  start: Integer = 1; limit: Integer = 0): Double;
 
 function GetSectionBetweenW(const src, prefix, suffix: UnicodeString; out P1, P2: Integer;
   start: Integer = 1; limit: Integer = 0): Boolean; overload;
@@ -714,14 +720,20 @@ function GetSubstrBetweenW(const src, prefix, suffix: UnicodeString;
 function GetTrimedSubstrBetweenW(const src, prefix, suffix: UnicodeString;
   start: Integer = 1; limit: Integer = 0): UnicodeString; overload;
 
-function GetIntegerBetweenW(const src, prefix, suffix: UnicodeString; out value: Int64;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+function TryGetIntegerBetweenW(const src, prefix, suffix: UnicodeString; out value: Integer;
+  start: Integer = 1; limit: Integer = 0): Boolean;
 
 function GetIntegerBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): Int64; overload;
+  start: Integer = 1; limit: Integer = 0): Integer;
 
-function GetFloatBetweenW(const src, prefix, suffix: UnicodeString; out value: Double;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+function TryGetInt64BetweenW(const src, prefix, suffix: UnicodeString; out value: Int64;
+  start: Integer = 1; limit: Integer = 0): Boolean;
+
+function GetInt64BetweenW(const src, prefix, suffix: UnicodeString;
+  start: Integer = 1; limit: Integer = 0): Int64;
+
+function TryGetFloatBetweenW(const src, prefix, suffix: UnicodeString; out value: Double;
+  start: Integer = 1; limit: Integer = 0): Boolean;
 
 function GetFloatBetweenW(const src, prefix, suffix: UnicodeString;
   start: Integer = 1; limit: Integer = 0): Double; overload;
@@ -5658,7 +5670,7 @@ begin
 end;
 
 function GetSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+  start, limit: Integer): Boolean; overload;
 begin
   Result := False;
 
@@ -5683,7 +5695,7 @@ begin
 end;
 
 function GetTrimedSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+  start, limit: Integer): Boolean; overload;
 begin
   Result := GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit);
 
@@ -5694,8 +5706,7 @@ begin
   end;
 end;
 
-function GetSubstrBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): RawByteString;
+function GetSubstrBetweenA(const src, prefix, suffix: RawByteString; start, limit: Integer): RawByteString;
 var
   P1, P2: Integer;
 begin
@@ -5705,8 +5716,7 @@ begin
     Result := '';
 end;
 
-function GetTrimedSubstrBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): RawByteString; overload;
+function GetTrimedSubstrBetweenA(const src, prefix, suffix: RawByteString; start, limit: Integer): RawByteString; overload;
 var
   P1, P2: Integer;
 begin
@@ -5716,8 +5726,8 @@ begin
     Result := '';
 end;
 
-function GetIntegerBetweenA(const src, prefix, suffix: RawByteString;
-  out value: Int64; start: Integer = 1; limit: Integer = 0): Boolean;
+function TryGetInt64BetweenA(const src, prefix, suffix: RawByteString; out value: Int64;
+  start: Integer; limit: Integer): Boolean;
 var
   P1, P2: Integer;
   c: PAnsiChar;
@@ -5733,8 +5743,7 @@ begin
   end;
 end;
 
-function GetIntegerBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): Int64;
+function GetInt64BetweenA(const src, prefix, suffix: RawByteString; start, limit: Integer): Int64;
 var
   P1, P2: Integer;
   c: PAnsiChar;
@@ -5748,7 +5757,37 @@ begin
   else Result := 0;
 end;
 
-function GetFloatBetweenA(const src, prefix, suffix: RawByteString; out value: Double;
+function TryGetIntegerBetweenA(const src, prefix, suffix: RawByteString; out value: Integer; start: Integer; limit: Integer): Boolean;
+var
+  P1, P2: Integer;
+  c: PAnsiChar;
+begin
+  Result := False;
+
+  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  begin
+    value := BufToIntA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then value := 0
+    else Result := True;
+  end;
+end;
+
+function GetIntegerBetweenA(const src, prefix, suffix: RawByteString; start, limit: Integer): Integer;
+var
+  P1, P2: Integer;
+  c: PAnsiChar;
+begin
+  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  begin
+    Result := BufToIntA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then Result := 0
+  end
+  else Result := 0;
+end;
+
+function TryGetFloatBetweenA(const src, prefix, suffix: RawByteString; out value: Double;
   start: Integer = 1; limit: Integer = 0): Boolean;
 var
   P1, P2: Integer;
@@ -5844,7 +5883,7 @@ begin
     Result := '';
 end;
 
-function GetIntegerBetweenW(const src, prefix, suffix: UnicodeString; out value: Int64;
+function TryGetInt64BetweenW(const src, prefix, suffix: UnicodeString; out value: Int64;
   start: Integer = 1; limit: Integer = 0): Boolean;
 var
   P1, P2: Integer;
@@ -5862,8 +5901,7 @@ begin
   end;
 end;
 
-function GetIntegerBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): Int64; overload;
+function GetInt64BetweenW(const src, prefix, suffix: UnicodeString; start: Integer = 1; limit: Integer = 0): Int64;
 var
   P1, P2: Integer;
   c: PWideChar;
@@ -5879,7 +5917,41 @@ begin
   else Result := 0;
 end;
 
-function GetFloatBetweenW(const src, prefix, suffix: UnicodeString; out value: Double;
+function TryGetIntegerBetweenW(const src, prefix, suffix: UnicodeString; out value: Integer;
+  start: Integer = 1; limit: Integer = 0): Boolean;
+var
+  P1, P2: Integer;
+  c: PWideChar;
+begin
+  Result := False;
+
+  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  begin
+    c:= nil;
+    value := BufToIntW(PWideChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then value := 0
+    else Result := True;
+  end;
+end;
+
+function GetIntegerBetweenW(const src, prefix, suffix: UnicodeString; start: Integer = 1; limit: Integer = 0): Integer; overload;
+var
+  P1, P2: Integer;
+  c: PWideChar;
+begin
+  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  begin
+    c:= nil;
+    
+    Result := BufToIntW(PWideChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then Result := 0;
+  end
+  else Result := 0;
+end;
+
+function TryGetFloatBetweenW(const src, prefix, suffix: UnicodeString; out value: Double;
   start: Integer = 1; limit: Integer = 0): Boolean;
 var
   P1, P2: Integer;
