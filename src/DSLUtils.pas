@@ -599,6 +599,9 @@ function StrScanA(s: PAnsiChar; c: AnsiChar): PAnsiChar; overload;
 
 function StrScanA(const s: RawByteString; c: AnsiChar): Integer; overload;
 
+function StrScanA(const s: RawByteString; c: AnsiChar; BeginIndex: Integer = 1;
+  EndIndex: Integer = 0): Integer; overload;
+
 function StrScanW(s: PWideChar; len: Integer; c: WideChar): PWideChar; overload;
 
 function StrScanW(s: PWideChar; c: WideChar): PWideChar; overload;
@@ -837,6 +840,9 @@ procedure DeleteBlankStrings(strs: TStrings);
 
 function StrSplitA(const str: RawByteString; const delimiters: array of AnsiChar;
   var strs: array of RawByteString): Integer;
+
+procedure StrSplitA2(const s, delimiter: RawByteString; out s1, s2: RawByteString;
+  BeginIndex: Integer = 1; EndIndex: Integer = 0);
 
 function StrToDateTimeA(const s: RawByteString; out dt: TDateTime): Boolean;
 
@@ -4877,6 +4883,28 @@ begin
   else Result := p - PAnsiChar(s) + 1;
 end;
 
+function StrScanA(const s: RawByteString; c: AnsiChar; BeginIndex: Integer = 1;
+  EndIndex: Integer = 0): Integer; overload;
+var
+  i: Integer;
+begin
+  if BeginIndex <= 0 then BeginIndex := 1;
+
+  if (EndIndex <= 0) or (EndIndex > Integer(Length(s))) then
+    EndIndex := Length(s);
+
+  Result := 0;
+  
+  for i := BeginIndex to EndIndex do
+  begin
+    if s[i] = c then
+    begin
+      Result := i;
+      Break;
+    end;
+  end;
+end;
+
 function StrPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar; overload;
 asm
       test  eax,eax
@@ -6813,6 +6841,37 @@ begin
   end;
 
   Result := n;
+end;
+
+procedure StrSplitA2(const s, delimiter: RawByteString; out s1, s2: RawByteString;
+  BeginIndex: Integer = 1; EndIndex: Integer = 0);
+var
+  P: Integer;
+begin
+  if BeginIndex <= 0 then BeginIndex := 1;
+
+  if (EndIndex <= 0) or (EndIndex > Integer(Length(s))) then
+    EndIndex := Length(s);
+
+  if EndIndex < BeginIndex then
+  begin
+    s1 := '';
+    s2 := '';
+  end
+  else begin
+    P := StrPosA(delimiter, s, BeginIndex, EndIndex);
+
+    if P <= 0 then
+    begin
+      s1 := Copy(s, BeginIndex, EndIndex + 1 - BeginIndex);
+      s2 := '';
+    end
+    else begin
+      s1 := Copy(s, BeginIndex, P - BeginIndex);
+      Inc(P, Length(delimiter));
+      s2 := Copy(s, P, EndIndex + 1 - P);
+    end;
+  end;
 end;
 
 function StrToDateTimeA(const s: RawByteString; out dt: TDateTime): Boolean;
