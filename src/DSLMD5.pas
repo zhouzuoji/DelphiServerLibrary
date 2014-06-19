@@ -195,7 +195,7 @@ begin
       ReadBytes := SizeOf(buffer);
       if ReadBytes > Len then ReadBytes := Len;
       ReadBytes := stream.Read(buffer, ReadBytes);
-      MD5Update(context, @buffer, ReadBytes);
+      MD5Update(context, PByteArray(@buffer), ReadBytes);
       Dec(Len, ReadBytes);
     end;
     MD5Final(context, digest);

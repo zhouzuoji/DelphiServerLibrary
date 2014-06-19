@@ -1003,6 +1003,14 @@ function ByteArrayStrLen(const chars: array of AnsiChar): Integer;
 
 procedure RawByteStr2Array(var dst: array of AnsiChar; const src: RawByteString);
 
+function WCharArrayCat(const arr1, arr2: array of WideChar): UnicodeString; overload;
+
+function WCharArrayCat(const arr1, arr2, arr3: array of WideChar): UnicodeString; overload;
+
+function WCharArrayCat(const arr1, arr2, arr3, arr4: array of WideChar): UnicodeString; overload;
+
+function WCharArrayCat(const arr1, arr2, arr3, arr4, arr5: array of WideChar): UnicodeString; overload;
+
 procedure MsgSleep(period: DWORD);
 
 type
@@ -2436,6 +2444,94 @@ begin
 
   if L < Length(dst) then
     dst[Low(dst) + L] := #0;
+end;
+
+function WCharArrayCat(const arr1, arr2: array of WideChar): UnicodeString;
+var
+  L1, L2: Integer;
+begin
+  L1 := WCharArrayStrLen(arr1);
+  L2 := WCharArrayStrLen(arr2);
+
+  SetLength(Result, L1 + L2);
+
+  if L1 > 0 then
+    Move(arr1[0], Pointer(Result)^, L1 shl 1);
+
+  if L2 > 0 then
+    Move(arr2[0], PWideChar(Result)[L1], L2 shl 1);
+end;
+
+function WCharArrayCat(const arr1, arr2, arr3: array of WideChar): UnicodeString;
+var
+  L1, L2, L3: Integer;
+begin
+  L1 := WCharArrayStrLen(arr1);
+  L2 := WCharArrayStrLen(arr2);
+  L3 := WCharArrayStrLen(arr3);
+
+  SetLength(Result, L1 + L2 + L3);
+
+  if L1 > 0 then
+    Move(arr1[0], Pointer(Result)^, L1 shl 1);
+
+  if L2 > 0 then
+    Move(arr2[0], PWideChar(Result)[L1], L2 shl 1);
+
+  if L3 > 0 then
+    Move(arr3[0], PWideChar(Result)[L1 + L2], L3 shl 1);
+end;
+
+function WCharArrayCat(const arr1, arr2, arr3, arr4: array of WideChar): UnicodeString;
+var
+  L1, L2, L3, L4: Integer;
+begin
+  L1 := WCharArrayStrLen(arr1);
+  L2 := WCharArrayStrLen(arr2);
+  L3 := WCharArrayStrLen(arr3);
+  L4 := WCharArrayStrLen(arr4);
+
+  SetLength(Result, L1 + L2 + L3 + L4);
+
+  if L1 > 0 then
+    Move(arr1[0], Pointer(Result)^, L1 shl 1);
+
+  if L2 > 0 then
+    Move(arr2[0], PWideChar(Result)[L1], L2 shl 1);
+
+  if L3 > 0 then
+    Move(arr3[0], PWideChar(Result)[L1 + L2], L3 shl 1);
+
+  if L4 > 0 then
+    Move(arr4[0], PWideChar(Result)[L1 + L2 + L3], L4 shl 1);
+end;
+
+function WCharArrayCat(const arr1, arr2, arr3, arr4, arr5: array of WideChar): UnicodeString;
+var
+  L1, L2, L3, L4, L5: Integer;
+begin
+  L1 := WCharArrayStrLen(arr1);
+  L2 := WCharArrayStrLen(arr2);
+  L3 := WCharArrayStrLen(arr3);
+  L4 := WCharArrayStrLen(arr4);
+  L5 := WCharArrayStrLen(arr5);
+
+  SetLength(Result, L1 + L2 + L3 + L4 + L5);
+
+  if L1 > 0 then
+    Move(arr1[0], Pointer(Result)^, L1 shl 1);
+
+  if L2 > 0 then
+    Move(arr2[0], PWideChar(Result)[L1], L2 shl 1);
+
+  if L3 > 0 then
+    Move(arr3[0], PWideChar(Result)[L1 + L2], L3 shl 1);
+
+  if L4 > 0 then
+    Move(arr4[0], PWideChar(Result)[L1 + L2 + L3], L4 shl 1);
+
+  if L5 > 0 then
+    Move(arr5[0], PWideChar(Result)[L1 + L2 + L3 + L4], L5 shl 1);
 end;
 
 function RegisterCOMComponet(pFileName: PChar): Boolean;
