@@ -597,8 +597,6 @@ function StrScanA(s: PAnsiChar; len: Integer; c: AnsiChar): PAnsiChar; overload;
 
 function StrScanA(s: PAnsiChar; c: AnsiChar): PAnsiChar; overload;
 
-function StrScanA(const s: RawByteString; c: AnsiChar): Integer; overload;
-
 function StrScanA(const s: RawByteString; c: AnsiChar; BeginIndex: Integer = 1;
   EndIndex: Integer = 0): Integer; overload;
 
@@ -4967,16 +4965,6 @@ begin
 
   if s^ = #0 then Result := nil
   else Result := s;
-end;
-
-function StrScanA(const s: RawByteString; c: AnsiChar): Integer;
-var
-  p: PAnsiChar;
-begin
-  p := StrScanA(PAnsiChar(s), Length(s), c);
-
-  if p = nil then Result := 0
-  else Result := p - PAnsiChar(s) + 1;
 end;
 
 function StrScanA(const s: RawByteString; c: AnsiChar; BeginIndex: Integer = 1;
