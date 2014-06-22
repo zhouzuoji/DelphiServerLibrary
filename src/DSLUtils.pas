@@ -623,6 +623,8 @@ function StrPosA(const substr, str: RawByteString; StartIndex: Integer = 1; EndI
 
 function BeginWithW(s: PWideChar; len: Integer; sub: PWideChar; sublen: Integer): Boolean; overload;
 
+function BeginWithW(s: PWideChar; len: Integer; const sub: UnicodeString): Boolean; overload;
+
 function BeginWithW(s, sub: PWideChar): Boolean; overload;
 
 function IBeginWithW(s, sub: PWideChar): Boolean; overload;
@@ -5668,6 +5670,24 @@ begin
 
   for i := 0 to sublen - 1 do
     if sub[i] <> s[i] then Exit;
+
+  Result := True;
+end;
+
+function BeginWithW(s: PWideChar; len: Integer; const sub: UnicodeString): Boolean; overload;
+var
+  i, sublen: Integer;
+  _sub: PWideChar;
+begin
+  Result := False;
+
+  _sub := PWideChar(sub);
+  sublen := Length(sub);
+  
+  if len < sublen then Exit;
+
+  for i := 0 to sublen - 1 do
+    if _sub[i] <> s[i] then Exit;
 
   Result := True;
 end;

@@ -9,7 +9,7 @@ function HTMLDecodeBufA(s: PAnsiChar; len: Integer): RawByteString;
 
 function HTMLDecodeStrA(const s: RawByteString): RawByteString;
 
-function HTMLDecodeBufferW(s: PWideChar; len: Integer): UnicodeString;
+function HTMLDecodeBufW(s: PWideChar; len: Integer): UnicodeString;
 
 function HTMLDecodeUStr(const s: UnicodeString): UnicodeString;
 
@@ -32,7 +32,7 @@ function GetInputValueA(str: PAnsiChar; len: Integer; const name: RawByteString;
 
 implementation
 
-function HTMLDecodeBufA(s: PAnsiChar; len: Integer): RawByteString;
+function _HTMLDecodeBufA(s: PAnsiChar; len: Integer): RawByteString;
 var
   P1, P2: Integer;
   dst: PAnsiChar;
@@ -44,12 +44,12 @@ begin
   &amp; 	& 	和号
   &apos; 	' 	省略号
   &quot; 	" 	引号
+  &nbsp; 	" 	空格
   'mdash; —
   }
-
-  SetLength(Result, len);
-
-  dst := PAnsiChar(Result);
+  
+  Result := '';
+  dst := PAnsiChar(0);
 
   P1 := 0;
 
@@ -58,19 +58,21 @@ begin
     P2 := P1;
 
     while (P2 < len) and (s[P2] <> '&') do Inc(P2);
-
+    
     if P2 > P1 then
     begin
-      Move(s[P1], dst^, (P2 - P1) * 2);
+      if Result <> '' then  Move(s[P1], dst^, (P2 - P1));
       Inc(dst, P2 - P1);
     end;
 
+    P1 := P2;
+    
     if P2 >= len then Break;
 
     if P2 = len - 1 then
     begin
-      dst^ := '&';
-      Inc(dst);
+      if Result <> '' then dst^ := '&';
+      Inc(dst);   	  
       Break;
     end;
 
@@ -80,8 +82,12 @@ begin
     begin
       if P2 = len - 1 then
       begin
-        dst^ := '&';
-        dst[1] := '#';
+        if Result <> '' then 
+        begin 
+          dst^ := '&';
+          dst[1] := '#';
+        end;
+
         Inc(dst, 2);
         Break;
       end;
@@ -90,9 +96,14 @@ begin
 
       if (s[P2] < '0') or (s[P2] > '9') then
       begin
-        dst^ := '&';
-        dst[1] := '#';
+        if Result <> '' then 
+        begin 
+          dst^ := '&';
+          dst[1] := '#';
+        end;
+
         Inc(dst, 2);
+
         P1 := P2;
         Continue;
       end;
@@ -106,41 +117,113 @@ begin
         Inc(P2);
       end;
 
-      if v < $ff then PByte(dst)^ := v
-      else begin
-        AnsiStrAssignWideChar(dst, WideChar(v), CP_ACP);
-        Inc(dst);
-      end;
-
       if (P2 < len) and (s[P2] = ';') then
+      begin
         Inc(P2);
+      
+        if Result = '' then 
+        begin 
+          SetLength(Result, len);
+          Move(s^, Pointer(Result)^, dst - PAnsiChar(0));
+          dst := PAnsiChar(Result) + (dst - PAnsiChar(0));
+        end;
+      
+        if v < $ff then 
+        begin      
+          PByte(dst)^ := v;
+        end
+        else begin
+          AnsiStrAssignWideChar(dst, WideChar(v), CP_ACP);
+          Inc(dst);
+        end;
+      end
+      else begin
+        if Result <> '' then Move(s[P1], dst^, P2 - P1);
+        Inc(dst, P2 - P1);
+        P1 := P2;
+        Continue;
+      end;
     end
     else if BeginWithA(s + P2, len - P2, 'lt;', 3) then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, dst - PAnsiChar(0));
+        dst := PAnsiChar(Result) + (dst - PAnsiChar(0));
+      end;
+      
       dst^ := '<'; Inc(P2, 3);
     end
     else if BeginWithA(s + P2, len - P2, 'gt;', 3) then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, dst - PAnsiChar(0));
+        dst := PAnsiChar(Result) + (dst - PAnsiChar(0));
+      end;
+
       dst^ := '>'; Inc(P2, 3);
     end
     else if BeginWithA(s + P2, len - P2, 'amp;', 4) then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, dst - PAnsiChar(0));
+        dst := PAnsiChar(Result) + (dst - PAnsiChar(0));
+      end;
+
       dst^ := '&'; Inc(P2, 4);
     end
     else if BeginWithA(s + P2, len - P2, 'apos;', 5) then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, dst - PAnsiChar(0));
+        dst := PAnsiChar(Result) + (dst - PAnsiChar(0));
+      end;
+
       dst^ := #39; Inc(P2, 5);
     end
     else if BeginWithA(s + P2, len - P2, 'quot;', 5) then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, dst - PAnsiChar(0));
+        dst := PAnsiChar(Result) + (dst - PAnsiChar(0));
+      end;
+
       dst^ := '"'; Inc(P2, 5);
+    end
+    else if BeginWithA(s + P2, len - P2, 'nbsp;', 5) then
+    begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, dst - PAnsiChar(0));
+        dst := PAnsiChar(Result) + (dst - PAnsiChar(0));
+      end;
+
+      dst^ := #32; Inc(P2, 5);
     end
     else if BeginWithA(s + P2, len - P2, 'mdash;', 6) then
     begin
-      StrCopy(dst, '—'); Inc(dst); Inc(P2, 6);
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, dst - PAnsiChar(0));
+        dst := PAnsiChar(Result) + (dst - PAnsiChar(0));
+      end;
+      
+      AnsiStrAssignWideChar(dst, WideChar(UnicodeString('—')[1]), CP_ACP);
+      Inc(dst); Inc(P2, 6);
     end
     else begin
-      dst^ := '&'; Inc(P2);
+      if Result <> '' then dst^ := '&';
     end;
 
     Inc(dst);
@@ -150,12 +233,20 @@ begin
   SetLength(Result, dst - PAnsiChar(Result));
 end;
 
+function HTMLDecodeBufA(s: PAnsiChar; len: Integer): RawByteString;
+begin
+  Result := _HTMLDecodeBufA(s, len);
+
+  if Result = '' then
+    SetString(Result, s, len);
+end;
+
 function HTMLDecodeStrA(const s: RawByteString): RawByteString;
 begin
   Result := HTMLDecodeBufA(PAnsiChar(s), Length(s));
 end;
 
-function HTMLDecodeBufferW(s: PWideChar; len: Integer): UnicodeString;
+function _HTMLDecodeBufW(s: PWideChar; len: Integer): UnicodeString;
 var
   P1, P2: Integer;
   dst: PWideChar;
@@ -167,12 +258,12 @@ begin
   &amp; 	& 	和号
   &apos; 	' 	省略号
   &quot; 	" 	引号
+  &nbsp; 	" 	空格
   'mdash; —
   }
-
-  SetLength(Result, len);
-
-  dst := PWideChar(Result);
+  
+  Result := '';
+  dst := PWideChar(0);
 
   P1 := 0;
 
@@ -181,19 +272,21 @@ begin
     P2 := P1;
 
     while (P2 < len) and (s[P2] <> '&') do Inc(P2);
-
+    
     if P2 > P1 then
     begin
-      Move(s[P1], dst^, (P2 - P1) * 2);
+      if Result <> '' then  Move(s[P1], dst^, (P2 - P1) * 2);
       Inc(dst, P2 - P1);
     end;
 
+    P1 := P2;
+    
     if P2 >= len then Break;
 
     if P2 = len - 1 then
     begin
-      dst^ := '&';
-      Inc(dst);
+      if Result <> '' then dst^ := '&';
+      Inc(dst);   	  
       Break;
     end;
 
@@ -203,8 +296,12 @@ begin
     begin
       if P2 = len - 1 then
       begin
-        dst^ := '&';
-        dst[1] := '#';
+        if Result <> '' then 
+        begin 
+          dst^ := '&';
+          dst[1] := '#';
+        end;
+
         Inc(dst, 2);
         Break;
       end;
@@ -213,9 +310,14 @@ begin
 
       if (s[P2] < '0') or (s[P2] > '9') then
       begin
-        dst^ := '&';
-        dst[1] := '#';
+        if Result <> '' then 
+        begin 
+          dst^ := '&';
+          dst[1] := '#';
+        end;
+
         Inc(dst, 2);
+
         P1 := P2;
         Continue;
       end;
@@ -229,54 +331,132 @@ begin
         Inc(P2);
       end;
 
-      PWord(dst)^ := v;
-
       if (P2 < len) and (s[P2] = ';') then
+      begin
         Inc(P2);
+      
+        if Result = '' then 
+        begin 
+          SetLength(Result, len);
+          Move(s^, Pointer(Result)^, (dst - PWideChar(0)) * 2);
+          dst := PWideChar(Result) + (dst - PWideChar(0));
+        end;
+
+        PWord(dst)^ :=  v;
+      end
+      else begin
+        if Result <> '' then Move(s[P1], dst^, (P2 - P1) * 2);
+        Inc(dst, P2 - P1);
+        P1 := P2;
+        Continue;
+      end;
     end
-    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('lt;')), 3) then
+    else if BeginWithW(s + P2, len - P2, 'lt;') then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, (dst - PWideChar(0)) * 2);
+        dst := PWideChar(Result) + (dst - PWideChar(0));
+      end;
+
       dst^ := '<'; Inc(P2, 3);
     end
-    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('gt;')), 3) then
+    else if BeginWithW(s + P2, len - P2, 'gt;') then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, (dst - PWideChar(0)) * 2);
+        dst := PWideChar(Result) + (dst - PWideChar(0));
+      end;
+
       dst^ := '>'; Inc(P2, 3);
     end
-    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('amp;')), 4) then
+    else if BeginWithW(s + P2, len - P2, 'amp;') then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, (dst - PWideChar(0)) * 2);
+        dst := PWideChar(Result) + (dst - PWideChar(0));
+      end;
+
       dst^ := '&'; Inc(P2, 4);
     end
-    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('apos;')), 5) then
+    else if BeginWithW(s + P2, len - P2, 'apos;') then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, (dst - PWideChar(0)) * 2);
+        dst := PWideChar(Result) + (dst - PWideChar(0));
+      end;
+
       dst^ := #39; Inc(P2, 5);
     end
-    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('quot;')), 5) then
+    else if BeginWithW(s + P2, len - P2, 'quot;') then
     begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, (dst - PWideChar(0)) * 2);
+        dst := PWideChar(Result) + (dst - PWideChar(0));
+      end;
+
       dst^ := '"'; Inc(P2, 5);
     end
-    else if BeginWithW(s + P2, len - P2, PWideChar(UnicodeString('mdash;')), 6) then
+    else if BeginWithW(s + P2, len - P2, 'nbsp;') then
     begin
-      dst^ := UnicodeString('—')[1]; Inc(P2, 6);
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, (dst - PWideChar(0)) * 2);
+        dst := PWideChar(Result) + (dst - PWideChar(0));
+      end;
+
+      dst^ := #32; Inc(P2, 5);
+    end
+    else if BeginWithW(s + P2, len - P2, 'mdash;') then
+    begin
+      if Result = '' then
+      begin
+        SetLength(Result, len);
+        Move(s^, Pointer(Result)^, (dst - PWideChar(0)) * 2);
+        dst := PWideChar(Result) + (dst - PWideChar(0));
+      end;
+      
+      dst^ := UnicodeString('—')[1];
+      Inc(dst); Inc(P2, 6);
     end
     else begin
-      dst^ := '&'; Inc(P2);
+      if Result <> '' then dst^ := '&';
     end;
 
     Inc(dst);
     P1 := P2;
   end;
 
-  SetLength(Result, dst - PWideChar(Result));
+  if Result <> '' then
+    SetLength(Result, dst - PWideChar(Result));
+end;
+
+function HTMLDecodeBufW(s: PWideChar; len: Integer): UnicodeString;
+begin
+  Result := _HTMLDecodeBufW(s, len);
+
+  if Result = '' then
+    SetString(Result, s, len);
 end;
 
 function HTMLDecodeUStr(const s: UnicodeString): UnicodeString;
 begin
-  Result := HTMLDecodeBufferW(PWideChar(s), Length(s));
+  Result := HTMLDecodeBufW(PWideChar(s), Length(s));
 end;
 
 function HTMLDecodeBStr(const s: WideString): WideString;
 begin
-  Result := HTMLDecodeBufferW(PWideChar(s), Length(s));
+  Result := HTMLDecodeBufW(PWideChar(s), Length(s));
 end;
 
 function GetInputPropW(str: PWideChar; len: Integer; const name: UnicodeString; out P1, P2: PWideChar): Boolean; overload;
