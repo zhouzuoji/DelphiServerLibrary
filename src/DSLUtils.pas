@@ -1,945 +1,1809 @@
+{$B-,C+,E-,F-,G+,H+,I+,J-,K-,M-,N-,P+,Q-,R-,S-,U-,V+,W-,X+,Z1}
+{$O+}   // optimization on
+{$T+}   // typed pointers on
+{$POINTERMATH ON}
+{$DEFINE USE_RTL_POW10}
+{$DEFINE SIGNEDINT_TO_STR_ASM}
 unit DSLUtils;
 
 interface
 
 uses
-  SysUtils, Classes, Windows, ShellAPI, StrUtils, DateUtils, Controls, RTLConsts,
-  Dialogs, Forms, Graphics, ComCtrls, CommCtrl, ComObj, ShlObj, ActiveX, SyncObjs
-  {$IFDEF UNICODE},AnsiStrings{$ENDIF}
-  ;
+  AnsiStrings, DSLAnsiFunctions, SysUtils, Classes, Types, SysConst, Windows, MMSystem, WinSvc,
+  Generics.Collections, ShellAPI, PsAPI, StrUtils, DateUtils, Controls, RTLConsts, WideStrings, Math,
+  Dialogs, Forms, Graphics, ComCtrls, CommCtrl, ComObj, ShlObj, ActiveX, Variants, VarUtils,
+  SyncObjs, Contnrs, TlHelp32, ZLibExApi;
 
-{$ifndef UNICODE}
 type
+{$ifndef  unicode}
   UnicodeString = WideString;
-  PUnicodeString = ^UnicodeString;
+  PUnicodeString = PWideString;
   RawByteString = AnsiString;
-  PRawByteString = ^RawByteString;
+  PRawByteString = ^AnsiString;
 {$endif}
+  AsciiString = RawByteString;
+
+{$if not declared(u16string)}
+  u16string = UnicodeString;
+  pu16string = PUnicodeString;
+{$ifend}
+
+  TCharCase = (ccUpper, ccNormal, ccLower);
+
+const
+  _0to99A: packed array [0 .. 99] of RawByteString = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12',
+    '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31',
+    '32', '33', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50',
+    '51', '52', '53', '54', '55', '56', '57', '58', '59', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69',
+    '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80', '81', '82', '83', '84', '85', '86', '87', '88',
+    '89', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99');
+
+  _0to99UStr: packed array [0 .. 99] of u16string = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12',
+    '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31',
+    '32', '33', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50',
+    '51', '52', '53', '54', '55', '56', '57', '58', '59', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69',
+    '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80', '81', '82', '83', '84', '85', '86', '87', '88',
+    '89', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99');
+
+  CASE_CHAR_TABLE: array [TCharCase] of array [AnsiChar] of AnsiChar = ((#0, #1, #2, #3, #4, #5, #6, #7, #8, #9, #10,
+      #11, #12, #13, #14, #15, #16, #17, #18, #19, #20, #21, #22, #23, #24, #25, #26, #27, #28, #29, #30, #31, #32,
+      #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, '0', '1', '2', '3', '4', '5', '6',
+      '7', '8', '9', #58, #59, #60, #61, #62, #63, #64, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
+      'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', #91, #92, #93, #94, #95, #96, 'A', 'B',
+      'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+      'Y', 'Z', #122, #123, #124, #125, #126, #127, #128, #129, #130, #131, #132, #133, #134, #135, #136, #137,
+      #138, #139, #140, #141, #142, #143, #144, #145, #146, #147, #148, #149, #150, #151, #152, #153, #154, #155,
+      #156, #157, #158, #159, #160, #161, #162, #163, #164, #165, #166, #167, #168, #169, #170, #171, #172, #173,
+      #174, #175, #176, #177, #178, #179, #180, #181, #182, #183, #184, #185, #186, #187, #188, #189, #190, #191,
+      #192, #193, #194, #195, #196, #197, #198, #199, #200, #201, #202, #203, #204, #205, #206, #207, #208, #209,
+      #210, #211, #212, #213, #214, #215, #216, #217, #218, #219, #220, #221, #222, #223, #224, #225, #226, #227,
+      #228, #229, #230, #231, #233, #234, #235, #236, #237, #238, #239, #240, #241, #242, #243, #244, #245, #246,
+      #247, #248, #249, #250, #251, #252, #253, #254, #255), (#0, #1, #2, #3, #4, #5, #6, #7, #8, #9, #10, #11, #12,
+      #13, #14, #15, #16, #17, #18, #19, #20, #21, #22, #23, #24, #25, #26, #27, #28, #29, #30, #31, #32, #33, #34,
+      #35, #36, #37, #38, #39, #40, #41, #42, #43, #44, #45, #46, #47, '0', '1', '2', '3', '4', '5', '6', '7', '8',
+      '9', #58, #59, #60, #61, #62, #63, #64, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
+      'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', #91, #92, #93, #94, #95, #96, 'a', 'b', 'c', 'd',
+      'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+      #122, #123, #124, #125, #126, #127, #128, #129, #130, #131, #132, #133, #134, #135, #136, #137, #138, #139, #140,
+      #141, #142, #143, #144, #145, #146, #147, #148, #149, #150, #151, #152, #153, #154, #155, #156, #157, #158, #159,
+      #160, #161, #162, #163, #164, #165, #166, #167, #168, #169, #170, #171, #172, #173, #174, #175, #176, #177, #178,
+      #179, #180, #181, #182, #183, #184, #185, #186, #187, #188, #189, #190, #191, #192, #193, #194, #195, #196, #197,
+      #198, #199, #200, #201, #202, #203, #204, #205, #206, #207, #208, #209, #210, #211, #212, #213, #214, #215, #216,
+      #217, #218, #219, #220, #221, #222, #223, #224, #225, #226, #227, #228, #229, #230, #231, #233, #234, #235, #236,
+      #237, #238, #239, #240, #241, #242, #243, #244, #245, #246, #247, #248, #249, #250, #251, #252, #253, #254,
+      #255), (#0, #1, #2, #3, #4, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16, #17, #18, #19, #20, #21, #22,
+      #23, #24, #25, #26, #27, #28, #29, #30, #31, #32, #33, #34, #35, #36, #37, #38, #39, #40, #41, #42, #43, #44,
+      #45, #46, #47, '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', #58, #59, #60, #61, #62, #63, #64, 'a', 'b',
+      'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x',
+      'y', 'z', #91, #92, #93, #94, #95, #96, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+      'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', #122, #123, #124, #125, #126, #127, #128, #129,
+      #130, #131, #132, #133, #134, #135, #136, #137, #138, #139, #140, #141, #142, #143, #144, #145, #146, #147,
+      #148, #149, #150, #151, #152, #153, #154, #155, #156, #157, #158, #159, #160, #161, #162, #163, #164, #165,
+      #166, #167, #168, #169, #170, #171, #172, #173, #174, #175, #176, #177, #178, #179, #180, #181, #182, #183,
+      #184, #185, #186, #187, #188, #189, #190, #191, #192, #193, #194, #195, #196, #197, #198, #199, #200, #201,
+      #202, #203, #204, #205, #206, #207, #208, #209, #210, #211, #212, #213, #214, #215, #216, #217, #218, #219,
+      #220, #221, #222, #223, #224, #225, #226, #227, #228, #229, #230, #231, #233, #234, #235, #236, #237, #238,
+      #239, #240, #241, #242, #243, #244, #245, #246, #247, #248, #249, #250, #251, #252, #253, #254, #255));
+
+  WEEKDAY_SHORTHANDS: array [0..6] of array [0..2] of Char = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
+  MONTH_SHORTHANDS: array [1..12] of array [0..2] of Char = (
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
+
+  RBSBoolTexts: array [Boolean] of RawByteString = ('false', 'true');
+  USBoolTexts: array [Boolean] of u16string = ('false', 'true');
+  RBSBoolIDs: array [Boolean] of RawByteString = ('0', '1');
+  WSBoolIDs: array [Boolean] of WideString = ('0', '1');
+  USBoolIDs: array [Boolean] of u16string = ('0', '1');
+{$IF not declared(varObject)}
+  varObject = $0049;
+{$IFEND}
 
 type
+  EOperationAborted = class(Exception)
+
+  end;
+
+  TAnsiCharSet = set of AnsiChar;
+  TObjectProcedure = procedure of object;
+
+  TRawByteStrings = DSLAnsiFunctions.TRawByteStrings;
+  TRawByteStringList = DSLAnsiFunctions.TRawByteStringList;
+  TRawByteStringStream = DSLAnsiFunctions.TRawByteStringStream;
+  TUnicodeStrings = TStrings;
+  Tu16strings = TStrings;
+  Tu16stringList = TStringList;
+  TUnicodeStringList = TStringList;
+  TUnicodeStringStream = TStringStream;
+  // UString = u16string;
+  // PUString = PUnicodeString;
+{$IF not declared(UTF16String)}
+  UTF16String = UnicodeString;
+  PUTF16String = PUnicodeString;
+{$IFEND}
+{$IF not declared(Int8)}
+  Int8 = ShortInt;
+{$IFEND}
+{$IF not declared(PInt8)}
+  PInt8 = ^Int8;
+{$IFEND}
+{$IF not declared(UInt8)}
+  UInt8 = Byte;
+{$IFEND}
+{$IF not declared(PUInt8)}
+  PUInt8 = ^UInt8;
+{$IFEND}
+{$IF not declared(Int16)}
+  Int16 = SmallInt;
+{$IFEND}
+{$IF not declared(PInt16)}
+  PInt16 = ^Int16;
+{$IFEND}
+{$IF not declared(UInt16)}
+  UInt16 = Word;
+{$IFEND}
+{$IF not declared(PUInt16)}
+  PUInt16 = ^UInt16;
+{$IFEND}
+{$IF not declared(Int32)}
+  Int32 = Integer;
+{$IFEND}
+{$IF not declared(PInt32)}
+  PInt32 = ^Int32;
+{$IFEND}
+{$IF not declared(UInt32)}
+  UInt32 = Cardinal;
+{$IFEND}
+{$IF not declared(PUInt32)}
+  PUInt32 = ^UInt32;
+{$IFEND}
+{$IF not declared(UInt64)}
+  UInt64 = Int64;
+{$IFEND}
+{$IF not declared(PUInt64)}
+  PUInt64 = ^UInt64;
+{$IFEND}
+{$IF not declared(DWORD)}
+  DWORD = Cardinal;
+{$IFEND}
+{$IF not declared(PDWORD)}
+  PDWORD = ^DWORD;
+{$IFEND}
+{$IF not declared(QWORD)}
+  QWORD = UInt64;
+{$IFEND}
+{$IF not declared(PQWORD)}
+  PQWORD = ^QWORD;
+{$IFEND}
+{$IF not declared(NativeInt)}
+{$IF SizeOf(Pointer) = 4}
+  NativeInt = Int32;
+{$ELSE}
+  NativeInt = Int64;
+{$IFEND}
+{$IFEND}
+{$IF not declared(NativeUInt)}
+{$IF SizeOf(Pointer) = 4}
+  NativeUInt = UInt32;
+{$ELSE}
+  NativeUInt = UInt64;
+{$IFEND}
+{$IFEND}
+{$IF not declared(size_t)}
+  size_t = NativeUInt; {$EXTERNALSYM size_t}
+{$IFEND}
+{$IF SizeOf(Pointer) = 4}
+  TPointerType = Int32;
+{$ELSE}
+  TPointerType = Int64;
+{$IFEND}
+{$IF not declared(PtrInt)}
+{$IF SizeOf(Pointer) = 4}
+  PtrInt = Int32;
+{$ELSE}
+  PtrInt = Int64;
+{$IFEND}
+{$IFEND}
+{$IF not declared(UPtrInt)}
+{$IF SizeOf(Pointer) = 4}
+  UPtrInt = UInt32;
+{$ELSE}
+  UPtrInt = UInt64;
+{$IFEND}
+{$IFEND}
+  TSizeType = NativeUInt;
+{$IF not declared(PObject)}
+  PObject = ^TObject;
+{$IFEND}
+  TInt64Array = array of Int64;
+
+  T4UInt32 = array [0 .. 3] of UInt32;
+  P4UInt32 = ^T4UInt32;
+  T2UInt32 = array [0 .. 1] of UInt32;
+  P2UInt32 = ^T2UInt32;
+  T16UInt32 = array [0 .. 15] of UInt32;
+  P16UInt32 = ^T16UInt32;
+  T3Bytes = array [0 .. 2] of Byte;
+  P3Bytes = ^T3Bytes;
+  T4Bytes = array [0 .. 3] of Byte;
+  P4Bytes = ^T4Bytes;
+  T16Bytes = array [0 .. 15] of Byte;
+  P16Bytes = ^T16Bytes;
+  T64Bytes = array [0 .. 63] of Byte;
+  P64Bytes = ^T64Bytes;
+
+  TArrayOfUInt32 = array [0 .. 0] of UInt32;
+  PArrayOfUInt32 = ^TArrayOfUInt32;
+
+  T32BitBuf = packed record
+    case Integer of
+      0:
+        (bytes: array [0 .. 3] of Byte);
+      1:
+        (words: array [0 .. 1] of Word);
+      2:
+        (value: UInt32);
+  end;
+
+  P32BitBuf = ^T32BitBuf;
+
+  T64BitBuf = packed record
+    case Integer of
+      0:
+        (bytes: array [0 .. 7] of Byte);
+      1:
+        (words: array [0 .. 3] of Word);
+      2:
+        (dwords: array [0 .. 1] of T32BitBuf);
+      3:
+        (value: UInt64);
+  end;
+
+  P64BitBuf = ^T64BitBuf;
+
+  T128BitBuf = packed record
+    function toHex(UpperCase: Boolean = True; delimiter: u16string = ''): string;
+    case Integer of
+      0:
+        (bytes: array [0 .. 15] of Byte);
+      1:
+        (words: array [0 .. 7] of Word);
+      2:
+        (dwords: array [0 .. 3] of T32BitBuf);
+      3:
+        (qwords: array [0 .. 1] of T64BitBuf);
+  end;
+
+  P128BitBuf = ^T128BitBuf;
+
+  T160BitBuf = record
+    case Integer of
+      0:
+        (bytes: array [0 .. 19] of Byte);
+      1:
+        (words: array [0 .. 9] of Word);
+      2:
+        (dwords: array [0 .. 4] of T32BitBuf);
+  end;
+
+  P160BitBuf = ^T160BitBuf;
+
+  T192BitBuf = record
+    case Integer of
+      0:
+        (bytes: array [0 .. 23] of Byte);
+      1:
+        (words: array [0 .. 11] of Word);
+      2:
+        (dwords: array [0 .. 5] of T32BitBuf);
+  end;
+
+  P192BitBuf = ^T192BitBuf;
+
+  T224BitBuf = packed record
+    case Integer of
+      0:
+        (bytes: array [0 .. 27] of Byte);
+      1:
+        (words: array [0 .. 13] of Word);
+      2:
+        (dwords: array [0 .. 6] of T32BitBuf);
+  end;
+
+  P224BitBuf = ^T224BitBuf;
+
+  T256BitBuf = packed record
+    case Integer of
+      0:
+        (bytes: array [0 .. 31] of Byte);
+      1:
+        (words: array [0 .. 15] of Word);
+      2:
+        (dwords: array [0 .. 7] of T32BitBuf);
+      3:
+        (qwords: array [0 .. 3] of T64BitBuf);
+  end;
+
+  P256BitBuf = ^T256BitBuf;
+
+  T384BitBuf = packed record
+    case Integer of
+      0:
+        (bytes: array [0 .. 47] of Byte);
+      1:
+        (words: array [0 .. 23] of Word);
+      2:
+        (dwords: array [0 .. 11] of T32BitBuf);
+      3:
+        (qwords: array [0 .. 5] of T64BitBuf);
+  end;
+
+  P384BitBuf = ^T384BitBuf;
+
+  T512BitBuf = packed record
+    case Integer of
+      0:
+        (qwords: array [0 .. 7] of T64BitBuf);
+      1:
+        (dwords: array [0 .. 15] of T32BitBuf);
+      2:
+        (words: array [0 .. 31] of Word);
+      3:
+        (bytes: array [0 .. 63] of Byte);
+  end;
+
+  P512BitBuf = ^T512BitBuf;
+
+  T1024BitBuf = packed record
+    case Integer of
+      0:
+        (qwords: array [0 .. 15] of T64BitBuf);
+      1:
+        (dwords: array [0 .. 31] of T32BitBuf);
+      2:
+        (words: array [0 .. 63] of Word);
+      3:
+        (bytes: array [0 .. 127] of Byte);
+  end;
+
+  P1024BitBuf = ^T1024BitBuf;
+
+  TBigEndianWord = packed record
+    bytes: Word;
+    function value: Word; inline;
+    procedure setValue(newValue: Word); inline;
+  end;
+
+  TBigEndianDword = packed record
+    data: T32BitBuf;
+    function value: UInt32; inline;
+    procedure setValue(newValue: UInt32); inline;
+  end;
+
+  TBuffer = record
+    size: Integer;
+    data: array [0 .. 0] of Byte;
+  end;
+
+  PBuffer = ^TBuffer;
+
+  TSex = (sexUnknown, sexMale, sexFemale);
+
   TPointerCompareProc = function(first, second: Pointer): Integer;
   TPointerProc = procedure(first, second: Pointer);
 
-  TCodePageInfo = record
-    Name: AnsiString;
-    ID: integer;
-  end;
-  PCodePage = ^TCodePageInfo;
-
 const
-  NAME_SORTED_CODE_PAGES: array[0..143] of TCodePageInfo =
-  (
-    (Name: 'IBM037'; ID: 37),
-    (Name: 'IBM437'; ID: 437),
-    (Name: 'IBM500'; ID: 500),
-    (Name: 'ASMO-708'; ID: 708),
-    (Name: 'ASMO-449+'; ID: 709),
-    (Name: 'BCON V4'; ID: 709),
-    (Name: 'Arabic'; ID: 710),
-    (Name: 'DOS-720'; ID: 720),
-    (Name: 'ibm737'; ID: 737),
-    (Name: 'ibm775'; ID: 775),
-    (Name: 'ibm850'; ID: 850),
-    (Name: 'ibm852'; ID: 852),
-    (Name: 'IBM855'; ID: 855),
-    (Name: 'ibm857'; ID: 857),
-    (Name: 'IBM00858'; ID: 858),
-    (Name: 'IBM860'; ID: 860),
-    (Name: 'ibm861'; ID: 861),
-    (Name: 'DOS-862'; ID: 862),
-    (Name: 'IBM863'; ID: 863),
-    (Name: 'IBM864'; ID: 864),
-    (Name: 'IBM865'; ID: 865),
-    (Name: 'cp866'; ID: 866),
-    (Name: 'ibm869'; ID: 869),
-    (Name: 'IBM870'; ID: 870),
-    (Name: 'windows-874'; ID: 874),
-    (Name: 'cp875'; ID: 875),
-    (Name: 'shift_jis'; ID: 932),
-    (Name: 'gb2312'; ID: 936),
-    (Name: 'GBK'; ID: 936),
-    (Name: 'ks_c_5601-1987'; ID: 949),
-    (Name: 'big5'; ID: 950),
-    (Name: 'IBM1026'; ID: 1026),
-    (Name: 'IBM01047'; ID: 1047),
-    (Name: 'IBM01140'; ID: 1140),
-    (Name: 'IBM01141'; ID: 1141),
-    (Name: 'IBM01142'; ID: 1142),
-    (Name: 'IBM01143'; ID: 1143),
-    (Name: 'IBM01144'; ID: 1144),
-    (Name: 'IBM01145'; ID: 1145),
-    (Name: 'IBM01146'; ID: 1146),
-    (Name: 'IBM01147'; ID: 1147),
-    (Name: 'IBM01148'; ID: 1148),
-    (Name: 'IBM01149'; ID: 1149),
-    (Name: 'utf-16'; ID: 1200),
-    (Name: 'unicodeFFFE'; ID: 1201),
-    (Name: 'windows-1250'; ID: 1250),
-    (Name: 'windows-1251'; ID: 1251),
-    (Name: 'windows-1252'; ID: 1252),
-    (Name: 'windows-1253'; ID: 1253),
-    (Name: 'windows-1254'; ID: 1254),
-    (Name: 'windows-1255'; ID: 1255),
-    (Name: 'windows-1256'; ID: 1256),
-    (Name: 'windows-1257'; ID: 1257),
-    (Name: 'windows-1258'; ID: 1258),
-    (Name: 'Johab'; ID: 1361),
-    (Name: 'macintosh'; ID: 10000),
-    (Name: 'x-mac-japanese'; ID: 10001),
-    (Name: 'x-mac-chinesetrad'; ID: 10002),
-    (Name: 'x-mac-korean'; ID: 10003),
-    (Name: 'x-mac-arabic'; ID: 10004),
-    (Name: 'x-mac-hebrew'; ID: 10005),
-    (Name: 'x-mac-greek'; ID: 10006),
-    (Name: 'x-mac-cyrillic'; ID: 10007),
-    (Name: 'x-mac-chinesesimp'; ID: 10008),
-    (Name: 'x-mac-romanian'; ID: 10010),
-    (Name: 'x-mac-ukrainian'; ID: 10017),
-    (Name: 'x-mac-thai'; ID: 10021),
-    (Name: 'x-mac-ce'; ID: 10029),
-    (Name: 'x-mac-icelandic'; ID: 10079),
-    (Name: 'x-mac-turkish'; ID: 10081),
-    (Name: 'x-mac-croatian'; ID: 10082),
-    (Name: 'utf-32'; ID: 12000),
-    (Name: 'utf-32BE'; ID: 12001),
-    (Name: 'x-Chinese_CNS'; ID: 20000),
-    (Name: 'x-cp20001'; ID: 20001),
-    (Name: 'x_Chinese-Eten'; ID: 20002),
-    (Name: 'x-cp20003'; ID: 20003),
-    (Name: 'x-cp20004'; ID: 20004),
-    (Name: 'x-cp20005'; ID: 20005),
-    (Name: 'x-IA5'; ID: 20105),
-    (Name: 'x-IA5-German'; ID: 20106),
-    (Name: 'x-IA5-Swedish'; ID: 20107),
-    (Name: 'x-IA5-Norwegian'; ID: 20108),
-    (Name: 'us-ascii'; ID: 20127),
-    (Name: 'x-cp20261'; ID: 20261),
-    (Name: 'x-cp20269'; ID: 20269),
-    (Name: 'IBM273'; ID: 20273),
-    (Name: 'IBM277'; ID: 20277),
-    (Name: 'IBM278'; ID: 20278),
-    (Name: 'IBM280'; ID: 20280),
-    (Name: 'IBM284'; ID: 20284),
-    (Name: 'IBM285'; ID: 20285),
-    (Name: 'IBM290'; ID: 20290),
-    (Name: 'IBM297'; ID: 20297),
-    (Name: 'IBM420'; ID: 20420),
-    (Name: 'IBM423'; ID: 20423),
-    (Name: 'IBM424'; ID: 20424),
-    (Name: 'x-EBCDIC-KoreanExtended'; ID: 20833),
-    (Name: 'IBM-Thai'; ID: 20838),
-    (Name: 'koi8-r'; ID: 20866),
-    (Name: 'IBM871'; ID: 20871),
-    (Name: 'IBM880'; ID: 20880),
-    (Name: 'IBM905'; ID: 20905),
-    (Name: 'IBM00924'; ID: 20924),
-    (Name: 'EUC-JP'; ID: 20932),
-    (Name: 'x-cp20936'; ID: 20936),
-    (Name: 'x-cp20949'; ID: 20949),
-    (Name: 'cp1025'; ID: 21025),
-    (Name: 'koi8-u'; ID: 21866),
-    (Name: 'iso-8859-1'; ID: 28591),
-    (Name: 'iso-8859-2'; ID: 28592),
-    (Name: 'iso-8859-3'; ID: 28593),
-    (Name: 'iso-8859-4'; ID: 28594),
-    (Name: 'iso-8859-5'; ID: 28595),
-    (Name: 'iso-8859-6'; ID: 28596),
-    (Name: 'iso-8859-7'; ID: 28597),
-    (Name: 'iso-8859-8'; ID: 28598),
-    (Name: 'iso-8859-9'; ID: 28599),
-    (Name: 'iso-8859-13'; ID: 28603),
-    (Name: 'iso-8859-15'; ID: 28605),
-    (Name: 'x-Europa'; ID: 29001),
-    (Name: 'iso-8859-8-i'; ID: 38598),
-    (Name: 'iso-2022-jp'; ID: 50220),
-    (Name: 'csISO2022JP'; ID: 50221),
-    (Name: 'iso-2022-jp'; ID: 50222),
-    (Name: 'iso-2022-kr'; ID: 50225),
-    (Name: 'x-cp50227'; ID: 50227),
-    (Name: 'euc-jp'; ID: 51932),
-    (Name: 'EUC-CN'; ID: 51936),
-    (Name: 'euc-kr'; ID: 51949),
-    (Name: 'hz-gb-2312'; ID: 52936),
-    (Name: 'GB18030'; ID: 54936),
-    (Name: 'x-iscii-de'; ID: 57002),
-    (Name: 'x-iscii-be'; ID: 57003),
-    (Name: 'x-iscii-ta'; ID: 57004),
-    (Name: 'x-iscii-te'; ID: 57005),
-    (Name: 'x-iscii-as'; ID: 57006),
-    (Name: 'x-iscii-or'; ID: 57007),
-    (Name: 'x-iscii-ka'; ID: 57008),
-    (Name: 'x-iscii-ma'; ID: 57009),
-    (Name: 'x-iscii-gu'; ID: 57010),
-    (Name: 'x-iscii-pa'; ID: 57011),
-    (Name: 'utf-7'; ID: 65000),
-    (Name: 'utf-8'; ID: 65001)
-  );
-
-  ID_SORTED_CODE_PAGES: array[0..142] of TCodePageInfo =
-  (
-    (Name: 'IBM037'; ID: 37),
-    (Name: 'IBM437'; ID: 437),
-    (Name: 'IBM500'; ID: 500),
-    (Name: 'ASMO-708'; ID: 708),
-    (Name: 'ASMO-449+'; ID: 709),
-    (Name: 'BCON V4'; ID: 709),
-    (Name: 'Arabic'; ID: 710),
-    (Name: 'DOS-720'; ID: 720),
-    (Name: 'ibm737'; ID: 737),
-    (Name: 'ibm775'; ID: 775),
-    (Name: 'ibm850'; ID: 850),
-    (Name: 'ibm852'; ID: 852),
-    (Name: 'IBM855'; ID: 855),
-    (Name: 'ibm857'; ID: 857),
-    (Name: 'IBM00858'; ID: 858),
-    (Name: 'IBM860'; ID: 860),
-    (Name: 'ibm861'; ID: 861),
-    (Name: 'DOS-862'; ID: 862),
-    (Name: 'IBM863'; ID: 863),
-    (Name: 'IBM864'; ID: 864),
-    (Name: 'IBM865'; ID: 865),
-    (Name: 'cp866'; ID: 866),
-    (Name: 'ibm869'; ID: 869),
-    (Name: 'IBM870'; ID: 870),
-    (Name: 'windows-874'; ID: 874),
-    (Name: 'cp875'; ID: 875),
-    (Name: 'shift_jis'; ID: 932),
-    (Name: 'gb2312'; ID: 936),
-    (Name: 'ks_c_5601-1987'; ID: 949),
-    (Name: 'big5'; ID: 950),
-    (Name: 'IBM1026'; ID: 1026),
-    (Name: 'IBM01047'; ID: 1047),
-    (Name: 'IBM01140'; ID: 1140),
-    (Name: 'IBM01141'; ID: 1141),
-    (Name: 'IBM01142'; ID: 1142),
-    (Name: 'IBM01143'; ID: 1143),
-    (Name: 'IBM01144'; ID: 1144),
-    (Name: 'IBM01145'; ID: 1145),
-    (Name: 'IBM01146'; ID: 1146),
-    (Name: 'IBM01147'; ID: 1147),
-    (Name: 'IBM01148'; ID: 1148),
-    (Name: 'IBM01149'; ID: 1149),
-    (Name: 'utf-16'; ID: 1200),
-    (Name: 'unicodeFFFE'; ID: 1201),
-    (Name: 'windows-1250'; ID: 1250),
-    (Name: 'windows-1251'; ID: 1251),
-    (Name: 'windows-1252'; ID: 1252),
-    (Name: 'windows-1253'; ID: 1253),
-    (Name: 'windows-1254'; ID: 1254),
-    (Name: 'windows-1255'; ID: 1255),
-    (Name: 'windows-1256'; ID: 1256),
-    (Name: 'windows-1257'; ID: 1257),
-    (Name: 'windows-1258'; ID: 1258),
-    (Name: 'Johab'; ID: 1361),
-    (Name: 'macintosh'; ID: 10000),
-    (Name: 'x-mac-japanese'; ID: 10001),
-    (Name: 'x-mac-chinesetrad'; ID: 10002),
-    (Name: 'x-mac-korean'; ID: 10003),
-    (Name: 'x-mac-arabic'; ID: 10004),
-    (Name: 'x-mac-hebrew'; ID: 10005),
-    (Name: 'x-mac-greek'; ID: 10006),
-    (Name: 'x-mac-cyrillic'; ID: 10007),
-    (Name: 'x-mac-chinesesimp'; ID: 10008),
-    (Name: 'x-mac-romanian'; ID: 10010),
-    (Name: 'x-mac-ukrainian'; ID: 10017),
-    (Name: 'x-mac-thai'; ID: 10021),
-    (Name: 'x-mac-ce'; ID: 10029),
-    (Name: 'x-mac-icelandic'; ID: 10079),
-    (Name: 'x-mac-turkish'; ID: 10081),
-    (Name: 'x-mac-croatian'; ID: 10082),
-    (Name: 'utf-32'; ID: 12000),
-    (Name: 'utf-32BE'; ID: 12001),
-    (Name: 'x-Chinese_CNS'; ID: 20000),
-    (Name: 'x-cp20001'; ID: 20001),
-    (Name: 'x_Chinese-Eten'; ID: 20002),
-    (Name: 'x-cp20003'; ID: 20003),
-    (Name: 'x-cp20004'; ID: 20004),
-    (Name: 'x-cp20005'; ID: 20005),
-    (Name: 'x-IA5'; ID: 20105),
-    (Name: 'x-IA5-German'; ID: 20106),
-    (Name: 'x-IA5-Swedish'; ID: 20107),
-    (Name: 'x-IA5-Norwegian'; ID: 20108),
-    (Name: 'us-ascii'; ID: 20127),
-    (Name: 'x-cp20261'; ID: 20261),
-    (Name: 'x-cp20269'; ID: 20269),
-    (Name: 'IBM273'; ID: 20273),
-    (Name: 'IBM277'; ID: 20277),
-    (Name: 'IBM278'; ID: 20278),
-    (Name: 'IBM280'; ID: 20280),
-    (Name: 'IBM284'; ID: 20284),
-    (Name: 'IBM285'; ID: 20285),
-    (Name: 'IBM290'; ID: 20290),
-    (Name: 'IBM297'; ID: 20297),
-    (Name: 'IBM420'; ID: 20420),
-    (Name: 'IBM423'; ID: 20423),
-    (Name: 'IBM424'; ID: 20424),
-    (Name: 'x-EBCDIC-KoreanExtended'; ID: 20833),
-    (Name: 'IBM-Thai'; ID: 20838),
-    (Name: 'koi8-r'; ID: 20866),
-    (Name: 'IBM871'; ID: 20871),
-    (Name: 'IBM880'; ID: 20880),
-    (Name: 'IBM905'; ID: 20905),
-    (Name: 'IBM00924'; ID: 20924),
-    (Name: 'EUC-JP'; ID: 20932),
-    (Name: 'x-cp20936'; ID: 20936),
-    (Name: 'x-cp20949'; ID: 20949),
-    (Name: 'cp1025'; ID: 21025),
-    (Name: 'koi8-u'; ID: 21866),
-    (Name: 'iso-8859-1'; ID: 28591),
-    (Name: 'iso-8859-2'; ID: 28592),
-    (Name: 'iso-8859-3'; ID: 28593),
-    (Name: 'iso-8859-4'; ID: 28594),
-    (Name: 'iso-8859-5'; ID: 28595),
-    (Name: 'iso-8859-6'; ID: 28596),
-    (Name: 'iso-8859-7'; ID: 28597),
-    (Name: 'iso-8859-8'; ID: 28598),
-    (Name: 'iso-8859-9'; ID: 28599),
-    (Name: 'iso-8859-13'; ID: 28603),
-    (Name: 'iso-8859-15'; ID: 28605),
-    (Name: 'x-Europa'; ID: 29001),
-    (Name: 'iso-8859-8-i'; ID: 38598),
-    (Name: 'iso-2022-jp'; ID: 50220),
-    (Name: 'csISO2022JP'; ID: 50221),
-    (Name: 'iso-2022-jp'; ID: 50222),
-    (Name: 'iso-2022-kr'; ID: 50225),
-    (Name: 'x-cp50227'; ID: 50227),
-    (Name: 'euc-jp'; ID: 51932),
-    (Name: 'EUC-CN'; ID: 51936),
-    (Name: 'euc-kr'; ID: 51949),
-    (Name: 'hz-gb-2312'; ID: 52936),
-    (Name: 'GB18030'; ID: 54936),
-    (Name: 'x-iscii-de'; ID: 57002),
-    (Name: 'x-iscii-be'; ID: 57003),
-    (Name: 'x-iscii-ta'; ID: 57004),
-    (Name: 'x-iscii-te'; ID: 57005),
-    (Name: 'x-iscii-as'; ID: 57006),
-    (Name: 'x-iscii-or'; ID: 57007),
-    (Name: 'x-iscii-ka'; ID: 57008),
-    (Name: 'x-iscii-ma'; ID: 57009),
-    (Name: 'x-iscii-gu'; ID: 57010),
-    (Name: 'x-iscii-pa'; ID: 57011),
-    (Name: 'utf-7'; ID: 65000),
-    (Name: 'utf-8'; ID: 65001)
-  );
+  CP_CHINESE_SIMPLIFIED = 936;
+  CP_CHINESE_TRADITIONAL = 950;
 
 function CodePageName2ID(Name: PAnsiChar; NameLen: Integer): Integer; overload;
 function CodePageName2ID(const Name: AnsiString): Integer; overload;
-function CodePageID2Name(ID: Integer): AnsiString; overload;
+function CodePageID2Name(ID: Integer): RawByteString;
 
 type
-  TPointerType = Cardinal;
+  TTimeKeeper = record
+    _beginTick: DWORD;
+    procedure start; inline;
+    function stop: DWORD; inline;
+  end;
 
+  TActionStatus = record
+    executing: Boolean;
+    timeBeginExecuting: UInt32;
+    timeLatestExecution: UInt32;
+    procedure init; inline;
+    function shouldTakeAction(interval, timeout: UInt32): Boolean;
+    procedure beginExec; inline;
+    procedure endExec; inline;
+  end;
+
+  TCommunicationErrorCode = (
+    comerrSuccess,
+    comerrUnknown,
+    comerrSysCallFail,
+    comerrTimeout,
+    comerrWouldBlock,
+    comerrDNSError,
+    comerrUnreachableDest,
+    comerrCanNotConnect,
+    comerrCanNotRead,
+    comerrCanNotWrite,
+    comerrChannelClosed,
+    comerrSSLError);
+
+  TCommunicationError = record
+    code: TCommunicationErrorCode;
+    callee: string;
+    internalErrorCode: Integer;
+    msg: string;
+    procedure init; inline;
+    procedure reset; inline;
+    procedure clear;
+    function isSuccess: Boolean; inline;
+  end;
+  PCommunicationError = ^TCommunicationError;
+
+  TStringSearchFlag = (ssfCaseSensitive, ssfReverse, ssfIncludePrefix, ssfIncludeSuffix);
+  TStringSearchFlags = set of TStringSearchFlag;
+
+  PAnsiCharSection = ^TAnsiCharSection;
+
+  TAnsiCharSection = record
+    _begin: PAnsiChar;
+    _end: PAnsiChar;
+    constructor Create(const s: RawByteString; first: Integer = 1; last: Integer = 0);
+    procedure SetStr(const s: RawByteString; first: Integer = 1; last: Integer = 0);
+    procedure SetEmpty; inline;
+    function IsEmpty: Boolean; inline;
+    procedure SetInvalid; inline;
+    function IsValid: Boolean; inline;
+    function length: Integer; inline;
+    function compare(const another: TAnsiCharSection; CaseSensitive: Boolean = True): Integer; overload;
+    function compare(const another: RawByteString; CaseSensitive: Boolean = True): Integer; overload; inline;
+    function toString: RawByteString;
+    function trim: PAnsiCharSection;
+    function TrimLeft: PAnsiCharSection;
+    function TrimRight: PAnsiCharSection;
+    function pos(substr: TAnsiCharSection): PAnsiChar; inline;
+    function ipos(substr: TAnsiCharSection): PAnsiChar; inline;
+    function rpos(substr: TAnsiCharSection): PAnsiChar; inline;
+    function ripos(substr: TAnsiCharSection): PAnsiChar; inline;
+    function beginWith(const prefix: TAnsiCharSection): Boolean;
+    function iBeginWith(const prefix: TAnsiCharSection): Boolean;
+    function endWith(const prefix: TAnsiCharSection): Boolean;
+    function iEndWith(const prefix: TAnsiCharSection): Boolean;
+    function GetSectionBetween(const prefix, suffix: TAnsiCharSection;
+      flags: TStringSearchFlags = []): TAnsiCharSection;
+    function GetSectionBetween2(const prefix: TAnsiCharSection; const suffix: array of AnsiChar;
+      EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): TAnsiCharSection;
+    function TryToInt(var value: Integer): Boolean;
+    function ToInt: Integer;
+    function TryToInt64(var value: Int64): Boolean;
+    function ToInt64: Int64;
+    function TryToFloat(var value: Double): Boolean;
+    function ToFloat: Double;
+  end;
+
+  PWideCharSection = ^TWideCharSection;
+
+  TWideCharSection = record
+  public
+    _begin: PWideChar;
+    _end: PWideChar;
+    constructor Create(const s: u16string; first: Integer = 1; last: Integer = 0); overload;
+    constructor Create(const s: WideString; first: Integer = 1; last: Integer = 0); overload;
+    procedure SetUStr(const s: u16string; first: Integer = 1; last: Integer = 0); overload;
+    procedure SetBStr(const s: WideString; first: Integer = 1; last: Integer = 0); overload;
+    procedure SetEmpty; inline;
+    function IsEmpty: Boolean; inline;
+    procedure SetInvalid; inline;
+    function IsValid: Boolean; inline;
+    function length: Integer; inline;
+    function compare(const another: TWideCharSection; CaseSensitive: Boolean = True): Integer; overload;
+    function compare(const another: u16string; CaseSensitive: Boolean = True): Integer; overload; inline;
+    function ToUStr: u16string;
+    function ToBStr: WideString;
+    function trim: PWideCharSection;
+    function ExtractXmlCDATA: PWideCharSection;
+    function TrimLeft: PWideCharSection;
+    function TrimRight: PWideCharSection;
+    function pos(substr: TWideCharSection): PWideChar; inline;
+    function ipos(substr: TWideCharSection): PWideChar; inline;
+    function rpos(substr: TWideCharSection): PWideChar; inline;
+    function ripos(substr: TWideCharSection): PWideChar; inline;
+    function beginWith(const prefix: TWideCharSection): Boolean;
+    function iBeginWith(const prefix: TWideCharSection): Boolean;
+    function endWith(const prefix: TWideCharSection): Boolean;
+    function iEndWith(const prefix: TWideCharSection): Boolean;
+    function GetSectionBetween(const prefix, suffix: TWideCharSection;
+      flags: TStringSearchFlags = []): TWideCharSection;
+    function GetSectionBetween2(const prefix: TWideCharSection; const suffix: array of WideChar;
+      EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): TWideCharSection;
+    function TryToInt(var value: Integer): Boolean;
+    function ToInt: Integer;
+    function TryToInt64(var value: Int64): Boolean;
+    function ToInt64: Int64;
+    function TryToFloat(var value: Double): Boolean;
+    function ToFloat: Double;
+  end;
+
+  TStreamHelper = class helper for TStream
+  public
+    procedure WriteByte(value: Byte);
+    procedure WriteWord(value: Word);
+    procedure WriteDword(value: UInt32);
+    procedure WriteAnsiChar(value: AnsiChar);
+    procedure WriteWideChar(value: WideChar);
+    procedure WriteBytes(const value: TBytes);
+    procedure WriteRawByteString(const value: RawByteString);
+    procedure WriteUnicodeString(const value: u16string);
+    procedure WriteWideString(const value: WideString);
+    function ReadByte: Byte;
+    function ReadWord: Word;
+    function ReadDword: UInt32;
+    function ReadAnsiChar: AnsiChar;
+    function ReadWideChar: WideChar;
+    function ReadBytes(nBytes: Integer): TBytes;
+    function ReadRawByteString(nChar: Integer): RawByteString;
+    function ReadWideString(nChar: Integer): WideString;
+    function ReadUnicodeString(nChar: Integer): u16string;
+  end;
+
+function RBStrSection(const s: AnsiString; first: Integer = 1; last: Integer = 0): TAnsiCharSection; inline;
+function UStrSection(const s: u16string; first: Integer = 1; last: Integer = 0): TWideCharSection; inline;
+function BStrSection(const s: WideString; first: Integer = 1; last: Integer = 0): TWideCharSection; inline;
+
+type
   TCharType = (chAlphaUpperCase, chAlphaLowerCase, chDigit);
   TCharTypes = set of TCharType;
 
-  TOperationResult = (orUnknown, orException, orFail, orSuccess, orPending, orAlready, orRetry);
+  TOperationResult = (orUnknown, orException, orFail, orSuccess, orPending, orAlready, orRetry, orPartSuccess,
+    orCanceled);
 
+  TWebOperationResult = record
+  public
+    ResponseText: u16string;
+    online: Boolean;
+    code: TOperationResult;
+    errmsg: u16string;
+    procedure init;
+  end;
+
+  TOperationStatus = record
+    Result: TOperationResult;
+    errmsg: string;
+    SysErrorCode: Integer;
+    procedure init;
+  end;
+
+  TInterlockSync = record
+    _threadId: DWORD;
+    _nested: Integer;
+    _state: Integer;
+{$IFDEF DSLSpinLockDebug}
+    _lockBeginTime: DWORD;
+{$ENDIF}
+    procedure init;
+    procedure cleanup;
+    procedure acquire(spinCount: Integer = 128);
+    procedure release;
+  end;
+
+  TSpinLock = TInterlockSync;
+
+  TInterlockSyncObject = class(TSynchroObject)
+  private
+    internal: TInterlockSync;
+  public
+    procedure Acquire; override;
+    procedure Release; override;
+    constructor Create;
+  end;
+
+  PDblLinkListEntry = ^TDblLinkListEntry;
+
+  TDblLinkListEntry = record
+    prev, next: PDblLinkListEntry;
+    function SetEmpty: PDblLinkListEntry;
+    procedure insertHead(node: PDblLinkListEntry); inline;
+    procedure insertTail(node: PDblLinkListEntry); inline;
+  end;
+
+  PLinkListEntry = ^TLinkListEntry;
+
+  TLinkListEntry = record
+    next: PLinkListEntry;
+    function SetEmpty: PLinkListEntry; inline;
+    procedure insertHead(node: PLinkListEntry); inline;
+  end;
+
+function StringToPChar(const s: u16string): PWideChar; overload; inline;
+function StringToPChar(const s: RawByteString): PAnsiChar; overload; inline;
+
+  // NULL-terminated-C-style-string simulation
+function charAt(p, tail: PAnsiChar): AnsiChar; overload; inline;
+function charAt(p, tail: PWideChar): WideChar; overload; inline;
+
+function IsEmptyString(p: PAnsiChar): Boolean; overload; inline;
+function IsEmptyString(p: PWideChar): Boolean; overload; inline;
+
+procedure _fastAssignStr(var dest: RawByteString; const src: RawByteString); overload; inline;
+procedure _fastAssignStr(var dest: u16string; const src: u16string); overload; inline;
+procedure _fastAssignStr(var dest: WideString; const src: WideString); overload; inline;
+procedure _fastAssignStr(var dest: AnsiString; const src: AnsiString); overload; inline;
+procedure _fastAssignStr(var dest: UTF8String; const src: UTF8String); overload; inline;
+
+procedure dslMove(const src; var dest; count: Integer); inline;
+procedure FillWordX87(var dest; count: Integer; value: Word);
+procedure FillDwordX87(var dest; count: Integer; value: UInt32);
+
+function absoluteValue(v: Integer): Integer; overload; inline;
+function absoluteValue(v: Int64): Int64; overload; inline;
+function absoluteValue(v: ShortInt): ShortInt; overload; inline;
+function absoluteValue(v: SmallInt): SmallInt; overload; inline;
+
+function Get1Bytes(v: Byte): RawByteString;
+function Get2Bytes(v: Word): RawByteString;
+function Get4Bytes(v: UInt32): RawByteString;
+function Get8Bytes(v: Int64): RawByteString;
+
+procedure PaddingRight8(const src; srcLen: Integer; var dst; dstLen: Integer; paddingValue: Byte); overload; inline;
+procedure PaddingRight8(const src: RawByteString; var dst; dstLen: Integer; paddingValue: Byte); overload; inline;
+
+procedure xorBuffer(const operand1, operand2; bufLen: Integer; var dst);
+procedure andBuffer(const operand1, operand2; bufLen: Integer; var dst);
+procedure orBuffer(const operand1, operand2; bufLen: Integer; var dst);
+
+function RotateLeft32(v: UInt32; n: Integer): UInt32; inline;
+function RotateRight32(v: UInt32; n: Integer): UInt32; inline;
+function RotateLeft64(v: UInt64; n: Integer): UInt64; inline;
+function RotateRight64(v: UInt64; n: Integer): UInt64; inline;
+{$IFDEF WIN64}
+function sar32(value: UInt32; bits: Integer): UInt32; inline;
+{$ELSE}
+function sar32(value: UInt32; bits: Integer): UInt32;
+{$ENDIF}
+function sar64(value: Int64; bits: Integer): Int64;
+function ReverseByteOrder32(v: UInt32): UInt32; inline;
+function ReverseByteOrder64(v: UInt64): UInt64; inline;
+function BigEndianToSys(v: UInt32): UInt32; overload; inline;
+function SysToBigEndian(v: UInt32): UInt32; overload; inline;
+function SysToLittleEndian(v: UInt32): UInt32; overload; inline;
+function LittleEndianToSys(v: UInt32): UInt32; overload; inline;
+function BigEndianToSys(v: Word): Word; overload; inline;
+function SysToBigEndian(v: Word): Word; overload; inline;
+function SysToLittleEndian(v: Word): Word; overload; inline;
+function LittleEndianToSys(v: Word): Word; overload; inline;
+function Power10(const mantissa: Extended; exponent: Integer): Extended;
+function IsSameMethod(const method1, method2): Boolean;
 function IsEqualFloat(d1, d2: Double): Boolean;
 
-(*************************************时间日期相关************************************)
+function myhtoll(v: Int64): Int64;
 
+{$REGION '时间日期相关'}
 function FormatSysTime(const st: TSystemTime; const fmt: string = ''): string;
-
 function FormatSysTimeNow(const fmt: string = ''): string;
-
+function RBStrNow: RawByteString;
 function SameHour(former, later: TDateTime): Boolean;
-
 function SameDay(former, later: TDateTime): Boolean;
-
 function SameMonth(former, later: TDateTime): Boolean;
-
-function SameYear(former, Later: TDateTime): Boolean;
-
+function SameYear(former, later: TDateTime): Boolean;
 procedure SystemTimeIncMilliSeconds(var st: TSystemTime; value: Int64);
-
 procedure SystemTimeIncSeconds(var st: TSystemTime; value: Int64);
-
 procedure SystemTimeIncMinutes(var st: TSystemTime; value: Integer);
-
 procedure SystemTimeIncHours(var st: TSystemTime; value: Integer);
-
 procedure SystemTimeIncDays(var st: TSystemTime; value: Integer);
-
 procedure SystemTimeIncMonths(var st: TSystemTime; value: Integer);
-
 procedure SystemTimeIncYears(var st: TSystemTime; value: Integer);
-
 function UTCNow: TDateTime;
-
 function UTCToLocal(dt: TDateTime): TDateTime;
-
+function LocalToUTC(dt: TDateTime): TDateTime;
 function UTCLocalDiff: Integer;
-
 function DateTimeToJava(d: TDateTime): Int64;
-
 function JavaToDateTime(t: Int64): TDateTime;
+function getWebTimestamp: Int64;
 
-function ReplaceIfNotEqual(var dst: RawByteString; const src: RawByteString;
-  pEStayNETrue: PBoolean = nil): Boolean; overload;
+function GMTStringToDateTime(const s: string): TDateTime; overload;
+function GMTStringToDateTime(const s: RawByteString): TDateTime; overload;
 
-function ReplaceIfNotEqual(var dst: UnicodeString; const src: UnicodeString;
-  pEStayNETrue: PBoolean = nil): Boolean; overload;
+function dateTimeToGMTRawBytes(const st: TSystemTime; buf: PAnsiChar; utcbias: Integer = 14400): Integer; overload;
+function dateTimeToGMTRawBytes(const st: TSystemTime; utcbias: Integer = 14400): RawByteString; overload;
+function dateTimeToGMTRawBytes(dt: TDateTime; utcbias: Integer = 14400): RawByteString; overload
 
-function ReplaceIfNotEqual(var dst: Integer; const src: Integer;
-  pEStayNETrue: PBoolean = nil): Boolean; overload;
+function dateTimeToGMTString(const st: TSystemTime; buf: PWideChar; utcbias: Integer = 14400): Integer; overload;
+function dateTimeToGMTString(const st: TSystemTime; utcbias: Integer = 14400): string; overload;
+function dateTimeToGMTString(dt: TDateTime; utcbias: Integer = 14400): string; overload;
 
-function ReplaceIfNotEqual(var dst: Int64; const src: Int64;
-  pEStayNETrue: PBoolean = nil): Boolean; overload;
+{$ENDREGION}
 
-function ReplaceIfNotEqual(var dst: Double; const src: Double;
-  pEStayNETrue: PBoolean = nil): Boolean; overload;
+function ReplaceIfNotEqual(var dst: RawByteString; const src: RawByteString; pEStayNETrue: PBoolean = nil): Boolean;
+  overload;
 
-function ReplaceIfNotEqual(var dst: Real; const src: Real;
-  pEStayNETrue: PBoolean = nil): Boolean; overload;
+function ReplaceIfNotEqual(var dst: u16string; const src: u16string; pEStayNETrue: PBoolean = nil): Boolean;
+  overload;
 
-function ReplaceIfNotEqual(var dst: Boolean; const src: Boolean;
-  pEStayNETrue: PBoolean = nil): Boolean; overload;
+function ReplaceIfNotEqual(var dst: Integer; const src: Integer; pEStayNETrue: PBoolean = nil): Boolean; overload;
 
-function RandomStringA(CharSet: RawByteString; CharCount: Integer): RawByteString;
+function ReplaceIfNotEqual(var dst: Int64; const src: Int64; pEStayNETrue: PBoolean = nil): Boolean; overload;
 
-function RandomAlphaStringA(CharCount: Integer; types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): RawByteString;
+function ReplaceIfNotEqual(var dst: Double; const src: Double; pEStayNETrue: PBoolean = nil): Boolean; overload;
 
-function RandomDigitStringA(CharCount: Integer): RawByteString;
+//function ReplaceIfNotEqual(var dst: Real; const src: Real; pEStayNETrue: PBoolean = nil): Boolean; overload;
 
-function RandomAlphaDigitStringA(CharCount: Integer;
-  types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): RawByteString;
+function ReplaceIfNotEqual(var dst: Boolean; const src: Boolean; pEStayNETrue: PBoolean = nil): Boolean; overload;
 
-function RandomStringW(CharSet: UnicodeString; CharCount: Integer): UnicodeString;
+function IsPrintable(ch: AnsiChar): Boolean;
+function IsPrintableString(const s: RawByteString): Boolean; overload;
+function IsPrintableString(const buf; bufLen: Integer): Boolean; overload;
+{$REGION 'random data generation'}
+function RandomBytes(count: Integer): RawByteString;
+function RandomRBStr(CharSet: RawByteString; CharCount: Integer): RawByteString;
+function RandomAlphaRBStr(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): RawByteString;
+function RandomDigitRBStr(CharCount: Integer): RawByteString;
 
-function RandomAlphaStringW(CharCount: Integer;
-  types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): UnicodeString;
+function RandomAlphaDigitRBStr(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase])
+  : RawByteString;
 
-function RandomDigitStringW(CharCount: Integer): UnicodeString;
+var
+  RandomStringA: function(CharSet: RawByteString; CharCount: Integer): RawByteString;
+  RandomAlphaStringA: function(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase])
+    : RawByteString;
+  RandomDigitStringA: function(CharCount: Integer): RawByteString;
+  RandomAlphaDigitStringA: function(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase])
+    : RawByteString;
 
-function RandomAlphaDigitStringW(CharCount: Integer;
-  types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): UnicodeString;
+function RandomUStr(CharSet: u16string; CharCount: Integer): u16string;
+
+function RandomAlphaUStr(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): u16string;
+
+function RandomDigitUStr(CharCount: Integer): u16string;
+
+function RandomAlphaDigitUStr(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase])
+  : u16string;
+
+var
+  RandomStringW: function(CharSet: u16string; CharCount: Integer): u16string;
+  RandomAlphaStringw: function(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase])
+    : u16string;
+  RandomDigitStringW: function(CharCount: Integer): u16string;
+  RandomAlphaDigitStringW: function(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase])
+    : u16string;
+
+function RandomBStr(CharSet: u16string; CharCount: Integer): WideString;
+
+function RandomAlphaBStr(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): WideString;
+
+function RandomDigitBStr(CharCount: Integer): WideString;
+
+function RandomAlphaDigitBStr(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): WideString;
 
 function RandomCNMobile: RawByteString;
+{$ENDREGION}
+{$REGION 'MBCS and unicode convertion'}
+function AnsiStrAssignWideChar(dst: PAnsiChar; dstLen: Integer; c: WideChar; CodePage: Integer): Integer;
 
-procedure AnsiStrAssignWideChar(dst: PAnsiChar; c: WideChar; CodePage: Integer);
+function AsciiBuf2UStr(buf: PAnsiChar; len: Integer = -1): u16string;
+function Ascii2UStr(const s: RawByteString): u16string;
 
-function BufToUnicodeTest(src: PAnsiChar; srclen: DWORD; CodePage: Integer): Integer;
+function BufToUnicodeTest(src: PAnsiChar; srcLen: Integer; CodePage: Integer): Integer;
 
-function BufToUnicode(src: PAnsiChar; srclen: DWORD; dst: PWideChar; CodePage: Integer): Integer; overload;
+function CheckCodePage(src: PAnsiChar; srcLen: Integer; CodePage: Integer; out dstLen: Integer): Boolean;
 
-function BufToUnicode(src: PAnsiChar; srclen: DWORD; CodePage: Integer): UnicodeString; overload;
+function BufToUnicodeTestEx(src: PAnsiChar; srcLen: Integer; const CodePages: array of Integer;
+  out RealCodePage: Integer): Integer;
 
+function BufToUnicode(src: PAnsiChar; srcLen: Integer; dst: PWideChar; dstLen, CodePage: Integer): Integer; overload;
 
-function BufToMultiByteTest(src: PWideChar; srclen: DWORD; CodePage: Integer): Integer;
+function BufToUnicode(src: PAnsiChar; srcLen: Integer; CodePage: Integer): u16string; overload;
+function BufToBSTR(src: PAnsiChar; srcLen: Integer; CodePage: Integer): WideString;
 
-function BufToMultiByte(src: PWideChar; srclen: DWORD; dst: PAnsiChar; CodePage: Integer): Integer; overload;
+function BufToUnicodeEx(src: PAnsiChar; srcLen: Integer; dst: PWideChar; dstLen: Integer;
+  const CodePages: array of Integer): Integer; overload;
 
-function BufToMultiByte(src: PWideChar; srclen: DWORD; CodePage: Integer): RawByteString; overload;
+function BufToUnicodeEx(src: PAnsiChar; srcLen: Integer; const CodePages: array of Integer): u16string; overload;
 
-function UStrToMultiByte(const src: UnicodeString; dst: PAnsiChar; CodePage: Integer): Integer; overload;
+function RBStrToUnicode(const src: RawByteString; dst: PWideChar; dstLen, CodePage: Integer): Integer; overload;
 
-function UStrToMultiByte(const src: UnicodeString; CodePage: Integer): RawByteString; overload;
+function RBStrToUnicode(const src: RawByteString; CodePage: Integer): u16string; overload;
 
-function UTF8EncodeBufferTest(src: PWideChar; srclen: Integer): Integer;
+function RBStrToUnicodeEx(const src: RawByteString; dst: PWideChar; dstLen: Integer;
+  const CodePages: array of Integer): Integer; overload;
 
-function UTF8EncodeBuffer(src: PWideChar; srclen: Integer; dest: PAnsiChar): Integer; overload;
-
-function UTF8EncodeBuffer(src: PWideChar; srclen: Integer): UTF8String; overload;
-
+function RBStrToUnicodeEx(const src: RawByteString; const CodePages: array of Integer): u16string; overload;
+function BufToMultiByteTest(src: PWideChar; srcLen: Integer; CodePage: Integer): Integer;
+function BufToMultiByte(src: PWideChar; srcLen: Integer; dst: PAnsiChar; dstLen, CodePage: Integer): Integer; overload;
+function BufToMultiByte(src: PWideChar; srcLen: Integer; CodePage: Integer): RawByteString; overload;
+function UStrToMultiByte(const src: u16string; dst: PAnsiChar; dstLen, CodePage: Integer): Integer; overload;
+function UStrToMultiByte(const src: u16string; CodePage: Integer): RawByteString; overload;
+function UTF8EncodeBufferTest(src: PWideChar; srcLen: Integer): Integer;
+function UTF8EncodeBuffer(src: PWideChar; srcLen: Integer; dest: PAnsiChar): Integer; overload;
+function UTF8EncodeBuffer(src: PWideChar; srcLen: Integer): UTF8String; overload;
 function UTF8EncodeCStrTest(src: PWideChar): Integer;
-
 function UTF8EncodeCStr(src: PWideChar; dest: PAnsiChar): Integer; overload;
-
 function UTF8EncodeCStr(src: PWideChar): RawByteString; overload;
-
-function UTF8EncodeUStr(const src: UnicodeString; dest: PAnsiChar): Integer; overload;
-
-function UTF8EncodeUStr(const src: UnicodeString): UTF8String; overload;
-
+function UTF8EncodeUStr(const src: u16string; dest: PAnsiChar): Integer; overload;
+function UTF8EncodeUStr(const src: u16string): UTF8String; overload;
 function UTF8EncodeBStr(const src: WideString; dest: PAnsiChar): Integer; overload;
-
 function UTF8EncodeBStr(const src: WideString): UTF8String; overload;
+function UTF8DecodeBufferTest(src: PAnsiChar; srcLen: Integer; invalid: PPAnsiChar = nil): Integer;
 
-function UTF8DecodeBufferTest(src: PAnsiChar; srclen: Integer; invalid: PPAnsiChar = nil): Integer;
+function UTF8DecodeBuffer(src: PAnsiChar; srcLen: Integer; dest: PWideChar;
+  invalid: PPAnsiChar = nil): Integer; overload;
 
-function UTF8DecodeBuffer(src: PAnsiChar; srclen: Integer; dest: PWideChar; invalid: PPAnsiChar = nil): Integer; overload;
-
-function UTF8DecodeBuffer(src: PAnsiChar; srclen: Integer; invalid: PPAnsiChar = nil): UnicodeString; overload;
-
+function UTF8DecodeBuffer(src: PAnsiChar; srcLen: Integer; invalid: PPAnsiChar = nil): u16string; overload;
 function UTF8DecodeCStrTest(src: PAnsiChar; invalid: PPAnsiChar = nil): Integer;
-
 function UTF8DecodeCStr(src: PAnsiChar; dest: PWideChar; invalid: PPAnsiChar = nil): Integer; overload;
-
-function UTF8DecodeCStr(src: PAnsiChar; invalid: PPAnsiChar = nil): UnicodeString; overload;
-
+function UTF8DecodeCStr(src: PAnsiChar; invalid: PPAnsiChar = nil): u16string; overload;
 function UTF8DecodeStr(const src: RawByteString; dest: PWideChar; invalid: PPAnsiChar = nil): Integer; overload;
+function UTF8DecodeStr(const src: RawByteString; invalid: PPAnsiChar = nil): u16string; overload;
 
-function UTF8DecodeStr(const src: RawByteString; invalid: PPAnsiChar = nil): UnicodeString; overload;
+function WinAPI_UTF8Decode(s: PAnsiChar; len: Integer): u16string; overload;
+function WinAPI_UTF8Decode(const s: RawByteString): u16string; overload;
+function WinAPI_UTF8Decode_2bstr(const s: RawByteString): WideString;
 
 procedure UTF8EncodeFile(const FileName: string);
-
 procedure UTF8DecodeFile(const FileName: string);
-
 procedure HttpEncodeFile(const FileName: string);
-
 procedure HttpDecodeFile(const FileName: string);
+function UTF16Decode(const s: RawByteString): u16string;
+{$ENDREGION}
 
-function StrIsEmptyA(const s: RawByteString): Boolean;
+function RBStrIsEmpty(const s: RawByteString): Boolean;
+function UStrIsEmpty(const s: u16string): Boolean;
+{$REGION '全半角字符转换'}
+// 全角: SBC  半角：DBC
 
-function UStrIsEmpty(const s: UnicodeString): Boolean;
+procedure SBC2DBCW(str: PWideChar); overload;
+procedure SBC2DBCW(str: PWideChar; len: Integer); overload;
+function UStrSBC2DBC(const str: u16string): u16string;
+function BStrSBC2DBC(const str: WideString): WideString;
 
-(***********************char case converting*********************************)
+procedure DBC2SBCW(str: PWideChar); overload;
+procedure DBC2SBCW(str: PWideChar; len: Integer); overload;
+function UStrDBC2SBC(const str: u16string): u16string;
+function BStrDBC2SBC(const str: WideString): WideString;
+{$ENDREGION}
+{$REGION 'c语言字符转义解析'}
+function cstrUnescapeA(src: PAnsiChar; dst: PAnsiChar; dstLen: Integer; pUnescaped: PInteger): Integer; overload;
+function cstrUnescapeA(src: PAnsiChar): RawByteString; overload;
+function cstrUnescapeA(src: PAnsiChar; srcLen: Integer; dst: PAnsiChar; dstLen: Integer;
+  pUnescaped: PInteger): Integer; overload;
+function cstrUnescapeA(src: PAnsiChar; srcLen: Integer): RawByteString; overload;
+function cstrUnescape(const s: RawByteString): RawByteString; overload;
 
-procedure StrUpperW(str: PWideChar; len: Integer); overload;
-
-procedure UStrUpper(const str: UnicodeString);
-
+function cstrUnescapeW(src: PWideChar; dst: PWideChar; dstLen: Integer; pUnescaped: PInteger): Integer; overload;
+function cstrUnescapeW(src: PWideChar): u16string; overload;
+function cstrUnescapeW(src: PWideChar; srcLen: Integer; dst: PWideChar; dstLen: Integer;
+  pUnescaped: PInteger): Integer; overload;
+function cstrUnescapeW(src: PWideChar; srcLen: Integer): u16string; overload;
+function cstrUnescape(const s: u16string): u16string; overload;
+{$ENDREGION}
+{$REGION 'char case converting'}
+function StrUpperW(str: PWideChar): PWideChar; overload;
+function StrUpperW(str: PWideChar; len: Integer): PWideChar; overload;
+procedure UStrUpper(const str: u16string);
 procedure BStrUpper(const str: WideString);
 
-procedure StrLowerW(str: PWideChar; len: Integer);
-
-procedure UStrLower(const str: UnicodeString);
-
+function StrLowerW(str: PWideChar): PWideChar; overload;
+function StrLowerW(str: PWideChar; len: Integer): PWideChar; overload;
+procedure UStrLower(const str: u16string);
 procedure BStrLower(const str: WideString);
 
-procedure StrUpperA(str: PAnsiChar; len: Integer); overload;
+function StrUpperA(str: PAnsiChar): PAnsiChar; overload;
+function StrUpperA(str: PAnsiChar; len: Integer): PAnsiChar; overload;
+procedure RBStrUpper(const str: RawByteString);
 
-procedure StrUpperA(const str: RawByteString); overload;
+function StrLowerA(str: PAnsiChar): PAnsiChar; overload;
+function StrLowerA(str: PAnsiChar; len: Integer): PAnsiChar; overload;
+function RBStrLower(const str: RawByteString): RawByteString;
 
-procedure StrLowerA(str: PAnsiChar; len: Integer); overload;
+procedure SetRBStr(var s: RawByteString; _begin, _end: PAnsiChar);
+procedure SetUString(var s: u16string; _begin, _end: PWideChar);
+{$ENDREGION}
+{$REGION 'string <=> number interface'}
+const
+  INT64_TABLE: array [0 .. 19] of UInt64 = (
+    1,
+    10,
+    100,
+    1000,
+    10000,
+    100000,
+    1000000,
+    10000000,
+    100000000,
+    1000000000,
+    10000000000,
+    100000000000,
+    1000000000000,
+    10000000000000,
+    100000000000000,
+    1000000000000000,
+    10000000000000000,
+    100000000000000000,
+    1000000000000000000,
+    10000000000000000000
+    );
 
-procedure StrLowerA(const str: RawByteString); overload;
+type
+  TNumberType = (numNaN, numInt32, numUInt32, numInt64, numUInt64, numDouble, numExtended);
 
-procedure SetStringA(var s: RawByteString; _begin, _end: PAnsiChar);
+  TNumber = record
+    function expr: string;
+    function toUTF16Str: UTF16String;
+    function toRawBytes: RawByteString;
+    function toString: string; inline;
+    function valid: Boolean;
+    function isInteger: Boolean; inline;
+    function isFloat: Boolean; inline;
+    function isNegative: Boolean; inline;
+    function isPositive: Boolean; inline;
+    function toExtended: Extended;
+    function asUInt32: UInt32; inline;
+    function asInt32: Int32; inline;
+    function round: Int64;
+    function ceil: Int64;
+    function trunc: Int64;
+    function tryGetInt(var value: Int64): Boolean;
+    procedure setInt32(value: Int32); inline;
+    procedure setUInt32(value: UInt32); inline;
+    procedure setInt64(value: Int64); inline;
+    procedure setUInt64(value: UInt64); inline;
+    procedure setDouble(value: Double); inline;
+    procedure setExtended(value: Extended); inline;
+    procedure clear; inline;
+    case _type: TNumberType of
+      numInt32:
+        (I32: Int32);
+      numUInt32:
+        (UI32: UInt32);
+      numInt64:
+        (I64: Int64);
+      numUInt64:
+        (UI64: UInt64);
+      numDouble:
+        (VDouble: Double);
+      numExtended:
+        (VExtended: Extended);
+  end;
 
-procedure SetUString(var s: UnicodeString; _begin, _end: PWideChar);
+procedure _calcInt(isNegative: Boolean; s: PAnsiChar; len: Integer; var number: TNumber); overload;
+procedure _calcInt(isNegative: Boolean; s: PWideChar; len: Integer; var number: TNumber); overload;
 
-(*************************string to integer****************************)
+// parseNumber supports both integers and floats
+function parseNumber(s: PAnsiChar; endAt: PPAnsiChar = nil): TNumber; overload;
+function parseNumber(s: PWideChar; endAt: PPWideChar = nil): TNumber; overload;
+function parseNumber(s: PAnsiChar; slen: Integer; endAt: PPAnsiChar = nil): TNumber; overload;
+function parseNumber(s: PWideChar; slen: Integer; endAt: PPWideChar = nil): TNumber; overload;
 
-function IntToStrBufA(value: Integer; buf: PAnsiChar): Integer;
+function divBy100(dividend: Int32): Int32;
+function StrInt(s: PAnsiChar; value: UInt32): PAnsiChar; overload;
+function StrInt(s: PAnsiChar; const value: UInt64): PAnsiChar; overload;
+function StrInt(s: PWideChar; value: UInt32): PWideChar; overload;
+function StrInt(s: PWideChar; const value: UInt64): PWideChar; overload;
 
-function IntToStrA(value: Integer): RawByteString;
+function StrInt(s: PAnsiChar; value: Int32): PAnsiChar; overload;
+function StrInt(s: PAnsiChar; const value: Int64): PAnsiChar; overload;
+function StrInt(s: PWideChar; value: Int32): PWideChar; overload;
+function StrInt(s: PWideChar; const value: Int64): PWideChar; overload;
 
-function DecimalStrToIntA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Integer;
+function IntToStrFast(value: UInt32; s: PAnsiChar): PAnsiChar; overload;
+function IntToStrFast(value: Int32; s: PAnsiChar): PAnsiChar; overload;
+function IntToStrFast(value: UInt64; s: PAnsiChar): PAnsiChar; overload;
+function IntToStrFast(value: Int64; s: PAnsiChar): PAnsiChar; overload;
+function IntToStrFast(value: UInt32; s: PWideChar): PWideChar; overload;
+function IntToStrFast(value: Int32; s: PWideChar): PWideChar; overload;
+function IntToStrFast(value: UInt64; s: PWideChar): PWideChar; overload;
+function IntToStrFast(value: Int64; s: PWideChar): PWideChar; overload;
 
-function HexStrToIntA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Integer;
+function IntToUTF16Str(value: Int32): UTF16String; overload;
+function IntToWideStr(value: Int32): WideString; overload;
+function IntToRawBytes(value: Int32): RawByteString; overload;
+function IntToStrFast(value: Int32): string; overload; inline;
 
+function IntToUTF16Str(value: UInt32): UTF16String; overload;
+function IntToWideStr(value: UInt32): WideString; overload;
+function IntToRawBytes(value: UInt32): RawByteString; overload;
+function IntToStrFast(value: UInt32): string; overload; inline;
+
+function IntToUTF16Str(value: Int64): UTF16String; overload;
+function IntToWideStr(value: Int64): WideString; overload;
+function IntToRawBytes(value: Int64): RawByteString; overload;
+function IntToStrFast(value: Int64): string; overload; inline;
+
+function IntToUTF16Str(value: UInt64): UTF16String; overload;
+function IntToWideStr(value: UInt64): WideString; overload;
+function IntToRawBytes(value: UInt64): RawByteString; overload;
+function IntToStrFast(value: UInt64): string; overload; inline;
+
+(*************** backward compatible ***************)
+function IntToStrBufA(value: Integer; buf: PAnsiChar): Integer; overload; inline;
+function IntToStrBufA(value: Int64; buf: PAnsiChar): Integer; overload; inline;
+function UInt32ToStrBufA(value: UInt32; buf: PAnsiChar): Integer; inline;
+function UInt64ToStrBufA(value: UInt64; buf: PAnsiChar): Integer; inline;
+function IntToRBStr(value: Integer): RawByteString; overload; inline;
+function IntToRBStr(value: Int64): RawByteString; overload; inline;
+function UInt32ToRBStr(value: UInt32): RawByteString; inline;
+function UInt64ToRBStr(value: UInt64): RawByteString; inline;
+
+function IntToStrBufW(value: Integer; buf: PWideChar): Integer; overload; inline;
+function IntToStrBufW(value: Int64; buf: PWideChar): Integer; overload; inline;
+function UInt32ToStrBufW(value: UInt32; buf: PWideChar): Integer; inline;
+function UInt64ToStrBufW(value: UInt64; buf: PWideChar): Integer; inline;
+function IntToUStr(value: Integer): u16string; overload; inline;
+function IntToUStr(value: Int64): u16string; overload; inline;
+function UInt32ToUStr(value: UInt32): u16string; inline;
+function UInt64ToUStr(value: UInt64): u16string; inline;
+function UInt32ToStr(value: UInt32): string; inline;
+function UInt64ToStr(value: UInt64): string; inline;
+
+function IntToBStr(value: Integer): WideString; overload; inline;
+function IntToBStr(value: Int64): WideString; overload; inline;
+function UInt32ToBStr(value: UInt32): WideString; inline;
+function UInt64ToBStr(value: UInt64): WideString; inline;
+
+function DecimalToUInt32A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt32;
+function HexToUInt32A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt32;
 function BufToIntA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Integer;
+function RBStrToInt(const str: RawByteString): Integer; inline;
+function RBStrToIntDef(const str: RawByteString; def: Integer): Integer; inline;
+function BufToUInt32A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt32; inline;
+function RBStrToUInt32(const str: RawByteString): UInt32; inline;
+function RBStrToUInt32Def(const str: RawByteString; def: UInt32): UInt32; inline;
 
-function StrToIntA(const str: RawByteString): Integer;
-
-function DecimalStrToInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Int64;
-
-function HexStrToInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Int64;
-
+function DecimalToUInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt64;
+function HexToUInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt64;
 function BufToInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Int64;
+function RBStrToInt64(const str: RawByteString): Int64; inline;
+function RBStrToInt64Def(const str: RawByteString; def: Int64): Int64; inline;
+function BufToUInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt64;
+function RBStrToUInt64(const str: RawByteString): UInt64; inline;
+function RBStrToUInt64Def(const str: RawByteString; def: UInt64): UInt64; inline;
 
-function StrToInt64A(const str: RawByteString): Int64;
-
-function DecimalBufToIntW(buf: PWideChar; len: Integer; invalid: PPWideChar): Integer;
-
-function HexBufToIntW(buf: PWideChar; len: Integer; invalid: PPWideChar): Integer;
-
+function DecimalBufToUInt32W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt32;
+function HexBufToUInt32W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt32;
 function BufToIntW(buf: PWideChar; len: Integer; invalid: PPWideChar): Integer;
-
-function UStrToInt(const str: UnicodeString): Integer;
-
+function UStrToInt(const str: u16string): Integer;
 function BStrToInt(const str: WideString): Integer;
+function dslStrToInt(const str: u16string): Integer; overload;
+function dslStrToInt(const str: WideString): Integer; overload;
+function UStrToIntDef(const str: u16string; def: Integer): Integer;
+function BStrToIntDef(const str: WideString; def: Integer): Integer;
+function dslStrToIntDef(const str: u16string; def: Integer): Integer; overload;
+function dslStrToIntDef(const str: WideString; def: Integer): Integer; overload;
+function BufToUInt32W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt32;
+function UStrToUInt32(const str: u16string): UInt32;
+function BStrToUInt32(const str: WideString): UInt32;
+function dslStrToUInt32(const str: u16string): UInt32; overload;
+function dslStrToUInt32(const str: WideString): UInt32; overload;
+function UStrToUInt32Def(const str: u16string; def: UInt32): UInt32;
+function BStrToUInt32Def(const str: WideString; def: UInt32): UInt32;
+function dslStrToUInt32Def(const str: u16string; def: UInt32): UInt32; overload;
+function dslStrToUInt32Def(const str: WideString; def: UInt32): UInt32; overload;
 
-function DecimalBufToInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): Int64;
-
-function HexBufToInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): Int64;
-
+function DecimalBufToUInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt64;
+function HexBufToUInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt64;
 function BufToInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): Int64;
-
 function BStrToInt64(const str: WideString): Int64;
+function UStrToInt64(const str: u16string): Int64;
+function dslStrToInt64(const str: WideString): Int64; overload;
+function dslStrToInt64(const str: u16string): Int64; overload;
+function BStrToInt64Def(const str: WideString; def: Int64): Int64;
+function UStrToInt64Def(const str: u16string; def: Int64): Int64;
+function dslStrToInt64Def(const str: WideString; def: Int64): Int64; overload;
+function dslStrToInt64Def(const str: u16string; def: Int64): Int64; overload;
+function BufToUInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt64;
+function BStrToUInt64(const str: WideString): UInt64;
+function UStrToUInt64(const str: u16string): UInt64;
+function dslStrToUInt64(const str: WideString): UInt64; overload;
+function dslStrToUInt64(const str: u16string): UInt64; overload;
+function BStrToUInt64Def(const str: WideString; def: UInt64): UInt64;
+function UStrToUInt64Def(const str: u16string; def: UInt64): UInt64;
+function dslStrToUInt64Def(const str: WideString; def: UInt64): UInt64; overload;
+function dslStrToUInt64Def(const str: u16string; def: UInt64): UInt64; overload;
 
-function UStrToInt64(const str: UnicodeString): Int64;
-
-(*************************string to float****************************)
-
-function BufToFloatA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Double;
-
-function StrToFloatA(const str: RawByteString): Double;
-
-function BufToFloatA2(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Double;
-
-function StrToFloatA2(const str: RawByteString): Double;
-
-function BufToFloatW(buf: PWideChar; len: Integer; invalid: PPWideChar): Double;
-
-function UStrToFloat(const str: UnicodeString): Double;
-
+function parseFloat(str: PAnsiChar; pErr: PPAnsiChar = nil): Extended; overload;
+function parseFloat(str: PWideChar; pErr: PPWideChar = nil): Extended; overload;
+function BufToFloatA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar = nil): Double;
+function RBStrToFloat(const str: RawByteString): Double; inline;
+function BufToFloatA2(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar = nil): Double;
+function RBStrToFloat2(const str: RawByteString): Double; inline;
+function BufToFloatW(buf: PWideChar; len: Integer; invalid: PPWideChar = nil): Double;
+function UStrToFloat(const str: u16string): Double;
 function BStrToFloat(const str: WideString): Double;
 
-function AnsiFormat(const fmt: AnsiString; const args: array of const): AnsiString;
+function FloatToUStr(value: Extended): u16string; overload; inline;
+function FloatToUStr(value: Extended; const FormatSettings: TFormatSettings): u16string; overload; inline;
+function FloatToRBStr(value: Extended): RawByteString; overload;
+function FloatToRBStr(value: Extended; const FormatSettings: TFormatSettings): RawByteString; overload;
+function FormatFloat_mb(const Format: RawByteString; Value: Extended): RawByteString; overload;
+function FormatFloat_mb(const Format: RawByteString; Value: Extended;
+  const FormatSettings: TFormatSettings): RawByteString; overload;
+{$ENDREGION}
 
-(*************************sub string search****************************)
+{$REGION 'Variant utils'}
+function TryVarToStr(const v: Variant; var s: string): Boolean;
+function VarToBool(const v: Variant; var bv: Boolean): Boolean;
+function VarToBoolDef(const v: Variant; def: Boolean): Boolean;
+function VarToInt(const v: Variant; var bv: Integer): Boolean;
+function VarToIntDef(const v: Variant; def: Integer): Integer;
+function VarToInt64(const v: Variant; var bv: Int64): Boolean;
+function VarToInt64Def(const v: Variant; def: Int64): Int64;
+function VarToFloat(const v: Variant; var bv: Double): Boolean;
+function VarToFloatDef(const v: Variant; def: Double): Double;
+procedure SetNull(var Value: Variant);
+{$ENDREGION}
 
+{$REGION 'sub string search'}
+function WCharInSet(c: WideChar; cs: TAnsiCharSet): Boolean; inline;
+function WCharInSetFast(c: WideChar; cs: TAnsiCharSet): Boolean; inline;
+function ByteInSet(c: AnsiChar; cs: TAnsiCharSet): Boolean; inline;
+
+var
+  CharInSet: function(c: Char; cs: TAnsiCharSet): Boolean;
+{$REGION 'copy from Synapse framework, see http://www.synopse.info/fossil/wiki/Synopse+OpenSource'}
+function GotoNextNotSpace(p: PWideChar): PWideChar; overload;
+function GotoNextNotSpace(p: PAnsiChar): PAnsiChar; overload;
+{$ENDREGION}
+function IsSpace(ch: WideChar): Boolean; overload; inline;
+function IsCJK(ch: WideChar): Boolean; inline;
+function IsSimplifiedChineseCharacter(ch: WideChar): Boolean;
 function StrScanA(s: PAnsiChar; len: Integer; c: AnsiChar): PAnsiChar; overload;
-
 function StrScanA(s: PAnsiChar; c: AnsiChar): PAnsiChar; overload;
-
-function StrScanA(const s: RawByteString; c: AnsiChar; BeginIndex: Integer = 1;
-  EndIndex: Integer = 0): Integer; overload;
+function RBStrScan(const s: RawByteString; c: AnsiChar; first: Integer = 1; last: Integer = 0): Integer; inline;
+function SeekAnsiChar(s: PAnsiChar; len: Integer; what: AnsiChar): PAnsiChar;
+function SeekAnsiChars(s: PAnsiChar; len: Integer; const whats: array of AnsiChar): PAnsiChar;
 
 function StrScanW(s: PWideChar; len: Integer; c: WideChar): PWideChar; overload;
-
 function StrScanW(s: PWideChar; c: WideChar): PWideChar; overload;
-
-function UStrScan(const s: UnicodeString; c: WideChar; BeginIndex: Integer = 1;
-  EndIndex: Integer = 0): Integer; overload;
-
-function BStrScan(const s: WideString; c: WideChar): Integer; overload;
-
+function UStrScan(const s: u16string; c: WideChar; first: Integer = 1; last: Integer = 0): Integer;
+function BStrScan(const s: WideString; c: WideChar; first: Integer = 1; last: Integer = 0): Integer;
 function StrScan(const s: string; c: Char): Integer;
+function SeekWideChar(s: PWideChar; len: Integer; what: WideChar): PWideChar;
+function SeekWideChars(s: PWideChar; len: Integer; const whats: array of WideChar): PWideChar;
 
+{$region 'pattern search'}
+{$IFDEF WIN32}
+function SysUtils_StrPosW(str, substr: PWideChar): PWideChar;assembler;
+function StrPosW(substr, str: PWideChar): PWideChar; overload; inline;
+{$ELSE}
 function StrPosW(substr, str: PWideChar): PWideChar; overload;
+{$ENDIF}
 
 function StrPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar; overload;
-
-function UStrPos(const substr, str: UnicodeString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer; overload;
-
-function BStrPos(const substr, str: WideString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer; overload;
+function UStrPos(const substr, str: u16string; first: Integer = 1; last: Integer = 0): Integer; overload;
+function BStrPos(const substr, str: WideString; first: Integer = 1; last: Integer = 0): Integer; overload;
 
 function StrIPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar; overload;
-
-function UStrIPos(const substr, str: UnicodeString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer;
-
-function BStrIPos(const substr, str: WideString; StartIndex, EndIndex: Integer): Integer;
+function StrIPosW(substr: u16string; str: PWideChar; len: Integer): PWideChar; overload;
+function StrIPosW(substr, str: PWideChar): PWideChar; overload;
+function UStrIPos(const substr, str: u16string; first: Integer = 1; last: Integer = 0): Integer;
+function BStrIPos(const substr, str: WideString; first: Integer = 1; last: Integer = 0): Integer;
 
 function StrRPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar; overload;
-
-function UStrRPos(const substr, str: UnicodeString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer;
-
-function BStrRPos(const substr, str: WideString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer;
+function StrRPosW(substr, str: PWideChar): PWideChar; overload;
+function UStrRPos(const substr, str: u16string; first: Integer = 1; last: Integer = 0): Integer;
+function BStrRPos(const substr, str: WideString; first: Integer = 1; last: Integer = 0): Integer;
 
 function StrRIPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar; overload;
+function StrRIPosW(substr, str: PWideChar): PWideChar; overload;
+function UStrRIPos(const substr, str: u16string; first: Integer = 1; last: Integer = 0): Integer;
+function BStrRIPos(const substr, str: WideString; first: Integer = 1; last: Integer = 0): Integer;
 
-function UStrRIPos(const substr, str: UnicodeString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer;
-
-function BStrRIPos(const substr, str: WideString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer;
-
+{$IFDEF WIN32}
+function SysUtils_StrPosA(str, substr: PAnsiChar): PAnsiChar; assembler;
+{$ENDIF}
 function StrPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar; overload;
+function StrPosA(substr: TAnsiCharSection; str: TAnsiCharSection): PAnsiChar; overload;
+function StrPosA(substr: PAnsiChar; str: PAnsiChar): PAnsiChar; overload; {$IFDEF WIN32} inline; {$ENDIF}
+function RBStrPos(const substr, str: RawByteString; first: Integer = 1; last: Integer = 0): Integer;
 
-function StrPosA(substr: PAnsiChar; str: PAnsiChar): PAnsiChar; overload;
+function StrIPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar; overload;
+function StrIPosA(substr, str: PAnsiChar): PAnsiChar; overload;
+function RBStrIPos(const substr, str: RawByteString; first: Integer = 1; last: Integer = 0): Integer;
 
-function StrPosA(const substr, str: RawByteString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer; overload;
+function StrRPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar; overload;
+function StrRPosA(substr, str: PAnsiChar): PAnsiChar; overload;
+function RBStrRPos(const substr, str: RawByteString; first: Integer = 1; last: Integer = 0): Integer;
+
+function StrRIPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar; overload;
+function StrRIPosA(substr, str: PAnsiChar): PAnsiChar; overload;
+function RBStrRIPos(const substr, str: RawByteString; first: Integer = 1; last: Integer = 0): Integer;
 
 function BeginWithW(s: PWideChar; len: Integer; sub: PWideChar; sublen: Integer): Boolean; overload;
-
-function BeginWithW(s: PWideChar; len: Integer; const sub: UnicodeString): Boolean; overload;
-
+function BeginWithW(s: PWideChar; len: Integer; const sub: u16string): Boolean; overload;
 function BeginWithW(s, sub: PWideChar): Boolean; overload;
+function UStrBeginWith(const s, sub: u16string): Boolean;
 
+function IBeginWithW(s: PWideChar; len: Integer; sub: PWideChar; sublen: Integer): Boolean; overload;
 function IBeginWithW(s, sub: PWideChar): Boolean; overload;
+function UStrIBeginWith(const s, sub: u16string): Boolean;
+
+function EndWithW(str: PWideChar; len: Integer; suffix: PWideChar; suffixLen: Integer): Boolean; overload;
+function EndWithW(s, sub: PWideChar): Boolean; overload;
+function EndWithW(s: PWideChar; len: Integer; const suffix: u16string): Boolean; overload;
+function UStrEndWith(const str, suffix: u16string): Boolean;
+
+function IEndWithW(str: PWideChar; len: Integer; suffix: PWideChar; suffixLen: Integer): Boolean; overload;
+function IEndWithW(s, sub: PWideChar): Boolean; overload;
+function UStrIEndWith(const str, suffix: u16string): Boolean;
 
 function BeginWithA(s: PAnsiChar; len: Integer; sub: PAnsiChar; sublen: Integer): Boolean; overload;
-
+function BeginWithA(s: PAnsiChar; len: Integer; const sub: RawByteString): Boolean; overload; inline;
 function BeginWithA(s, sub: PAnsiChar): Boolean; overload;
+function RBStrBeginWith(const s, sub: RawByteString): Boolean;
 
+function IBeginWithA(s: PAnsiChar; len: Integer; sub: PAnsiChar; sublen: Integer): Boolean; overload;
 function IBeginWithA(s, sub: PAnsiChar): Boolean; overload;
+function RBStrIBeginWith(const s, sub: RawByteString): Boolean;
 
-function StrReplaceA(const S, OldPattern, NewPattern: RawByteString; Flags: TReplaceFlags): RawByteString;
+function EndWithA(str: PAnsiChar; len: Integer; suffix: PAnsiChar; suffixLen: Integer): Boolean; overload;
+function EndWithA(s, sub: PAnsiChar): Boolean; overload;
+function RBStrEndWith(const str, suffix: RawByteString): Boolean;
 
-function UStrReplace(const S, OldPattern, NewPattern: UnicodeString; Flags: TReplaceFlags): UnicodeString;
+function IEndWithA(str: PAnsiChar; len: Integer; suffix: PAnsiChar; suffixLen: Integer): Boolean; overload;
+function IEndWithA(s, sub: PAnsiChar): Boolean; overload;
+function RBStrIEndWith(const str, suffix: RawByteString): Boolean;
 
-function BStrReplace(const S, OldPattern, NewPattern: WideString; Flags: TReplaceFlags): WideString;
+type
+  TKMPPatternSearchAnsi = record
+  public
+    FPattern: RawByteString;
+    FShiftTable: array of Integer;
+    procedure _BuildShiftTable;
+    procedure init(APattern: PAnsiChar; PatternLen: Integer); overload;
+    procedure init(APattern: RawByteString); overload;
+    procedure cleanup; inline;
+    function search(AText: PAnsiChar; TextLen: Integer): PAnsiChar; overload;
+    function search(const AText: RawByteString): Integer; overload;
+  end;
 
-(******************************string compare******************************)
+  TKMPPatternSearchUCS2 = record
+  public
+    FPattern: u16string;
+    FShiftTable: array of Integer;
+    procedure _BuildShiftTable;
+    procedure init(APattern: PWideChar; PatternLen: Integer); overload;
+    procedure init(APattern: u16string); overload; inline;
+    procedure cleanup; inline;
+    function search(AText: PWideChar; TextLen: Integer): PWideChar; overload;
+    function search(const AText: u16string): Integer; overload;
+  end;
 
-function StrCompareW(const S1: PWideChar; L1: Integer; S2: PWideChar; L2: Integer; CaseSensitive: Boolean = True): Integer; overload;
+  //Boyer Moore提出的模式匹配算法
+  TBoyerMoorePatternSearchAnsi = record
+    FPattern: RawByteString;
+    FBadCharShift: array [AnsiChar] of Integer;
+    FGoodSuffixShift: array of Integer;
+    procedure _CalcGoodSuffixTable;
+    procedure _BuildShiftTable;
+  public
+    procedure init(APattern: PAnsiChar; PatternLen: Integer); overload;
+    procedure init(APattern: RawByteString); overload;
+    procedure cleanup; inline;
+    function search(AText: PAnsiChar; TextLen: Integer): PAnsiChar; overload;
+    function search(const AText: RawByteString): Integer; overload;
+  end;
 
-function StrCompareW(S1, S2: PWideChar; CaseSensitive: Boolean = True): Integer; overload;
+{$endregion}
 
-function UStrCompare(S1, S2: UnicodeString; CaseSensitive: Boolean = True): Integer;
+function RBStrReplace(const s, OldPattern, NewPattern: RawByteString; flags: TReplaceFlags): RawByteString;
+function UStrReplace(const s, OldPattern, NewPattern: u16string; flags: TReplaceFlags): u16string;
+function BStrReplace(const s, OldPattern, NewPattern: WideString; flags: TReplaceFlags): WideString;
 
-function BStrCompare(S1, S2: WideString; CaseSensitive: Boolean = True): Integer;
+function StrReplace(const s, OldPattern, NewPattern: RawByteString; flags: TReplaceFlags): RawByteString; overload;
+function StrReplace(const s, OldPattern, NewPattern: u16string; flags: TReplaceFlags): u16string; overload;
+function StrReplace(const s, OldPattern, NewPattern: WideString; flags: TReplaceFlags): WideString; overload;
+{$ENDREGION}
+{$REGION 'string compare'}
+function AsciiCompare(s1: PAnsiChar; len1: Integer; s2: PAnsiChar; len2: Integer): Integer; overload;
+function RBStrAsciiCompare(const s1, s2: RawByteString): Integer; overload; inline;
+function AsciiICompare(s1: PAnsiChar; len1: Integer; s2: PAnsiChar; len2: Integer): Integer; overload;
+function AsciiICompare(const s1, s2: RawByteString): Integer; overload; inline;
+function RBStrAsciiICompare(const s1, s2: RawByteString): Integer; overload; inline;
 
-function StrCompareA(str1: PAnsiChar; len1: Integer; str2: PAnsiChar; len2: Integer; CaseSensitive: Boolean = True): Integer; overload;
+function AsciiCompare(s1: PWideChar; len1: Integer; s2: PWideChar; len2: Integer): Integer; overload;
+function UStrAsciiCompare(const s1, s2: u16string): Integer;
+function AsciiICompare(s1: PWideChar; len1: Integer; s2: PWideChar; len2: Integer): Integer; overload;
+function UStrAsciiICompare(const s1, s2: u16string): Integer;
 
-function StrCompareA(const Str1, Str2: RawByteString; CaseSensitive: Boolean): Integer; overload;
+function WordsCompare(s1, s2: PWideChar): Integer;
+function WordsICompare(s1, s2: PWideChar): Integer;
 
-function UStrCatCStr(const s1: array of UnicodeString; s2: PWideChar): UnicodeString;
+function StrCompareW(const s1: PWideChar; L1: Integer; s2: PWideChar; L2: Integer;
+  CaseSensitive: Boolean = True): Integer; overload;
+function StrCompareW(s1, s2: PWideChar; CaseSensitive: Boolean = True): Integer; overload;
+function UStrCompare(const s1, s2: u16string; CaseSensitive: Boolean = True): Integer;
+function BStrCompare(const s1, s2: WideString; CaseSensitive: Boolean = True): Integer;
 
-(******************************sub string extract******************************)
+function StrCompareA(str1: PAnsiChar; len1: Integer; str2: PAnsiChar; len2: Integer;
+  CaseSensitive: Boolean = True): Integer; overload;
+function StrCompareA(const str1, str2: PAnsiChar; CaseSensitive: Boolean = True): Integer; overload;
+function RBStrCompare(const str1, str2: RawByteString; CaseSensitive: Boolean = True): Integer; overload;
 
-function GetSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+function StrCompare(const str1, str2: RawByteString; CaseSensitive: Boolean = True): Integer; overload;
+function StrCompare(const s1, s2: u16string; CaseSensitive: Boolean = True): Integer; overload;
+function StrCompare(const s1: u16string; s2: PWideChar; s2len: Integer;
+  CaseSensitive: Boolean = True): Integer; overload;
+function StrCompare(const s1, s2: WideString; CaseSensitive: Boolean = True): Integer; overload;
+{$ENDREGION}
+function UStrCatCStr(const s1: array of u16string; s2: PWideChar): u16string;
+{$REGION 'sub string extract'}
+function GetSectionBetweenA(s: PAnsiChar; len: Integer; const prefix, suffix: RawByteString;
+  out SectionBegin, SectionEnd: PAnsiChar; flags: TStringSearchFlags = []): Boolean;
 
-function GetTrimedSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function RBStrGetSectionBetween(const src, prefix, suffix: RawByteString; out P1, P2: Integer; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function GetSubstrBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): RawByteString; overload;
+function RBStrGetTrimedSectionBetween(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
+  first: Integer = 1; last: Integer = 0; flags: TStringSearchFlags = []): Boolean;
 
-function GetTrimedSubstrBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): RawByteString; overload;
+function RBStrGetSubstrBetween(const src, prefix, suffix: RawByteString; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): RawByteString; overload;
 
-function TryGetIntegerBetweenA(const src, prefix, suffix: RawByteString;
-  out value: Integer; start: Integer = 1; limit: Integer = 0): Boolean;
+function RBStrGetTrimedSubstrBetween(const src, prefix, suffix: RawByteString; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): RawByteString; overload;
 
-function GetIntegerBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): Integer;
+function RBStrTryGetIntegerBetween(const src, prefix, suffix: RawByteString; out value: Integer; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function TryGetInt64BetweenA(const src, prefix, suffix: RawByteString;
-  out value: Int64; start: Integer = 1; limit: Integer = 0): Boolean;
+function RBStrGetIntegerBetween(const src, prefix, suffix: RawByteString; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): Integer; overload;
 
-function GetInt64BetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): Int64;
+function RBStrTryGetBoolBetween(const src, prefix, suffix: RawByteString; out value: Boolean; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean;
 
-function TryGetFloatBetweenA(const src, prefix, suffix: RawByteString; out value: Double;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function RBStrGetBoolBetween(const src, prefix, suffix: RawByteString; def: Boolean; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function GetFloatBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): Double;
+function RBStrTryGetInt64Between(const src, prefix, suffix: RawByteString; out value: Int64; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function GetSectionBetweenW(const src, prefix, suffix: UnicodeString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+function RBStrGetInt64Between(const src, prefix, suffix: RawByteString; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): Int64; overload;
 
-function GetTrimedSectionBetweenW(const src, prefix, suffix: UnicodeString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+function RBStrTryGetFloatBetween(const src, prefix, suffix: RawByteString; out value: Double; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function GetSubstrBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): UnicodeString; overload;
+function RBStrGetFloatBetween(const src, prefix, suffix: RawByteString; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): Double; overload;
 
-function GetTrimedSubstrBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): UnicodeString; overload;
+function GetSectionBetweenW(s: PWideChar; len: Integer; const prefix, suffix: u16string;
+  out SectionBegin, SectionEnd: PWideChar; flags: TStringSearchFlags = []): Boolean;
 
-function TryGetIntegerBetweenW(const src, prefix, suffix: UnicodeString; out value: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function UStrGetSectionBetween(const src, prefix, suffix: u16string; out P1, P2: Integer; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function GetIntegerBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): Integer;
+function UStrGetTrimedSectionBetween(const src, prefix, suffix: u16string; out P1, P2: Integer; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function TryGetInt64BetweenW(const src, prefix, suffix: UnicodeString; out value: Int64;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function UStrGetSubstrBetween(const src, prefix, suffix: u16string; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): u16string; overload;
 
-function GetInt64BetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): Int64;
+function UStrGetTrimedSubstrBetween(const src, prefix, suffix: u16string; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): u16string; overload;
 
-function TryGetFloatBetweenW(const src, prefix, suffix: UnicodeString; out value: Double;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function UStrTryGetIntegerBetween(const src, prefix, suffix: u16string; out value: Integer; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean;
 
-function GetFloatBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): Double; overload;
+function UStrGetIntegerBetween(const src, prefix, suffix: u16string; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): Integer; overload;
 
-function GetSectionBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
-  out P1, P2: Integer; start: Integer = 1; limit: Integer = 0;
-  EndingNoSuffix: Boolean = True): Boolean; overload;
+function UStrTryGetBoolBetween(const src, prefix, suffix: u16string; out value: Boolean; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean;
 
-function GetSubstrBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
-  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): RawByteString; overload;
+function UStrGetBoolBetween(const src, prefix, suffix: u16string; def: Boolean; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function GetTrimedSubstrBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
-  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): RawByteString; overload;
+function UStrTryGetInt64Between(const src, prefix, suffix: u16string; out value: Int64; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function GetSectionBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
-  out P1, P2: Integer; start: Integer = 1; limit: Integer = 0;
-  EndingNoSuffix: Boolean = True): Boolean;  overload;
+function UStrGetInt64Between(const src, prefix, suffix: u16string; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): Int64; overload;
 
-function GetSubstrBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
-  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): UnicodeString; overload;
+function UStrTryGetFloatBetween(const src, prefix, suffix: u16string; out value: Double; first: Integer = 1;
+  last: Integer = 0; flags: TStringSearchFlags = []): Boolean; overload;
 
-function GetTrimedSubstrBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
-  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): UnicodeString; overload;
+function UStrGetFloatBetween(const src, prefix, suffix: u16string; first: Integer = 1; last: Integer = 0;
+  flags: TStringSearchFlags = []): Double; overload;
 
-function UStrCopyUntil(const src: UnicodeString; const suffix: array of WideChar;
-  StartIndex, EndIndex: Integer; EndingNoSuffix: Boolean = True): UnicodeString;
+function GetSectionBetweenA2(s: PAnsiChar; len: Integer; const prefix: RawByteString; const suffix: array of AnsiChar;
+  out SectionBegin, SectionEnd: PAnsiChar; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
 
-function TrimCopyU(const s: UnicodeString; start, len: Integer): UnicodeString;
-function TrimCopyA(const s: RawByteString; start, len: Integer): RawByteString;
-function TrimCopyW(const s: WideString; start, len: Integer): WideString;
+function RBStrGetSectionBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  out P1, P2: Integer; first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True;
+  flags: TStringSearchFlags = []): Boolean; overload;
 
-function ExtractIntegerA(const str: RawByteString): Integer;
+function RBStrGetTrimedSectionBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  out P1, P2: Integer; first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True;
+  flags: TStringSearchFlags = []): Boolean; overload;
 
-function ExtractIntegersA(const str: RawByteString; var numbers: array of Int64): Integer;
+function RBStrGetSubstrBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; first: Integer = 1;
+  last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): RawByteString; overload;
 
-function UStrExtractInteger(const str: UnicodeString): Integer;
+function RBStrGetTrimedSubstrBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True;
+  flags: TStringSearchFlags = []): RawByteString; overload;
 
-function UStrExtractIntegers(const str: UnicodeString; var numbers: array of Int64): Integer;
+function RBStrTryGetIntegerBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  out value: Integer; first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True;
+  flags: TStringSearchFlags = []): Boolean;
 
-function BStrExtractInteger(const str: WideString): Integer;
+function RBStrGetIntegerBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; first: Integer = 1;
+  last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Integer;
 
+function RBStrTryGetBoolBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; out value: Boolean;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function RBStrGetBoolBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; def: Boolean;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function RBStrTryGetInt64Between2(const src, prefix: RawByteString; const suffix: array of AnsiChar; out value: Int64;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function RBStrGetInt64Between2(const src, prefix: RawByteString; const suffix: array of AnsiChar; first: Integer = 1;
+  last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Int64;
+
+function RBStrTryGetFloatBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; out value: Double;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function RBStrGetFloatBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; first: Integer = 1;
+  last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Double;
+
+// 提取夹在prefix和suffix中任一字符之间的子串
+function GetSectionBetweenW2(s: PWideChar; len: Integer; const prefix: u16string; const suffix: array of WideChar;
+  out SectionBegin, SectionEnd: PWideChar; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function UStrGetSectionBetween2(const src, prefix: u16string; const suffix: array of WideChar; out P1, P2: Integer;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function UStrGetTrimedSectionBetween2(const src, prefix: u16string; const suffix: array of WideChar;
+  out P1, P2: Integer; first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True;
+  flags: TStringSearchFlags = []): Boolean;
+
+function UStrGetSubstrBetween2(const src, prefix: u16string; const suffix: array of WideChar; first: Integer = 1;
+  last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): u16string; overload;
+
+function UStrGetTrimedSubstrBetween2(const src, prefix: u16string; const suffix: array of WideChar;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True;
+  flags: TStringSearchFlags = []): u16string; overload;
+
+function UStrTryGetIntegerBetween2(const src, prefix: u16string; const suffix: array of WideChar;
+  out value: Integer; first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True;
+  flags: TStringSearchFlags = []): Boolean;
+
+function UStrGetIntegerBetween2(const src, prefix: u16string; const suffix: array of WideChar; first: Integer = 1;
+  last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Integer;
+
+function UStrTryGetInt64Between2(const src, prefix: u16string; const suffix: array of WideChar; out value: Int64;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function UStrGetInt64Between2(const src, prefix: u16string; const suffix: array of WideChar; first: Integer = 1;
+  last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Int64;
+
+function UStrTryGetBoolBetween2(const src, prefix: u16string; const suffix: array of WideChar; out value: Boolean;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function UStrGetBoolBetween2(const src, prefix: u16string; const suffix: array of WideChar; def: Boolean;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function UStrTryGetFloatBetween2(const src, prefix: u16string; const suffix: array of WideChar; out value: Double;
+  first: Integer = 1; last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Boolean;
+
+function UStrGetFloatBetween2(const src, prefix: u16string; const suffix: array of WideChar; first: Integer = 1;
+  last: Integer = 0; EndingNoSuffix: Boolean = True; flags: TStringSearchFlags = []): Double; overload;
+
+function UStrCopyUntil(const src: u16string; const suffix: array of WideChar; first, last: Integer;
+  EndingNoSuffix: Boolean = True): u16string;
+
+function UStrTrimCopy(const s: u16string; first: Integer = 1; len: Integer = -1): u16string;
+function RBStrTrimCopy(const s: RawByteString; first: Integer = 1; len: Integer = -1): RawByteString;
+function BStrTrimCopy(const s: WideString; first: Integer = 1; len: Integer = -1): WideString;
+
+function GetTagClosedW(s: PWideChar; len: Integer; BeginTag, EndTag: WideChar; out TagBegin: PWideChar): Integer;
+
+function UStrGetTagClosed(const s: u16string; BeginTag, EndTag: WideChar; first: Integer = 1;
+  last: Integer = 0): u16string;
+
+type
+  TRBStrSectionProc = function(str: PAnsiChar; len: Integer): Boolean;
+
+function RBStrExtract(const s, ValidChars: RawByteString; callback: TRBStrSectionProc = nil): RawByteString;
+function RBStrExtractEmail(const s: RawByteString): RawByteString;
+function RBStrExtractQQID(const s: RawByteString): RawByteString;
+
+type
+  TUStrSectionProc = function(str: PWideChar; len: Integer): Boolean;
+
+function IsValidPassword(const str: u16string): Boolean;
+function UStrExtract(const s, ValidChars: u16string; callback: TUStrSectionProc = nil): u16string;
+function UStrExtractEmail(const s: u16string): u16string;
+function UStrExtractQQID(const s: u16string): u16string;
+function UStrExtractPassword(const s: u16string): u16string;
+
+function ExtractIntegerA(str: PAnsiChar; len: Integer): Int64;
+function RBStrExtractInteger(const str: RawByteString; first: Integer = 1; last: Integer = 0): Int64;
+function ExtractFloatA(str: PAnsiChar; len: Integer): Double;
+function RBStrExtractFloat(const str: RawByteString; first: Integer = 1; last: Integer = 0): Double;
+
+function RBStrExtractIntegers(const str: RawByteString; var numbers: array of Int64): Integer;
+
+function ExtractIntegerW(str: PWideChar; len: Integer): Int64;
+function UStrExtractInteger(const str: u16string; first: Integer = 1; last: Integer = 0): Int64;
+function BStrExtractInteger(const str: WideString; first: Integer = 1; last: Integer = 0): Int64;
+function ExtractFloatW(str: PWideChar; len: Integer): Double;
+function UStrExtractFloat(const str: u16string; first: Integer = 1; last: Integer = 0): Double;
+function BStrExtractFloat(const str: WideString; first: Integer = 1; last: Integer = 0): Double;
+
+function UStrExtractIntegers(const str: u16string; var numbers: array of Int64): Integer;
 function BStrExtractIntegers(const str: WideString; var numbers: array of Int64): Integer;
 
-function GetFloatBeforeA(str: PAnsiChar; len: Integer; substr: PAnsiChar; sublen: Integer; 
-  out number: Double): Boolean; overload;
+function GetFloatBeforeA(str: PAnsiChar; len: Integer; substr: PAnsiChar; sublen: Integer; var value: Double): Boolean;
+function GetFloatBeforeW(str: PWideChar; len: Integer; substr: PWideChar; sublen: Integer; var value: Double): Boolean;
+function RBStrGetFloatBefore(const s, suffix: RawByteString; var value: Double): Boolean;
+function UStrGetFloatBefore(const s, suffix: u16string; var value: Double): Boolean;
+function BStrGetFloatBefore(const s, suffix: WideString; var value: Double): Boolean;
+function GetFloatBefore(const s, suffix: RawByteString; var value: Double): Boolean; overload;
+function GetFloatBefore(const s, suffix: u16string; var value: Double): Boolean; overload;
+function GetFloatBefore(const s, suffix: WideString; var value: Double): Boolean; overload;
 
-function GetFloatBeforeW(str: PWideChar; len: Integer; substr: PWideChar; sublen: Integer; 
-  out number: Double): Boolean;
+function GetIntegerBeforeA(str: PAnsiChar; len: Integer; substr: PAnsiChar; sublen: Integer;
+  var value: Integer): Boolean;
+function GetIntegerBeforeW(str: PWideChar; len: Integer; substr: PWideChar; sublen: Integer;
+  var value: Integer): Boolean;
+function RBStrGetIntegerBefore(const s, suffix: RawByteString; var value: Integer): Boolean;
+function UStrGetIntegerBefore(const s, suffix: u16string; var value: Integer): Boolean;
+function BStrGetIntegerBefore(const s, suffix: WideString; var value: Integer): Boolean;
+function GetIntegerBefore(const s, suffix: RawByteString; var value: Integer): Boolean; overload;
+function GetIntegerBefore(const s, suffix: u16string; var value: Integer): Boolean; overload;
+function GetIntegerBefore(const s, suffix: WideString; var value: Integer): Boolean; overload;
+{$ENDREGION}
+{$REGION '格式验证'}
+function PasswordScore(const password: RawByteString): Integer;
 
-function GetFloatBeforeA(const s, suffix: RawByteString; out number: Double): Boolean; overload;
-
-function UStrGetFloatBefore(const s, suffix: UnicodeString; out number: Double): Boolean;
-
-function BStrGetFloatBefore(const s, suffix: WideString; out number: Double): Boolean;
-
-(*************************格式验证*********************************)
-
-function IsIntegerA(str: PAnsiChar; len: Integer): Boolean; overload;
-function IsIntegerA(const str: RawByteString): Boolean; overload;
+function IsIntegerA(str: PAnsiChar; len: Integer): Boolean;
+function RBStrIsInteger(const str: RawByteString): Boolean;
 
 function IsIntegerW(str: PWideChar; len: Integer): Boolean;
-function UStrIsInteger(const str: UnicodeString): Boolean;
+function UStrIsInteger(const str: u16string): Boolean;
 function BStrIsInteger(const str: WideString): Boolean;
 
-function IsValidEmailA(str: PAnsiChar; len: Integer): Boolean; overload;
-function IsValidEmailA(const s: RawByteString): Boolean; overload;
+var
+  isInteger: function(const str: string): Boolean;
 
-function IsValidEmailW(str: PWideChar; len: Integer): Boolean; overload;
-function IsValidEmailW(const s: WideString): Boolean; overload;
-function IsValidEmailU(const s: UnicodeString): Boolean;
+function IsValidEmailA(str: PAnsiChar; len: Integer): Boolean;
+function RBStrIsValidEmail(const s: RawByteString): Boolean;
 
-function IsChinaIDCardNoA(const idc: RawByteString): Boolean;
+function IsValidEmailW(str: PWideChar; len: Integer): Boolean;
+function BStrIsValidEmail(const s: WideString): Boolean;
+function UStrIsValidEmail(const s: u16string): Boolean;
 
-function UStrIsChinaIDCardNo(const idc: UnicodeString): Boolean;
+var
+  IsValidEmail: function(const str: string): Boolean;
 
-function BStrIsChinaIDCardNo(const idc: WideString): Boolean;
+function RBStrIsCnIDCard(const idc: RawByteString): Boolean;
+function UStrIsCnIDCard(const idc: u16string): Boolean;
 
-function IsTencentQQIDA(const str: RawByteString): Boolean;
+var
+  IsCnIDCard: function(const idc: string): Boolean;
 
+function IsQQA(str: PAnsiChar; len: Integer): Boolean;
+function RBStrIsQQ(const str: RawByteString): Boolean;
+
+function IsQQW(str: PWideChar; len: Integer): Boolean;
+function UStrIsQQ(const str: u16string): Boolean;
+
+var
+  IsQQ: function(const str: string): Boolean;
+{$ENDREGION}
 function StrSliceA(s: PAnsiChar; len, offset: Integer; num: Integer = -1): RawByteString; overload;
 
 function StrSliceA(const s: RawByteString; offset: Integer; num: Integer = -1): RawByteString; overload;
 
 procedure StrSplit(const str, delimiter: string; list: TStrings);
 
-procedure UStrSplit2(const s, delimiter: UnicodeString; out s1, s2: UnicodeString;
-  BeginIndex: Integer = 1; EndIndex: Integer = 0);
+procedure UStrSplit2(const s, delimiter: u16string; out s1, s2: u16string; BeginIndex: Integer = 1;
+  last: Integer = 0);
 
-procedure TrimStrings(strs: TStrings);
-procedure DeleteBlankStrings(strs: TStrings);
+function UStrGetDelimiteredSection(const s, delimiter: u16string; index: Integer; first: Integer = 1;
+  last: Integer = 0): u16string;
 
-function StrSplitA(const str: RawByteString; const delimiters: array of AnsiChar;
+function TrimStrings(strs: TStrings): TStrings;
+function DeleteBlankItems(strs: TStrings): TStrings;
+
+function RBStrsTrim(strs: TRawByteStrings): TRawByteStrings;
+function RBStrsDeleteBlankItems(strs: TRawByteStrings): TRawByteStrings;
+
+function UStrsTrim(strs: TUnicodeStrings): TUnicodeStrings;
+function UStrsDeleteBlankItems(strs: TUnicodeStrings): TUnicodeStrings;
+
+function RBStrSplit(const str: RawByteString; const delimiters: array of AnsiChar;
   var strs: array of RawByteString): Integer;
 
-procedure StrSplitA2(const s, delimiter: RawByteString; out s1, s2: RawByteString;
-  BeginIndex: Integer = 1; EndIndex: Integer = 0);
+procedure RBStrSplit2(const s, delimiter: RawByteString; out s1, s2: RawByteString; BeginIndex: Integer = 1;
+  last: Integer = 0);
+
+var
+  StrSplit2: procedure(const s, delimiter: string; out s1, s2: string; BeginIndex: Integer = 1; last: Integer = 0);
 
 function StrToDateTimeA(const s: RawByteString; out dt: TDateTime): Boolean;
 
-function UStrToDateTime(const s: UnicodeString; out dt: TDateTime): Boolean;
-
-(*****************************************debug output********************************************)
+function UStrToDateTime(const s: u16string; out dt: TDateTime): Boolean;
+{$REGION 'debug output'}
 function SafeWriteln(const s: RawByteString): Boolean; overload;
-function SafeWriteln(const s: UnicodeString): Boolean; overload;
+function SafeWriteln(const s: u16string): Boolean; overload;
 
-function PrintArray(const args: array of const; const separator: string = #32;
-  LineFeed: Boolean = True): Boolean;
+function PrintArray(const args: array of const ; const separator: string = #32; LineFeed: Boolean = True): Boolean;
 
 function WritelnException(e: Exception): Boolean; overload;
 function WritelnException(const func: string; e: Exception): Boolean; overload;
 
-function OutputDebugArray(const args: array of const; const separator: string = #32;
+function OutputDebugArray(const args: array of const ; const separator: string = #32;
   LineFeed: Boolean = True): Boolean;
 
 function OutputDebugException(e: Exception): Boolean; overload;
 function OutputDebugException(const func: string; e: Exception): Boolean; overload;
 
-function DbgOutputA(const msg: RawByteString): Boolean;
-function DbgOutputW(const msg: UnicodeString): Boolean;
-function DbgOutput(const msg: string): Boolean;
+procedure MyOutputDebugString(const s: u16string); overload;
+procedure MyOutputDebugString(const s: RawByteString); overload;
 
-function DbgOutputArray(const args: array of const; const separator: string = #32;
-  LineFeed: Boolean = True): Boolean;
+function RBStrDbgOutput(const msg: RawByteString): Boolean;
+function UStrDbgOutput(const msg: u16string): Boolean;
+function DbgOutput(const msg: u16string): Boolean; overload;
+function DbgOutput(const msg: RawByteString): Boolean; overload;
+function DbgOutput(const args: array of const ; const separator: string = #32;
+  LineFeed: Boolean = True): Boolean; overload;
 
-function DbgOutputFmtA(const fmt: RawByteString; const args: array of const): Boolean;
-function DbgOutputFmtW(const fmt: UnicodeString; const args: array of const): Boolean;
-function DbgOutputFmt(const fmt: string; const args: array of const): Boolean;
+function DbgOutputFmtA(const fmt: RawByteString; const args: array of const ): Boolean;
+function DbgOutputFmtW(const fmt: u16string; const args: array of const ): Boolean;
+function DbgOutputFmt(const fmt: string; const args: array of const ): Boolean;
 
 function DbgOutputException(e: Exception): Boolean; overload;
 function DbgOutputException(const func: string; e: Exception): Boolean; overload;
 
-procedure StopAndWaitForThread(threads: TList);
+procedure StopAndWaitForThread(thread: TThread);
+procedure WaitForThreads(const threads: array of TThread);
+procedure StopAndWaitForThreads(threads: TList); overload;
+procedure StopAndWaitForThreads(threads: TObjectList<TThread>); overload;
 
 procedure StreamWriteStrA(stream: TStream; const str: RawByteString);
+procedure StreamWriteUStr(stream: TStream; const str: u16string);
+{$ENDREGION}
+{$REGION 'hex transform interface'}
+function MemHex(const Buffer; size: Integer; UpperCase: Boolean = True; delimiter: RawByteString = ''): RawByteString;
+  overload;
+function MemHex(const s: RawByteString; UpperCase: Boolean = True; delimiter: RawByteString = ''): RawByteString;
+  overload;
+function MemHexUStr(const Buffer; size: Integer; UpperCase: Boolean = True;
+  delimiter: u16string = ''): u16string; overload;
+function MemHexUStr(const s: RawByteString; UpperCase: Boolean = True; delimiter: u16string = ''): u16string;
+  overload;
 
-function MemHex(const Buffer; Size: Integer; UpperCase: Boolean = True): RawByteString; overload;
-function MemHex(const s: RawByteString; UpperCase: Boolean = True): RawByteString; overload;
+function hexValue(ch: AnsiChar): Byte; overload; inline;
+function hexValue(ch: WideChar): Byte; overload; inline;
+function HexDecode(hex: PAnsiChar; hexLen: Integer; var buf): Integer; overload;
+function HexDecode(const hex: RawByteString; var buf): Integer; overload;
+function HexDecode(hex: PAnsiChar; hexLen: Integer): RawByteString; overload;
+function HexDecode(const hex: RawByteString): RawByteString; overload;
+function HexDecodeEx(hex: PAnsiChar; hexLen: Integer; var buf): Integer; overload;
+function HexDecodeEx(const hex: RawByteString; var buf): Integer; overload;
+function HexDecodeEx(hex: PAnsiChar; hexLen: Integer): RawByteString; overload;
+function HexDecodeEx(const hex: RawByteString): RawByteString; overload;
 
+function mixedHexDecode(hex: PAnsiChar; hexLen: Integer): RawByteString; overload;
+function mixedHexDecode(const hex: RawByteString): RawByteString; overload;
+{$ENDREGION}
 function CloneList(src: TList): TList;
+procedure Move2List(src, dest: TList);
 
 procedure ThreadListInsert(list: TThreadList; index: Integer; item: Pointer);
-
 procedure ThreadListAdd(list: TThreadList; item: Pointer);
-
 procedure ThreadListDelete(list: TThreadList; index: Integer);
-
 procedure ThreadListRemove(list: TThreadList; item: Pointer);
-
 function ThreadListGetItem(list: TThreadList; index: Integer): Pointer;
-
 function ThreadListGetInternalList(list: TThreadList): TList;
-
 function ThreadListGetCount(list: TThreadList): Integer;
 
+procedure RefObject(instance: TObject);
+procedure SmartUnrefObject(obj: TObject);
 procedure ClearObjectList(objlist: TObject);
-
 procedure ClearObjectListAndFree(objlist: TObject);
-
-(**********************************文件目录相关********************************)
-
-procedure dir_list(const ParentDir: string; strs: TStrings);
-
+{$REGION '文件目录相关'}
+procedure EmptyFile(const FileName: string);
+procedure SubDirList(const ParentDir: string; strs: TStrings);
+function CopyDirecotry(const SrcDir, DstDir: string; recursive: Boolean = False): Integer;
+procedure SearchFiles(const ParentDir, filter: string; strs: TStrings);
 procedure SafeForceDirectories(const dir: string);
-
-function ConcatFolderPath(const s1, s2: string): string;
-
+function PathJoin(const s1, s2: string): string;
+procedure SaveStreamToFile(const FileName: string; stream: TStream; len: Integer);
+function SafeSaveStreamToFile(const FileName: string; stream: TStream; len: Integer): Boolean;
 procedure SaveBufToFile(const FileName: string; buf: Pointer; len: Integer);
-
 procedure SaveStrToFile(const FileName: string; const str: RawByteString);
 function SafeSaveStrToFile(const FileName: string; const str: RawByteString): Boolean;
-
+procedure SaveUStrToFile(const FileName: string; const str: u16string; CodePage: Integer = CP_ACP);
+function SafeSaveUStrToFile(const FileName: string; const str: u16string; CodePage: Integer = CP_ACP): Boolean;
 procedure SaveStrsToFile(const FileName: string; const strs: array of RawByteString);
 function SafeSaveStrsToFile(const FileName: string; const strs: array of RawByteString): Boolean;
-
+procedure SaveArrayToFile(const FileName: string; const values: array of const );
+function SafeSaveArrayToFile(const FileName: string; const values: array of const ): Boolean;
 function LoadStrFromFile(const FileName: string): RawByteString;
-
 function Stream2String(stream: TStream): RawByteString;
+function getStreamContentType(data: TStream): RawByteString;
+{$ENDREGION}
 
 function ControlFindContainer(control: TControl; cls: TClass): TWinControl;
-
 function ControlFindChild(container: TWinControl; cls: TClass): TControl;
 
-procedure ShowInfoDialog(const msg: string; hwnd: THandle = 0);
+procedure InfoBox(const msg: string);
+procedure ErrorBox(const msg: string);
+procedure WarnBox(const msg: string);
 
-procedure ShowErrorDialog(const msg: string; hwnd: THandle = 0);
-
-procedure ShowWarnDialog(const msg: string; hwnd: THandle = 0);
+procedure ShowMessageEx(const v: TAnsiCharSection); overload;
+procedure ShowMessageEx(const v: string); overload;
+procedure ShowMessageEx(const v: RawByteString); overload;
+procedure ShowMessageEx(v: Integer); overload;
+procedure ShowMessageEx(v: Int64); overload;
+procedure ShowMessageEx(v: Double); overload;
+procedure ShowMessageEx(v: Extended); overload;
+procedure ShowMessageEx(v: Real); overload;
+//procedure ShowMessageEx(v: Real48); overload;
+procedure ShowMessageEx(v: Boolean); overload;
 
 function ControlVisible(ctrl: TControl): Boolean;
-
 procedure ControlSetFocus(ctrl: TWinControl);
-
 procedure EditSetNumberOnly(edit: TWinControl);
-
+function CtrlDown: Boolean;
 procedure CloseForm(form: TCustomForm);
+procedure SetModalResult(form: TCustomForm; mr: TModalResult);
 
 procedure ListViewSetRowCount(ListView: TListView; count: Integer);
+{$REGION 'url string utils'}
+function RBStrUrlGetParam(const url, name: RawByteString): RawByteString;
+function UStrUrlGetParam(const url, name: u16string): u16string;
+function BStrUrlGetParam(const url, name: WideString): WideString;
+function ExpandUrl(const url: u16string): u16string;
 
+var
+  UrlGetParam: function(const url, name: string): string;
+
+function RBStrUrlGetFileName(const url: RawByteString): RawByteString;
+function UStrUrlGetFileName(const url: u16string): u16string;
+
+var
+  UrlGetFileName: function(const url: string): string;
+
+function UrlExtractHost(const url: u16string): u16string;
 function UrlExtractPathA(const url: RawByteString): RawByteString;
-
-function UrlExtractPathW(const url: UnicodeString): UnicodeString;
-
+function UrlExtractPathW(const url: u16string): u16string;
 function UrlExtractFileNameA(const url: RawByteString): RawByteString;
-
+function UrlExtractFileExt(const url: string): string;
+function IsPictureExt(const ext: string): Boolean;
+function HttpExpandUrl(const url, schema: u16string; const host: u16string = ''): u16string; overload;
+function HttpExpandUrl(const url, schema: RawByteString; const host: RawByteString = ''): RawByteString; overload;
+{$ENDREGION}
+{$REGION 'string encoding'}
 function HttpEncodeCStrTest(str: PAnsiChar; const non_conversions: RawByteString = '*._-'): Integer;
 
 function HttpEncodeCStr2Buf(src, dst: PAnsiChar; const non_conversions: RawByteString = '*._-'): Integer; overload;
 
 function HttpEncodeCStr(src: PAnsiChar; const non_conversions: RawByteString = '*._-'): RawByteString; overload;
 
-function HttpEncodeBufTest(const buf; buflen: Integer; const non_conversions: RawByteString = '*._-'): Integer;
+function HttpEncodeBufTest(const buf; bufLen: Integer; const non_conversions: RawByteString = '*._-'): Integer;
 
-function HttpEncodeBuf2Buf(const buf; buflen: Integer; dst: PAnsiChar; const non_conversions: RawByteString = '*._-'): Integer;
+function HttpEncodeBuf2Buf(const buf; bufLen: Integer; dst: PAnsiChar; const non_conversions: RawByteString = '*._-')
+  : Integer;
 
-function HttpEncodeBuf(const src; srclen: Integer; const non_conversions: RawByteString = '*._-'): RawByteString;
+function HttpEncodeBuf(const src; srcLen: Integer; const non_conversions: RawByteString = '*._-'): RawByteString;
 
 function HttpEncode(const src: RawByteString; const non_conversions: RawByteString = '*._-'): RawByteString;
 
-function HttpDecodeBufTest(const buf; buflen: Integer; invalid: PPAnsiChar = nil): Integer;
+function HttpDecodeBufTest(const buf; bufLen: Integer; invalid: PPAnsiChar = nil): Integer;
 
 function HttpDecodeStrTest(const str: RawByteString; invalid: PPAnsiChar = nil): Integer;
 
-function HttpDecodeBuf2Buf(const buf; buflen: Integer; dst: PAnsiChar; invalid: PPAnsiChar = nil): Integer;
+function HttpDecodeBuf2Buf(const buf; bufLen: Integer; dst: PAnsiChar; invalid: PPAnsiChar = nil): Integer;
 
-function HttpDecodeBuf(const buf; buflen: Integer; invalid: PPAnsiChar = nil): RawByteString;
+function HttpDecodeBuf(const buf; bufLen: Integer; invalid: PPAnsiChar = nil): RawByteString;
 
 function HttpDecode(const src: RawByteString; invalid: PPAnsiChar = nil): RawByteString;
 
@@ -948,214 +1812,232 @@ function HttpDecodeCStrTest(src: PAnsiChar; invalid: PPAnsiChar = nil): Integer;
 function HttpDecodeCStr2Buf(str, dst: PAnsiChar; invalid: PPAnsiChar = nil): Integer;
 
 function HttpDecodeCStr(str: PAnsiChar; invalid: PPAnsiChar = nil): RawByteString;
+function encodeURIComponent(const s: u16string): RawByteString;
+function decodeURIComponent(const s: RawByteString): u16string;
 
-function UStrLen(const s: UnicodeString): Integer;
+function JsonEscape(const s: u16string): u16string; overload;
+function JsonEscape(const s: RawByteString): RawByteString; overload;
+function JsonEscape(const s: WideString): WideString; overload;
 
+{$ENDREGION}
+function RBStrRepeat(const s: RawByteString; RepeatCount: Integer): RawByteString;
+function UStrRepeat(const s: u16string; RepeatCount: Integer): u16string;
+
+var
+  StrRepeat: function(const s: string; RepeatCount: Integer): string;
+
+procedure StrZeroAndFree(var s: string);
+
+procedure ZeroStringA(s: PAnsiChar);
+procedure RBStrZero(const s: RawByteString);
+procedure RBStrZeroAndFree(var s: RawByteString);
+
+procedure ZeroStringW(s: PWideChar);
+procedure UStrZero(const s: u16string);
+procedure UStrZeroAndFree(var s: u16string);
+
+function GetStringLengthFast(s: Pointer): Integer; inline;
+
+function UStrLen(const s: u16string): Integer;
 function BStrLen(const s: WideString): Integer;
+function StrLenA(const str: PAnsiChar): Integer;
+function StrLenW(s: PWideChar): Integer;
 
-function StrLenW(s: PWideChar): Integer; overload;
+function RBSOf(ch: AnsiChar; len: Integer): RawByteString;
+function UStrOf(ch: WideChar; len: Integer): u16string;
+function StrOf(buf: PChar; len: Integer): string;
 
 function WCharArrayStrLen(const chars: array of WideChar): Integer;
-
 function Array2WStr(const chars: array of WideChar): WideString;
-
-function Array2UStr(const chars: array of WideChar): UnicodeString;
-
+function Array2UStr(const chars: array of WideChar): u16string;
 procedure WStr2Array(var dst: array of WideChar; const src: WideString);
-
-procedure UStr2Array(var dst: array of WideChar; const src: UnicodeString);
-
+procedure UStr2Array(var dst: array of WideChar; const src: u16string);
 function ByteArray2Str(const chars: array of AnsiChar): RawByteString;
-
 function ByteArrayStrLen(const chars: array of AnsiChar): Integer;
-
 procedure RawByteStr2Array(var dst: array of AnsiChar; const src: RawByteString);
+function ByteArray2UStr(const chars: array of AnsiChar): u16string;
 
-function WCharArrayCat(const arr1, arr2: array of WideChar): UnicodeString; overload;
+function UStrPas(const str: PWideChar): u16string;
 
-function WCharArrayCat(const arr1, arr2, arr3: array of WideChar): UnicodeString; overload;
+var
+  Array2Str: function(const chars: array of Char): string;
 
-function WCharArrayCat(const arr1, arr2, arr3, arr4: array of WideChar): UnicodeString; overload;
-
-function WCharArrayCat(const arr1, arr2, arr3, arr4, arr5: array of WideChar): UnicodeString; overload;
-
-function RawByteStrInsertAfter(const src, prefix, ToInsert: AnsiString; StartIndex: Integer = 1; EndIndex: Integer = 0): AnsiString;
-
-function UStrInsertAfter(const src, prefix, ToInsert: UnicodeString; StartIndex: Integer = 1; EndIndex: Integer = 0): UnicodeString;
+function WCharArrayCat(const arr1, arr2: array of WideChar): u16string; overload;
+function WCharArrayCat(const arr1, arr2, arr3: array of WideChar): u16string; overload;
+function WCharArrayCat(const arr1, arr2, arr3, arr4: array of WideChar): u16string; overload;
+function WCharArrayCat(const arr1, arr2, arr3, arr4, arr5: array of WideChar): u16string; overload;
+function RawByteStrInsertAfter(const src, prefix, ToInsert: AnsiString; first: Integer = 1;
+  last: Integer = 0): AnsiString;
+function UStrInsertAfter(const src, prefix, ToInsert: u16string; first: Integer = 1;
+  last: Integer = 0): u16string;
 
 procedure MsgSleep(period: DWORD);
 
 type
-  TConfirmDlgButtons = (
-    cdbOK,
-    cdbOKCancel,
-    cdbAbortRetryIgnore,
-    cdbYesNoCancel,
-    cdbYesNo,
-    cdbRetryCancel);
+  TConfirmDlgButtons = (cdbOK, cdbOKCancel, cdbAbortRetryIgnore, cdbYesNoCancel, cdbYesNo, cdbRetryCancel);
 
-  TConfirmDlgResult = (
-    cdrOK,
-    cdrCancel,
-    cdrAbort,
-    cdrRetry,
-    cdrIgnore,
-    cdrYes,
-    cdrNo,
-    cdrClose,
-    cdrHelp,
-    cdrTryAgain,
+  TConfirmDlgResult = (cdrOK, cdrCancel, cdrAbort, cdrRetry, cdrIgnore, cdrYes, cdrNo, cdrClose, cdrHelp, cdrTryAgain,
     cdrContinue);
 
 function ConfirmDialog(const msg: string; const parent: THandle = 0; const title: string = '';
   const buttons: TConfirmDlgButtons = cdbYesNo): TConfirmDlgResult;
 
-function UrlGetParamA(const url, name: RawByteString): RawByteString;
-
-function UStrUrlGetParam(const url, name: UnicodeString): UnicodeString;
-
-function BStrUrlGetParam(const url, name: WideString): WideString;
-
+function getParentProcessId: DWORD;
+function dslGetModuleFileName(hProcess, hModule: THandle): string;
+function getProcessFilePath(const pid: DWORD): string;
 function RunningInMainThread: Boolean;
-
-function StrToBoolA(const s: string; def: Boolean): Boolean;
-
+function isLaunchedByExplorer: Boolean;
+function StrToBoolA(s: PAnsiChar; len: Integer; def: Boolean): Boolean;
+function RBStrToBool(const s: RawByteString; def: Boolean): Boolean;
+function StrToBoolW(s: PWideChar; len: Integer; def: Boolean): Boolean;
+function UStrToBool(const s: u16string; def: Boolean): Boolean;
 function Res2StrA(const ResName: string; const ResType: string): RawByteString;
-
+function Res2RBStrNoBOM(const ResName: string; const ResType: string): RawByteString;
+procedure Res2StringList(const ResName: string; const ResType: string; strs: TStrings);
 procedure SaveResToFile(const ResName, ResType, SavePath: string);
-
+function LaunchProcess(const ApplicationName, CommandLine, CurrentDirectory: string): Boolean;
+function LaunchProcessEx(const ApplicationName, CommandLine, CurrentDirectory: string): THandle;
 procedure NavigateWithDefaultBrowser(const url: string);
-
-function InternetExplorerGetCookie(const url: PAnsiChar; HttpOnly: Boolean): RawByteString;
-
 function RegisterCOMComponet(pFileName: PChar): Boolean;
-
-(*******************************windows shell utils**************************)
+function GetHumanReadableByteSize(size: DWORD): string;
+function IMEIRandomRBStr: RawByteString;
+function IMEIRandomUStr: u16string;
+function IMSIRandomRBStr: RawByteString;
+function IMSIRandomUStr: u16string;
+function MacAddressRandomUStr(delimiter: u16string = '-'; fUppercase: Boolean = True): u16string;
+function MacAddressRandomRBStr(delimiter: RawByteString = '-'; fUppercase: Boolean = True): RawByteString;
+{$REGION 'windows shell utils'}
 
 type
-  TSpecialFolderID = (
-    sfiDesktop  = $0000,
-    sfiInternet = $0001,
-    sfiPrograms = $0002,
-    sfiControls = $0003,
-    sfiPrinters = $0004,
-    sfiPersonal = $0005,
-    sfiFavorites = $0006,
-    sfiStartup = $0007,
-    sfiRecent = $0008,
-    sfiSentTo = $0009,
-    sfiBitBucket = $000a,
-    sfiStartMenu = $000b,
-    sfiMyDocuments = $000c,
-    sfiMyMusic = $000d,
-    sfiMyVideo = $000e,
-    sfiDesktopDirectory = $0010,
-    sfiDrivers = $0011,
-    sfiNetwork = $0012,
-    sfiNethood = $0013,
-    sfiFonts = $0014,
-    sfiTemplates = $0015,
-    sfiCommonStartMenu = $0016,
-    sfiCommonPrograms = $0017,
-    sfiCommonStartup = $0018,
-    sfiCommonDesktopDirectory = $0019,
-    sfiAppData = $001a,
-    sfiPrintHood = $001b,
-    sfiLocalAppData = $001c,
-    sfiAltStartup = $001d,
-    sfiCommonAltStartup = $001e,
-    sfiCommonFavorites = $001f,
-    sfiINTERNET_CACHE = $0020,
-    sfiCookies = $0021,
-    sfiHistory = $0022,
-    sfiCommonAppData = $0023,
-    sfiWindows = $0024,
-    sfiSystem = $0025,
-    sfiProgramFiles = $0026,
-    sfiMyPictures = $0027,
-    sfiProfile = $0028,
-    sfiSystemX86 = $0029,
-    sfiProgramFilesX86 = $002a,
-    sfiProgramFilesCommon = $002b,
-    sfiProgramFilesCommonX86 = $002c,
-    sfiCommonTemplates = $002d,
-    sfiCommonDocuments = $002e,
-    sfiCommonAdminTools = $002f,
-    sfiAdminTools = $0030,
-    sfiConnections = $0031,
-    sfiCommonMusic = $0035,
-    sfiCommonPictures = $0036,
-    sfiCommonVideo = $0037,
-    sfiResources = $0038,
-    sfiResourcesLocalized = $0039,
-    sfiCommonOemLinks = $003a,
-    sfiCDBurnArea = $003b,
-    sfiComputersNearMe = $003d,
-    sfiProfiles = $003e);
+  TSpecialFolderID = (sfiDesktop = $0000, sfiInternet = $0001, sfiPrograms = $0002, sfiControls = $0003,
+    sfiPrinters = $0004, sfiPersonal = $0005, sfiFavorites = $0006, sfiStartup = $0007, sfiRecent = $0008,
+    sfiSentTo = $0009, sfiBitBucket = $000A, sfiStartMenu = $000B, sfiMyDocuments = $000C, sfiMyMusic = $000D,
+    sfiMyVideo = $000E, sfiDesktopDirectory = $0010, sfiDrivers = $0011, sfiNetwork = $0012, sfiNethood = $0013,
+    sfiFonts = $0014, sfiTemplates = $0015, sfiCommonStartMenu = $0016, sfiCommonPrograms = $0017,
+    sfiCommonStartup = $0018, sfiCommonDesktopDirectory = $0019, sfiAppData = $001A, sfiPrintHood = $001B,
+    sfiLocalAppData = $001C, sfiAltStartup = $001D, sfiCommonAltStartup = $001E, sfiCommonFavorites = $001F,
+    sfiINTERNET_CACHE = $0020, sfiCookies = $0021, sfiHistory = $0022, sfiCommonAppData = $0023, sfiWindows = $0024,
+    sfiSystem = $0025, sfiProgramFiles = $0026, sfiMyPictures = $0027, sfiProfile = $0028, sfiSystemX86 = $0029,
+    sfiProgramFilesX86 = $002A, sfiProgramFilesCommon = $002B, sfiProgramFilesCommonX86 = $002C,
+    sfiCommonTemplates = $002D, sfiCommonDocuments = $002E, sfiCommonAdminTools = $002F, sfiAdminTools = $0030,
+    sfiConnections = $0031, sfiCommonMusic = $0035, sfiCommonPictures = $0036, sfiCommonVideo = $0037,
+    sfiResources = $0038, sfiResourcesLocalized = $0039, sfiCommonOemLinks = $003A, sfiCDBurnArea = $003B,
+    sfiComputersNearMe = $003D, sfiProfiles = $003E);
 
-function FindChildWindowRecursive(parent: HWND; WndClassName, WndText: PWideChar): HWND;
+function FindChildWindowRecursive(parent: HWND; WndClassName, WndText: PWideChar;
+  const ExcludeWindows: array of THandle): HWND;
 
 function SHGetTargetOfShortcut(const LinkFile: string): string;
-
 function SHCreateShortcut(const TargetFile, desc, CreateAt: string): Boolean;
-
 function SHGetSpecialFolderPath(FolderID: TSpecialFolderID): string;
-
-procedure HeapSort(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; pSwap: TPointerProc);
-
-procedure QuickSort(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; pSwap: TPointerProc);
-
-function BinarySearch(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; const Value): Integer;
-
-//使用二分查找确定要插入的新元素的位置
-function BinarySearchInsertPos(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; const Value): Integer;
-
-//顺序查找
-function Search(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; const Value): Integer;
+function InternetExplorerGetCookie(const url: u16string; HttpOnly: Boolean): u16string;
+{$ENDREGION}
+function getProcessorCount: Integer;
+function GetEnvVar(const name: string): string;
+function SetEnvVar(const name, value: string): Boolean;
+function EnvPathAdd(const dir: string): Boolean;
+function GetTempFileFullPath: string;
+function myLoadLibrary(const paths: array of string; const dllFileName: string): hModule;
+function getOSErrorMessage(errorCode: Integer): string;
 
 type
+  TEventLogType = (eltSuccess, eltAuditSuccess, eltAuditFailure, eltError, eltInformation, eltWarning);
+  TServiceRunningStatus = (srsStopped, srsStartPending, srsStopPending, srsRunning, srsContinuePending,
+    srsPausePending, srsPaused);
+  TNTServiceType = (stWin32, stDevice, stFileSystem);
+  TNTServiceStartType = (sstBoot, sstSystem, sstAuto, sstManual, sstDisabled);
+  TErrorSeverity = (esIgnore, esNormal, esSevere, esCritical);
+
+function installNTService(const name, displayName, filePath: string; _type: TNTServiceType;
+  startType: TNTServiceStartType; errorSeverity: TErrorSeverity; updateIfExists: Boolean): Integer;
+
+function uninstallNTService(const svcName: string): Integer;
+function NTServiceExists(const svcName: string): Boolean;
+
+procedure HeapSort(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc;
+  pSwap: TPointerProc);
+
+procedure QuickSort(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc;
+  pSwap: TPointerProc);
+
+function BinarySearch(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc;
+  const value): Integer;
+
+// 使用二分查找确定要插入的新元素的位置
+function BinarySearchInsertPos(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc;
+  const value): Integer;
+
+// 顺序查找
+function Search(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc; const value): Integer;
+
+function ClassIDExists(const ClassID: TGUID): Boolean;
+
+function GetVariantArg(const param: TVariantArg): Variant;
+
+function DispMethodExists(const disp: IDispatch; _lcid: TLCID; const name: u16string): Boolean;
+
+function CallDispMethod(const disp: IDispatch; _lcid: TLCID; const name: u16string; const params: array of const ;
+  res: PVariant): Boolean;
+
+{$region 'graphic utils'}
+type
+  TPictureFormat = (unknownPictureFormat, pfBitmap, pfJpeg, pfGif, pfPng, pfTiff);
+function detectPictureFormat(const buf; bufSize: Integer): TPictureFormat; overload;
+function detectPictureFormat(AStream: TStream): TPictureFormat; overload;
+{$endregion}
+
+type
+  TObjMethod = procedure of object;
+
   TDynamicArray = array of Pointer;
 
-  TCircularList= class
+  TCircularList = class
   private
-    fList: TDynamicArray;
-    fCapacity: Integer;
-    fFirst: Integer;
-    fCount: Integer;
+    FList: TDynamicArray;
+    FCapacity: Integer;
+    FFirst: Integer;
+    FCount: Integer;
     function GetItem(Index: Integer): Pointer;
-    procedure SetItem(Index: Integer; const Value: Pointer);
-    procedure SetCount(const Value: Integer);
+    procedure SetItem(Index: Integer; const value: Pointer);
+    procedure SetCount(const value: Integer);
+    procedure SetCapacity(const value: Integer);
   public
     constructor Create(_capacity: Integer);
     destructor Destroy; override;
+    procedure grow;
     procedure MoveHead(num: Integer);
-    procedure add(Item: Pointer); overload;
+    procedure add(item: Pointer); overload;
     function add: Pointer; overload;
-    function IndexOf(Item: Pointer): Integer;
+    function CircularAdd(item: Pointer): Pointer; overload;
+    function CircularAdd: Pointer; overload;
+    function IndexOf(item: Pointer): Integer;
     procedure delete(Index: Integer);
     procedure clear;
-    function remove(Item: Pointer): Integer;
+    function remove(item: Pointer): Integer;
     function GetInternalIndex(Index: Integer): Integer;
-    property InternalList: TDynamicArray read fList;
-    property capacity: Integer read fCapacity;
-    property first: Integer read fFirst;
-    property count: Integer read fCount write SetCount;
+    property InternalList: TDynamicArray read FList;
+    property capacity: Integer read FCapacity write SetCapacity;
+    property first: Integer read FFirst;
+    property count: Integer read FCount write SetCount;
     property items[Index: Integer]: Pointer read GetItem write SetItem; default;
   end;
 
   TRefCountedObject = class
   private
-    fRefCount: Integer;
+    FRefCount: Integer;
+  protected
+    function ExtendLife: Boolean; dynamic;
   public
-    constructor Create; reintroduce; virtual;
+    class function NewInstance: TObject; override;
     function AddRef: Integer;
-    function Release: Integer;
-    property RefCount: Integer read fRefCount;
+    function release: Integer;
+    property RefCount: Integer read FRefCount;
+  end;
+
+  TIdAndName = class(TRefCountedObject)
+  public
+    ID: u16string;
+    name: u16string;
   end;
 
   IAutoObject = interface
@@ -1169,22 +2051,75 @@ type
     constructor Create(_instance: TObject);
     destructor Destroy; override;
     function GetInstance: TObject;
-    property Instance: TObject read fInstance;
+    property instance: TObject read fInstance;
   end;
 
   TRunnable = class(TRefCountedObject)
-  protected
-    FStatusCode: Integer;
-    FStatusText: UnicodeString;
   public
-    procedure run(context: TObject); virtual; abStract;
-    property StatusCode: Integer read FStatusCode write FStatusCode;
-    property StatusText: UnicodeString read FStatusText write FStatusText;
+    procedure run(context: TObject); virtual; abstract;
+  end;
+
+  TDelegatedRunnable = class(TRunnable)
+  private
+    FProc: SysUtils.TProc;
+  public
+    procedure run(context: TObject); override;
+    constructor Create(AProc: SysUtils.TProc);
+  end;
+
+  TStringVariantPair = record
+    key: string;
+    value: Variant;
+  end;
+
+  TProperties = record
+  private
+    FItems: array of TStringVariantPair;
+    function GetCount: Integer;
+    function GetItem(const key: string): Variant;
+    procedure SetItem(const key: string; const value: Variant);
+    function GetItemAt(Index: Integer): Variant;
+    procedure SetItemAt(Index: Integer; const value: Variant);
+  public
+    procedure clear;
+    function IndexOf(const key: string): Integer;
+    function exists(const key: string): Boolean;
+    function FindOrAdd(const key: string; value: Variant): Integer;
+    property count: Integer read GetCount;
+    property item[const key: string]: Variant read GetItem write SetItem; default;
+    property ItemAt[Index: Integer]: Variant read GetItemAt write SetItemAt;
+  end;
+
+  PProperties = ^TProperties;
+
+  TDispProperties = class(TInterfacedObject, IDispatch)
+  private
+    FItems: TProperties;
+    function GetTypeInfoCount(out count: Integer): HResult; stdcall;
+    function GetTypeInfo(Index, LocaleID: Integer; out TypeInfo): HResult; stdcall;
+    function GetIDsOfNames(const IID: TGUID; Names: Pointer; NameCount, LocaleID: Integer; DispIDs: Pointer): HResult;
+      stdcall;
+    function Invoke(DispID: Integer; const IID: TGUID; LocaleID: Integer; flags: Word; var params;
+      VarResult, ExcepInfo, ArgErr: Pointer): HResult; stdcall;
+  public
+  end;
+
+  TAsyncWorkSyncResultTask = class(TRunnable)
+  private
+    FWindowHandle: THandle;
+    FMsgId: DWORD;
+  protected
+    procedure AsyncWork; virtual; abstract;
+  public
+    constructor Create(_MsgId: DWORD; _WindowHandle: THandle = 0);
+    procedure run(context: TObject); override;
+    procedure HandleResult; virtual; abstract;
   end;
 
   TSignalThread = class(TThread)
   private
     fStopSignal: THandle;
+    function GetTerminating: Boolean;
   protected
     function WaitForStopSignal(timeout: DWORD = INFINITE): Boolean;
     function WaitForMultiObjects(handles: array of THandle; timeout: DWORD = INFINITE): DWORD;
@@ -1194,30 +2129,164 @@ type
     destructor Destroy; override;
     procedure SendStopSignal;
     procedure StopAndWait;
+    property Terminating: Boolean read GetTerminating;
   end;
 
-  PTLinkNode = ^TLinkNode;
+  TTimerCallbackType = (tcbExpired, tcbCleanup);
+  TTimeWheel = class;
+
+  PTimerItem = ^TTimerItem;
+
+  TTimerProc = procedure(driver: TTimeWheel; entry: PTimerItem; cbType: TTimerCallbackType);
+
+  TTimerItem = record
+    list: TLinkListEntry;
+    context: Pointer;
+    proc: TTimerProc;
+    expire: Int64;
+    _intervalAndFlags: DWORD;
+{$IFDEF DSLTimeWheelDebug}
+    execTimes: Integer;
+    nextExecTime: TDateTime;
+{$ENDIF}
+    procedure init; inline;
+    procedure release; inline;
+    function getInterval: DWORD; inline;
+    procedure setInterval(v: DWORD); inline;
+    function enabled: Boolean; inline;
+    procedure disable; inline;
+    procedure enable; inline;
+  end;
+
+  TTimerVecRoot = record
+    vec: array [0 .. 255] of TLinkListEntry;
+  end;
+
+  TTimerVec = record
+    vec: array [0 .. 63] of TLinkListEntry;
+  end;
+
+  TTimeWheel = class(TRefCountedObject)
+  private
+    FRollThread: TSignalThread;
+    FLock: TInterlockSync;
+    FCurrentTick: DWORD;
+    FCurrentJiffies: Int64;
+    FGradularity: DWORD;
+    tv1: TTimerVecRoot;
+    tv2, tv3, tv4, tv5: TTimerVec;
+    FItemCount: Integer;
+{$IFDEF DSLTimeWheelDebug}
+    FOverdue: Integer;
+    FOverdueThreshold: Integer;
+    FExecutedItemCount: Integer;
+{$ENDIF}
+    function cascade(var tv: TTimerVec; idx: Integer): Integer;
+    procedure _addTimer(timer: PTimerItem);
+    function clearVec(var vec: array of TLinkListEntry; nowJiffy: Int64): Integer;
+  public
+    constructor Create(_gradularity: DWORD);
+    destructor Destroy; override;
+    function addTimer(dueTime: Int64; interval: DWORD; context: Pointer; proc: TTimerProc): PTimerItem;
+    procedure checkExpired;
+    procedure run;
+    procedure stop;
+    function clear: Integer;
+    function getNowJiffies: Int64;
+    property itemCount: Integer read FItemCount;
+{$IFDEF DSLTimeWheelDebug}
+    property overdue: Integer read FOverdue;
+    property overdueThreshold: Integer read FOverdueThreshold write FOverdueThreshold;
+    property executedItemCount: Integer read FExecutedItemCount;
+{$ENDIF}
+  end;
+
+  TTimeWheelRollThread = class(TSignalThread)
+  private
+    FTimeWheel: TTimeWheel;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(tw: TTimeWheel);
+  end;
+
+  TAsyncWorkSyncResultThread = class(TSignalThread)
+  private
+    FWindowHandle: THandle;
+    FMsgId: DWORD;
+    FExceptionRaised: Boolean;
+    FStatusCode: Integer;
+    FStatusText: string;
+  protected
+    procedure AsyncWork; virtual; abstract;
+    procedure Execute; override;
+  public
+    constructor Create(_MsgId: DWORD = 0; _WindowHandle: THandle = 0);
+    procedure HandleResult; virtual;
+    property ExceptionRaised: Boolean read FExceptionRaised;
+    property StatusCode: Integer read FStatusCode write FStatusCode;
+    property StatusText: string read FStatusText write FStatusText;
+  end;
+
+  TMyAnonymousThread = class;
+
+  TMyAnonymousCallbackMethod = procedure(thread: TMyAnonymousThread) of object;
+  TMyAnonymousCallbackProc = procedure(thread: TMyAnonymousThread);
+
+  TMyAnonymousThread = class(TAsyncWorkSyncResultThread)
+  private
+    FWorkMethod: TMyAnonymousCallbackMethod;
+    FResultMethod: TMyAnonymousCallbackMethod;
+    FWorkProc: TMyAnonymousCallbackProc;
+    FResultProc: TMyAnonymousCallbackProc;
+    FAnonymousWorkProc: SysUtils.TProc;
+    FAnonymousResultProc: SysUtils.TProc;
+  protected
+    procedure AsyncWork; override;
+  public
+    PropInt64: Int64;
+    PropInt: Integer;
+    PropUStr: u16string;
+    PropRBS: RawByteString;
+    PropFloat: Double;
+    PropBool: Boolean;
+    PropPointer: Pointer;
+    context: TProperties;
+    constructor Create(AWorkMethod: TMyAnonymousCallbackMethod; AResultMethod: TMyAnonymousCallbackMethod = nil;
+      _MsgId: DWORD = 0; _WindowHandle: THandle = 0); overload;
+    constructor Create(AWorkProc: TMyAnonymousCallbackProc; AResultProc: TMyAnonymousCallbackProc = nil;
+      _MsgId: DWORD = 0; _WindowHandle: THandle = 0); overload;
+    constructor Create(AWorkProc: SysUtils.TProc; AResultProc: SysUtils.TProc = nil; _MsgId: DWORD = 0;
+      _WindowHandle: THandle = 0); overload;
+    procedure HandleResult; override;
+  end;
+
+  PLinkNode = ^TLinkNode;
+
   TLinkNode = record
-    next: PTLinkNode;
+    next: PLinkNode;
     data: Pointer;
   end;
 
-  PTDblLinkNode = ^TDblLinkNode;
+  PDblLinkNode = ^TDblLinkNode;
+
   TDblLinkNode = record
-    prev: PTDblLinkNode;
-    next: PTDblLinkNode;
+    prev: PDblLinkNode;
+    next: PDblLinkNode;
     data: Pointer;
   end;
 
   TFIFOQueue = class
   private
-    fLockState: Integer;
-    fFirst: PTLinkNode;
-    fLast: PTLinkNode;
+    FLock: TSpinLock;
+    FFirst: PLinkNode;
+    fLast: PLinkNode;
     fSize: Integer;
   public
     constructor Create;
     destructor Destroy; override;
+    procedure lock; inline;
+    procedure unlock; inline;
     procedure clear;
     procedure push(item: Pointer);
     procedure PushFront(item: Pointer);
@@ -1227,8 +2296,8 @@ type
 
   TLIFOQueue = class
   private
-    fLockState: Integer;
-    fFirst: PTLinkNode;
+    FLock: TSpinLock;
+    FFirst: PLinkNode;
   public
     constructor Create;
     destructor Destroy; override;
@@ -1237,46 +2306,89 @@ type
     function pop: Pointer;
   end;
 
-  TWorkThread = class(TSignalThread)
+  TRunnableQueue = class
   private
-    fTaskSemaphore: THandle;
-    fTaskQueue: TFIFOQueue;
-    fCompletedTaskCount: Integer;
-    fWaitingForTask: Boolean;
-    fCurrentTaskName: string;
-    FCurrentTaskStartTime: TDateTime;
+    FTaskSemaphore: THandle;
+    FTaskQueue: TFIFOQueue;
+    FAlreadyRunCount: Integer;
+    FWaitingTimeout: DWORD;
+    FTerminated: Boolean;
+    FOnIdle: TProcedure;
+    FThreadId: DWORD;
+    function getPendingRunnableCount: Integer;
+  protected
+    procedure DoIdle; virtual;
+    procedure BeforeRun; virtual;
+    procedure AfterRun; virtual;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure clear;
+    function queue(runnable: TRunnable): Boolean;
+    function queueAsFirst(runnable: TRunnable): Boolean;
+    function queueBatch(runnables: TList): Boolean;
+    function queueProc(proc: SysUtils.TProc): Boolean;
+    function queueProcAsFirst(proc: SysUtils.TProc): Boolean;
+    procedure run;
+    procedure Terminate;
+    property WaitingTimeout: DWORD read FWaitingTimeout write FWaitingTimeout;
+    property PendingRunnableCount: Integer read getPendingRunnableCount;
+    property AlreadyRunCount: Integer read FAlreadyRunCount;
+    property Terminated: Boolean read FTerminated;
+    property OnIdle: TProcedure read FOnIdle write FOnIdle;
+  end;
+
+  TBaseWorkThread = class(TSignalThread)
+  private
     function GetPendingTaskCount: Integer;
   protected
-    procedure Execute; override;
+    fTaskSemaphore: THandle;
+    fTaskQueue: TFIFOQueue;
+    fWaitingForTask: Boolean;
   public
     constructor Create(CreateSuspended: Boolean);
     destructor Destroy; override;
-    procedure ClearTask;
-    function QueueTask(task: TRunnable): Boolean;
-    function QueueTaskFirst(task: TRunnable): Boolean;
-    property CompletedTaskCount: Integer read fCompletedTaskCount;
+    function QueueTask(task: Pointer): Boolean;
+    function QueueTaskFirst(task: Pointer): Boolean;
+    function QueueTasks(tasks: TList): Boolean;
     property PendingTaskCount: Integer read GetPendingTaskCount;
     property WaitingForTask: Boolean read fWaitingForTask;
+  end;
+
+  TWorkThread = class(TBaseWorkThread)
+  private
+    fCompletedTaskCount: Integer;
+    fCurrentTaskName: string;
+    FCurrentTaskStartTime: TDateTime;
+  protected
+    procedure DoIdle; virtual;
+    procedure BeforeExecute; virtual;
+    procedure AfterExecute; virtual;
+    procedure Execute; override;
+  public
+    destructor Destroy; override;
+    procedure ClearTask;
+    property CompletedTaskCount: Integer read fCompletedTaskCount;
     property CurrentTaskName: string read fCurrentTaskName;
     property CurrentTaskStartTime: TDateTime read FCurrentTaskStartTime;
   end;
 
   TWorkThreadClass = class of TWorkThread;
 
-  PDslDelayRunnable = ^TDelayRunnable;
+  PDelayRunnable = ^TDelayRunnable;
+
   TDelayRunnable = record
-    next: PDslDelayRunnable;
+    next: PDelayRunnable;
     runtime: TDateTime;
     task: TRunnable;
   end;
 
   TDelayRunnableQueue = class
   private
-    fFirstTask: PDslDelayRunnable;
-    fLock: TRTLCriticalSection;
+    fFirstTask: PDelayRunnable;
+    fLockState: Integer;
     fSize: Integer;
   public
-    constructor Create;
     destructor Destroy; override;
     procedure clear;
     function push(task: TRunnable; DelayMS: Int64): Boolean; overload;
@@ -1308,8 +2420,8 @@ type
     fActive: Boolean;
     fThreadCount: Integer;
     fThreadClass: TWorkThreadClass;
-    procedure SetActive(const Value: Boolean);
-    procedure SetThreadCount(const Value: Integer);
+    procedure SetActive(const value: Boolean);
+    procedure SetThreadCount(const value: Integer);
   protected
     procedure start;
     procedure stop;
@@ -1322,9 +2434,65 @@ type
     property ThreadClass: TWorkThreadClass read fThreadClass write fThreadClass;
   end;
 
+  TThreadPool = class;
+
+  TPoolThread = class(TSignalThread)
+  private
+    FNext: TPoolThread;
+    FPool: TThreadPool;
+    FExecSignal: THandle;
+    FRunnable: TRunnable;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(_pool: TThreadPool);
+    destructor Destroy; override;
+    procedure run(task: TRunnable);
+    property Pool: TThreadPool read FPool;
+  end;
+
+  TPoolOverflowStrategy = (posDiscard, posFreeTask, posEnQueue);
+
+  TThreadPool = class(TRefCountedObject)
+  private
+    FRunningThreadCount: Integer;
+    FIdleThreadsLock: Integer;
+    FIdleThreads: TPoolThread;
+    FIdleThreadCount: Integer;
+    FMaxThreadCount: Integer;
+    fCompletedTaskCount: Integer;
+    fTaskQueue: TFIFOQueue;
+    FReserveThreadCount: Integer;
+    procedure LockIdle;
+    procedure UnlockIdle;
+    procedure ReleaseThreads(n: Integer);
+    procedure ClearThreads;
+    procedure ClearTask;
+    procedure SetMaxThreadCount(const value: Integer);
+    function GetThreadCount: Integer;
+    procedure SetReserveThreadCount(const value: Integer);
+    function GetTaskCountInQueue: Integer;
+  protected
+    function GetIdleThread: TPoolThread;
+    procedure return(thread: TPoolThread);
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure stop;
+    function ExecProc(AProc: TProc): Boolean; overload;
+    function Execute(runnable: TRunnable; OverflowStrategy: TPoolOverflowStrategy = posEnQueue): Boolean;
+    property MaxThreadCount: Integer read FMaxThreadCount write SetMaxThreadCount;
+    property ReserveThreadCount: Integer read FReserveThreadCount write SetReserveThreadCount;
+    property RunningThreadCount: Integer read FRunningThreadCount;
+    property IdleThreadCount: Integer read FIdleThreadCount;
+    property ThreadCount: Integer read GetThreadCount;
+    property CompletedTaskCount: Integer read fCompletedTaskCount;
+    property TaskCountInQueue: Integer read GetTaskCountInQueue;
+  end;
+
   TThreadFileStream = class(TFileStream)
   private
-    fLock: TCriticalSection;
+    FLock: TCriticalSection;
   public
     constructor Create(const AFileName: string; Mode: Word); overload;
     constructor Create(const AFileName: string; Mode: Word; Rights: Cardinal); overload;
@@ -1333,8 +2501,24 @@ type
     procedure unlock;
   end;
 
-(****************************trace utils***************************************)
+  TObjectListEx = class(TObjectList)
+  protected
+    procedure Notify(Ptr: Pointer; Action: TListNotification); override;
+  public
+    function Clone: TObjectListEx;
+  end;
 
+  TThreadObjectListEx = class(TObjectListEx)
+  private
+    FLock: TRTLCriticalSection;
+  public
+    constructor Create(AOwnsObjects: Boolean = True); overload;
+    destructor Destroy; override;
+    procedure LockList;
+    procedure UnlockList; inline;
+  end;
+
+{$region 'log utils'}
 type
   TMessageLevel = (mlDebug, mlInformation, mlWarning, mlError);
   TMessageVerbosity = set of TMessageLevel;
@@ -1342,16 +2526,14 @@ type
 const
   TRACE_SEVERITIES_ALL = [mlDebug, mlInformation, mlWarning, mlError];
 
-  SEVERITY_NAMESA: array [TMessageLevel] of RawByteString =
-  ('DEBUG', 'INFO', 'WARN', 'ERROR');
-  SEVERITY_NAMESW: array [TMessageLevel] of UnicodeString =
-  ('DEBUG', 'INFO', 'WARN', 'ERROR');
+  SEVERITY_NAMESA: array [TMessageLevel] of RawByteString = ('DEBUG', 'INFO', 'WARN', 'ERROR');
+  SEVERITY_NAMESW: array [TMessageLevel] of u16string = ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 type
   TDateTimePart = (dtpYear, dtpMonth, dtpDay, dtpHour, dtpMinute, dtpSecond);
-  
+
   TTextEncoding = (teAnsi, teUTF8, teUTF16);
-  
+
   TMessageTag = (mtServerity, mtTime);
   TMessageTags = set of TMessageTag;
 
@@ -1363,22 +2545,20 @@ type
     procedure SetVerbosity(const value: TMessageVerbosity); dynamic;
     procedure SetOptions(const value: TMessageTags); dynamic;
     procedure SetDateTimeFormat(const value: string); dynamic;
-    procedure WriteAnsi(const text: RawByteString); virtual; aBStract;
-    procedure WriteUnicode(const text: UnicodeString); virtual; aBStract;
+    procedure WriteAnsi(const text: RawByteString); virtual; abstract;
+    procedure WriteUnicode(const text: u16string); virtual; abstract;
   public
     constructor Create;
     procedure write(sev: TMessageLevel; const text: RawByteString); overload;
-    procedure write(sev: TMessageLevel; const text: UnicodeString); overload;
+    procedure write(sev: TMessageLevel; const text: u16string); overload;
     procedure Writeln(sev: TMessageLevel; const text: RawByteString); overload;
-    procedure Writeln(sev: TMessageLevel; const text: UnicodeString); overload;
+    procedure Writeln(sev: TMessageLevel; const text: u16string); overload;
 
-    procedure FormatWrite(sev: TMessageLevel; const fmt: RawByteString;
-      const args: array of const); overload;
+    procedure FormatWrite(sev: TMessageLevel; const fmt: RawByteString; const args: array of const ); overload;
 
-    procedure FormatWrite(sev: TMessageLevel; const fmt: UnicodeString;
-      const args: array of const); overload;
-      
-    procedure flush; virtual; 
+    procedure FormatWrite(sev: TMessageLevel; const fmt: u16string; const args: array of const ); overload;
+
+    procedure flush; virtual;
     property Verbosity: TMessageVerbosity read fVerbosity write fVerbosity;
     property options: TMessageTags read fOptions write fOptions;
     property DateTimeFormat: string read fDateTimeFormat write fDateTimeFormat;
@@ -1391,9 +2571,9 @@ type
     function GetFileSize: Integer;
   protected
     procedure WriteAnsi(const text: RawByteString); override;
-    procedure WriteUnicode(const text: UnicodeString); override;
+    procedure WriteUnicode(const text: u16string); override;
   public
-    constructor Create(const fileName: string);
+    constructor Create(const FileName: string);
     destructor Destroy; override;
     procedure flush; override;
     property FileSize: Integer read GetFileSize;
@@ -1403,13 +2583,13 @@ type
   TConsoleLogWritter = class(TLogWritter)
   protected
     procedure WriteAnsi(const text: RawByteString); override;
-    procedure WriteUnicode(const text: UnicodeString); override;
+    procedure WriteUnicode(const text: u16string); override;
   end;
 
   TDebugLogWritter = class(TLogWritter)
   protected
     procedure WriteAnsi(const text: RawByteString); override;
-    procedure WriteUnicode(const text: UnicodeString); override;
+    procedure WriteUnicode(const text: u16string); override;
   end;
 
   TMultiFileLogWritter = class
@@ -1423,25 +2603,23 @@ type
     fOptions: TMessageTags;
     fEncoding: TTextEncoding;
   protected
-    procedure SetVerbosity(const Value: TMessageVerbosity);
-    procedure SetOptions(const Value: TMessageTags);
-    procedure SetDateTimeFormat(const Value: string);
+    procedure SetVerbosity(const value: TMessageVerbosity);
+    procedure SetOptions(const value: TMessageTags);
+    procedure SetDateTimeFormat(const value: string);
   protected
-    procedure CreateFileTracer(Tick: TDateTime);
+    procedure CreateFileTracer(tick: TDateTime);
   public
     constructor Create(const dir: string);
     destructor Destroy; override;
 
-    procedure write(sev: TMessageLevel; const Text: RawByteString); overload;
-    procedure write(sev: TMessageLevel; const Text: UnicodeString); overload;
-    procedure Writeln(sev: TMessageLevel; const Text: RawByteString); overload;
-    procedure Writeln(sev: TMessageLevel; const Text: UnicodeString); overload;
+    procedure write(sev: TMessageLevel; const text: RawByteString); overload;
+    procedure write(sev: TMessageLevel; const text: u16string); overload;
+    procedure Writeln(sev: TMessageLevel; const text: RawByteString); overload;
+    procedure Writeln(sev: TMessageLevel; const text: u16string); overload;
 
-    procedure FormatWrite(sev: TMessageLevel; const fmt: RawByteString;
-      const args: array of const); overload;
+    procedure FormatWrite(sev: TMessageLevel; const fmt: RawByteString; const args: array of const ); overload;
 
-    procedure FormatWrite(sev: TMessageLevel; const fmt: UnicodeString;
-      const args: array of const); overload;
+    procedure FormatWrite(sev: TMessageLevel; const fmt: u16string; const args: array of const ); overload;
 
     procedure flush;
 
@@ -1449,18 +2627,93 @@ type
     property severity: TMessageVerbosity read fVerbosity write fVerbosity;
     property options: TMessageTags read fOptions write fOptions;
     property DateTimeFormat: string read fDateTimeFormat write fDateTimeFormat;
-    property encoding: TTextEncoding read fEncoding write fEncoding;
+    property Encoding: TTextEncoding read fEncoding write fEncoding;
   end;
+{$endregion}
+
+  TVersion = class
+  private
+    fMinor: Integer;
+    fRelease: Integer;
+    fMajor: Integer;
+    fBuild: Integer;
+  public
+    function compare(Other: TVersion): Integer;
+    function ToString: string; override;
+    property Major: Integer read fMajor write fMajor;
+    property Minor: Integer read fMinor write fMinor;
+    property release: Integer read fRelease write fRelease;
+    property Build: Integer read fBuild write fBuild;
+  end;
+
+  TFileVersionInfo = class
+  private
+    VersionBlock: Pointer;
+    FProductVersion: Variant;
+    FBuildString: Variant;
+    FCompanyName: Variant;
+    FProductName: Variant;
+    FFixedInfo: Variant;
+    FVersion: TVersion;
+    function GetCompanyName: string;
+    function GetProductName: string;
+    function GetProductVersion: string;
+  protected
+    procedure GetFixedInfo;
+    function GetStringInfo(const name: string): string;
+  public
+    constructor Create(const FileName: string);
+    destructor Destroy; override;
+    property ProductVersion: string read GetProductVersion;
+    property CompanyName: string read GetCompanyName;
+    property ProductName: string read GetProductName;
+    property Version: TVersion read FVersion;
+  end;
+
+var
+  RBStrFormat: function(const Format: AnsiString; const args: array of const ): AnsiString;
+  UStrFormat: function(const Format: u16string; const args: array of const ): u16string;
+  RBStrCompareText: function(const s1, s2: RawByteString): Integer;
+  UStrCompareText: function(const s1, s2: u16string): Integer;
+  RBStrSameText: function(const s1, s2: RawByteString): Boolean;
+  UStrSameText: function(const s1, s2: u16string): Boolean;
+  RBStrFormatFloat: function(const Format: RawByteString; value: Extended): RawByteString;
+  UStrFormatFloat: function(const Format: u16string; value: Extended): u16string;
+  RBStrTrim: function(const s: RawByteString): RawByteString;
+  RBStrTrimLeft: function(const s: RawByteString): RawByteString;
+  RBStrTrimRight: function(const s: RawByteString): RawByteString;
+  UStrTrim: function(const s: u16string): u16string;
+  UStrTrimLeft: function(const s: u16string): u16string;
+  UStrTrimRight: function(const s: u16string): u16string;
+  InterlockedIncDWORD: function(var Addend: DWORD): DWORD; stdcall;
+  InterlockedDecDWORD: function(var Addend: DWORD): DWORD; stdcall;
+  InterlockedExchangeDWORD: function(var Target: DWORD; value: DWORD): DWORD; stdcall;
+  InterlockedCompareExchangeDWORD: function(var Destination: DWORD; Exchange: DWORD; Comperand: DWORD): DWORD stdcall;
+  InterlockedExchangeAddDWORD: function(var Addend: DWORD; value: DWORD): DWORD stdcall;
 
 implementation
 
+const
+  MB_ERR_INVALID_CHARS = 8; { error for invalid chars }
+
 var
   JAVA_TIME_START: TDateTime;
+  g_SystemInfo: TSystemInfo;
+
+function InterlockedExchangePointer(var Target: Pointer; value: Pointer): Pointer;
+begin
+{$IFDEF WIN32}
+  Result := Pointer(InterlockedExchange(Integer(Target), Integer(value)));
+{$ELSE}
+  Result := Target;
+  Target := value;
+{$ENDIF}
+end;
 
 procedure MsgSleep(period: DWORD);
 var
   tick, remain, ellapse, wr: DWORD;
-  events: array [0..0] of THandle;
+  events: array [0 .. 0] of THandle;
 begin
   if RunningInMainThread then
   begin
@@ -1473,26 +2726,679 @@ begin
       begin
         ellapse := GetTickCount - tick;
 
-        if ellapse >= period then Break;
+        if ellapse >= period then
+          Break;
 
         remain := period - ellapse;
-        
+
         wr := MsgWaitForMultipleObjects(1, events, False, remain, QS_ALLINPUT);
 
-        if wr = WAIT_TIMEOUT then Break;
+        if wr = WAIT_TIMEOUT then
+          Break;
 
         if wr = WAIT_OBJECT_0 + 1 then
-        try
-          Application.ProcessMessages;
-        except
+          try
+            Application.ProcessMessages;
+          except
 
-        end;
+          end;
       end;
     finally
       CloseHandle(events[0]);
     end;
   end
-  else Windows.Sleep(period);
+  else
+    Windows.Sleep(period);
+end;
+
+function GetHumanReadableByteSize(size: DWORD): string;
+var
+  v: Double;
+  _unit: string;
+  tmp1, tmp2: string;
+begin
+  if size > 1024 * 1024 * 1024 then
+  begin
+    v := size / (1024 * 1024 * 1024);
+    _unit := 'GB';
+  end
+  else if size > 1024 * 1024 then
+  begin
+    v := size / (1024 * 1024);
+    _unit := 'MB';
+  end
+  else if size > 1024 then
+  begin
+    v := size / 1024;
+    _unit := 'KB';
+  end
+  else
+  begin
+    v := size;
+    _unit := 'B';
+  end;
+
+  tmp1 := FloatToStr(v);
+  tmp2 := FormatFloat('0.00', v);
+
+  if length(tmp1) < length(tmp2) then
+    Result := tmp1 + _unit
+  else
+    Result := tmp2 + _unit;
+end;
+
+function IMEICheckSumA(s: PAnsiChar): Integer;
+var
+  sum, i, tmp: Integer;
+begin
+  sum := 0;
+
+  for i := 0 to 13 do
+  begin
+    if i mod 2 = 0 then
+      Inc(sum, Ord(s[i]) - $30)
+    else
+    begin
+      tmp := (Ord(s[i]) - $30) * 2;
+      sum := sum + tmp mod 10 + tmp div 10;
+    end;
+  end;
+
+  Result := sum mod 10;
+
+  if Result > 0 then
+    Result := 10 - Result;
+end;
+
+function IMEIRandomRBStr: RawByteString;
+var
+  i: Integer;
+begin
+  SetLength(Result, 15);
+  PAnsiChar(Result)[0] := AnsiChar(49 + Random(9));
+
+  for i := 1 to 13 do
+    PAnsiChar(Result)[i] := AnsiChar(48 + Random(10));
+
+  PAnsiChar(Result)[14] := AnsiChar(48 + IMEICheckSumA(PAnsiChar(Result)));
+end;
+
+function IMEICheckSumW(s: PWideChar): Integer;
+var
+  sum, i, tmp: Integer;
+begin
+  sum := 0;
+
+  for i := 0 to 13 do
+  begin
+    if i mod 2 = 0 then
+      Inc(sum, Ord(s[i]) - $30)
+    else
+    begin
+      tmp := (Ord(s[i]) - $30) * 2;
+      sum := sum + tmp mod 10 + tmp div 10;
+    end;
+  end;
+
+  Result := sum mod 10;
+
+  if Result > 0 then
+    Result := 10 - Result;
+end;
+
+function IMEIRandomUStr: u16string;
+var
+  i: Integer;
+begin
+  SetLength(Result, 15);
+  PWideChar(Result)[0] := WideChar(49 + Random(9));
+
+  for i := 1 to 13 do
+    PWideChar(Result)[i] := WideChar(48 + Random(10));
+
+  PWideChar(Result)[14] := WideChar(48 + IMEICheckSumW(PWideChar(Result)));
+end;
+
+function IMSIRandomRBStr: RawByteString;
+// 中国移动系统使用00、02、07，中国联通GSM系统使用01、06，中国电信CDMA系统使用03、05、电信4G使用11，中国铁通系统使用20
+const
+  MNCs: array [0 .. 8] of RawByteString = ('00', '01', '02', '03', '05', '06', '07', '11', '20');
+var
+  mnc: RawByteString;
+  i: Integer;
+begin
+  SetLength(Result, 15);
+  PAnsiChar(Result)[0] := '4';
+  PAnsiChar(Result)[1] := '6';
+  PAnsiChar(Result)[2] := '0';
+
+  mnc := MNCs[Random(length(MNCs))];
+
+  for i := 0 to length(mnc) - 1 do
+    PAnsiChar(Result)[3 + i] := PAnsiChar(mnc)[i];
+
+  for i := 3 + length(mnc) to 14 do
+    PAnsiChar(Result)[i] := AnsiChar(48 + Random(10));
+end;
+
+function IMSIRandomUStr: u16string;
+// 中国移动系统使用00、02、07，中国联通GSM系统使用01、06，中国电信CDMA系统使用03、05、电信4G使用11，中国铁通系统使用20
+const
+  MNCs: array [0 .. 8] of u16string = ('00', '01', '02', '03', '05', '06', '07', '11', '20');
+var
+  mnc: u16string;
+  i: Integer;
+begin
+  SetLength(Result, 15);
+  PWideChar(Result)[0] := '4';
+  PWideChar(Result)[1] := '6';
+  PWideChar(Result)[2] := '0';
+
+  mnc := MNCs[Random(length(MNCs))];
+
+  for i := 0 to length(mnc) - 1 do
+    PWideChar(Result)[3 + i] := PWideChar(mnc)[i];
+
+  for i := 3 + length(mnc) to 14 do
+    PWideChar(Result)[i] := WideChar(48 + Random(10));
+end;
+
+function MacAddressRandomUStr(delimiter: u16string; fUppercase: Boolean): u16string;
+var
+  mac: array [0 .. 5] of Byte;
+  i: Integer;
+begin
+  for i := Low(mac) to High(mac) do
+    mac[i] := Random($100);
+
+  Result := MemHexUStr(mac, SizeOf(mac), fUppercase, delimiter);
+end;
+
+function MacAddressRandomRBStr(delimiter: RawByteString; fUppercase: Boolean): RawByteString;
+var
+  mac: array [0 .. 5] of Byte;
+  i: Integer;
+begin
+  for i := Low(mac) to High(mac) do
+    mac[i] := Random($100);
+
+  Result := MemHex(mac, SizeOf(mac), fUppercase, delimiter);
+end;
+
+function RBStrSection(const s: AnsiString; first: Integer = 1; last: Integer = 0): TAnsiCharSection;
+begin
+  Result._begin := PAnsiChar(s) + first - 1;
+  if (last <= 0) or (last > length(s)) then
+    last := length(s) + 1;
+  Result._end := PAnsiChar(s) + last - 1;
+end;
+
+function UStrSection(const s: u16string; first: Integer = 1; last: Integer = 0): TWideCharSection;
+begin
+  Result._begin := PWideChar(s) + first - 1;
+  if (last <= 0) or (last > length(s)) then
+    last := length(s) + 1;
+  Result._end := PWideChar(s) + last - 1;
+end;
+
+function BStrSection(const s: WideString; first: Integer = 1; last: Integer = 0): TWideCharSection;
+begin
+  Result._begin := PWideChar(s) + first - 1;
+  if (last <= 0) or (last > length(s)) then
+    last := length(s) + 1;
+  Result._end := PWideChar(s) + last - 1;
+end;
+
+function StringToPChar(const s: u16string): PWideChar;
+begin
+  if s = '' then
+    Result := nil
+  else
+    Result := PWideChar(s);
+end;
+
+function StringToPChar(const s: RawByteString): PAnsiChar;
+begin
+  if s = '' then
+    Result := nil
+  else
+    Result := PAnsiChar(s);
+end;
+
+function charAt(p, tail: PAnsiChar): AnsiChar;
+begin
+  if p < tail then
+    Result := p^
+  else
+    Result := #0;
+end;
+
+function charAt(p, tail: PWideChar): WideChar;
+begin
+  if p < tail then
+    Result := p^
+  else
+    Result := #0;
+end;
+
+function IsEmptyString(p: PAnsiChar): Boolean;
+begin
+  Result := (p = nil) or (p^ = #0);
+end;
+
+function IsEmptyString(p: PWideChar): Boolean;
+begin
+  Result := (p = nil) or (p^ = #0);
+end;
+
+procedure _fastAssignStr(var dest: RawByteString; const src: RawByteString);
+begin
+  Pointer(dest) := Pointer(src);
+end;
+
+procedure _fastAssignStr(var dest: u16string; const src: u16string);
+begin
+  Pointer(dest) := Pointer(src);
+end;
+
+procedure _fastAssignStr(var dest: WideString; const src: WideString);
+begin
+  // WideString are not ARC
+  dest := src;
+end;
+
+procedure _fastAssignStr(var dest: AnsiString; const src: AnsiString);
+begin
+  Pointer(dest) := Pointer(src);
+end;
+
+procedure _fastAssignStr(var dest: UTF8String; const src: UTF8String);
+begin
+  Pointer(dest) := Pointer(src);
+end;
+
+procedure dslMove(const src; var dest; count: Integer);
+begin
+  if count = 0 then
+  begin
+
+  end
+  else if count = 1 then
+    PByte(@dest)^ := PByte(@src)^
+  else if count = 2 then
+    PWideChar(@dest)^ := PWideChar(@src)^
+  else if count = 3 then
+  begin
+    PWideChar(@dest)^ := PWideChar(@src)^;
+    PAnsiChar(@dest)[2] := PAnsiChar(@src)[2]
+  end
+  else if count = 4 then
+    PInteger(@dest)^ := PInteger(@src)^
+  else if count = 8 then
+    PInt64(@dest)^ := PInt64(@src)^
+  else
+    Move(src, dest, count);
+end;
+
+
+procedure FillWordX87(var dest; count: Integer; value: Word);
+asm                                  // Size = 153 Bytes
+        // EAX: @dest, EDX: count, CX: value
+        TEST  EAX, 1
+        JE    @2byte_aligned
+        MOV   [EAX], CL
+        MOV   [EAX+EDX*2-1], CH
+        INC   EAX
+        DEC   EDX
+        ROL   CX, 8
+@2byte_aligned:
+        SHL   EDX, 1
+        CMP   EDX, 32
+        JL    @@Small
+        MOV   [EAX  ], CX            // Fill First 8 Bytes
+        MOV   [EAX+2], CX
+        MOV   [EAX+4], CX
+        MOV   [EAX+6], CX
+        SUB   EDX, 16
+        FLD   QWORD PTR [EAX]
+        FST   QWORD PTR [EAX+EDX]    // Fill Last 16 Bytes
+        FST   QWORD PTR [EAX+EDX+8]
+        MOV   ECX, EAX
+        AND   ECX, 7                 // ecx = Dest mod 8
+        SUB   ECX, 8                 // ecx = Dest mod 8 - 8
+
+        (*
+        NativeInt(@Dest) + 8 - NativeInt(@Dest) mod 8
+        now Dest is 8-bytes-aligned
+        *)
+        SUB   EAX, ECX
+
+        ADD   EDX, ECX               // edx = NativeInt(@Dest) - (NativeInt(@Dest) mod 8 + 8) + count - 16
+        ADD   EAX, EDX               // eax = NativeInt(@Dest) + count - 16
+        NEG   EDX                    // edx =
+@@Loop:
+        FST   QWORD PTR [EAX+EDX]    // Fill 16 Bytes per Loop
+        FST   QWORD PTR [EAX+EDX+8]
+        ADD   EDX, 16
+        JL    @@Loop
+        FFREE ST(0)
+        FINCSTP
+        RET
+@@Small:
+        TEST  EDX, EDX
+        JLE   @@Done
+        NEG   EDX
+        LEA   EDX, [@@SmallFill + 60 + EDX * 2]
+        JMP   EDX
+@@SmallFill:
+        MOV   [EAX+28], CX
+        MOV   [EAX+26], CX
+        MOV   [EAX+24], CX
+        MOV   [EAX+22], CX
+        MOV   [EAX+20], CX
+        MOV   [EAX+18], CX
+        MOV   [EAX+16], CX
+        MOV   [EAX+14], CX
+        MOV   [EAX+12], CX
+        MOV   [EAX+10], CX
+        MOV   [EAX+ 8], CX
+        MOV   [EAX+ 6], CX
+        MOV   [EAX+ 4], CX
+        MOV   [EAX+ 2], CX
+        MOV   [EAX   ], CX
+        RET                          // DO NOT REMOVE - This is for Alignment
+@@Done:
+end;
+
+procedure FillDwordX87(var dest; count: Integer; value: UInt32);
+const
+  a: array [0..2] of Integer = (1,2,3);
+asm     // Size = 153 Bytes
+        // EAX: @dest, EDX: count, ECX: value
+        TEST  EDX, EDX
+        JLE   @@Done
+        MOV   [EAX], ECX
+        MOV   [EAX+EDX*4-4], ECX
+        CMP   EDX, 2
+        JLE   @@Done
+        TEST  EAX, 3
+        JE    @4byte_aligned
+        PUSH  EBX
+        MOV   EBX, EAX
+        AND   EBX, 3
+        NEG   EBX
+        LEA   EBX, [@adjust_value + 9 + EBX * 2 + EBX]
+        JMP   EBX
+@adjust_value:
+        ROL   ECX, 8
+        ROL   ECX, 8
+        ROL   ECX, 8
+        POP   EBX
+        AND   EAX, $fffffffc
+        INC   EDX
+@4byte_aligned:
+        ADD   EAX, 4
+        ADD   EDX, -2
+        CMP   EDX, 8
+        JL    @@Small
+        SHL   EDX, 2
+        MOV   [EAX  ], ECX            // Fill First 8 Bytes
+        MOV   [EAX+4], ECX
+        SUB   EDX, 16
+        FLD   QWORD PTR [EAX]
+        FST   QWORD PTR [EAX+EDX]    // Fill Last 16 Bytes
+        FST   QWORD PTR [EAX+EDX+8]
+        MOV   ECX, EAX
+        AND   ECX, 7                 // ecx = Dest mod 8
+        SUB   ECX, 8                 // ecx = Dest mod 8 - 8
+
+        (*
+        NativeInt(@Dest) + 8 - NativeInt(@Dest) mod 8
+        now Dest is 8-bytes-aligned
+        *)
+        SUB   EAX, ECX
+
+        ADD   EDX, ECX               // edx = NativeInt(@Dest) - (NativeInt(@Dest) mod 8 + 8) + count - 16
+        ADD   EAX, EDX               // eax = NativeInt(@Dest) + count - 16
+        NEG   EDX                    // edx =
+@@Loop:
+        FST   QWORD PTR [EAX+EDX]    // Fill 16 Bytes per Loop
+        FST   QWORD PTR [EAX+EDX+8]
+        ADD   EDX, 16
+        JL    @@Loop
+        FFREE ST(0)
+        FINCSTP
+        RET
+@@Small:
+        NEG   EDX
+        LEA   EDX, [@@SmallFill + 21 + EDX*2 + EDX]
+        JMP   EDX
+@@SmallFill:
+        MOV   [EAX+24], ECX
+        MOV   [EAX+ 20], ECX
+        MOV   [EAX+ 16], ECX
+        MOV   [EAX+ 12], ECX
+        MOV   [EAX+ 8], ECX
+        MOV   [EAX+ 4], ECX
+        MOV   [EAX   ], ECX
+        RET                          // DO NOT REMOVE - This is for Alignment
+@@Done:
+end;
+
+function absoluteValue(v: Integer): Integer;
+begin
+  if v < 0 then
+    Result := -v
+  else
+    Result := v;
+end;
+
+function absoluteValue(v: Int64): Int64;
+begin
+  if v < 0 then
+    Result := -v
+  else
+    Result := v;
+end;
+
+function absoluteValue(v: ShortInt): ShortInt;
+begin
+  if v < 0 then
+    Result := -v
+  else
+    Result := v;
+end;
+
+function absoluteValue(v: SmallInt): SmallInt;
+begin
+  if v < 0 then
+    Result := -v
+  else
+    Result := v;
+end;
+
+function Get1Bytes(v: Byte): RawByteString;
+begin
+  SetLength(Result, 1);
+  PByte(Pointer(Result))^ := v;
+end;
+
+function Get2Bytes(v: Word): RawByteString;
+begin
+  SetLength(Result, 2);
+  PWord(Pointer(Result))^ := v;
+end;
+
+function Get4Bytes(v: UInt32): RawByteString;
+begin
+  SetLength(Result, 4);
+  PUInt32(Pointer(Result))^ := v;
+end;
+
+function Get8Bytes(v: Int64): RawByteString;
+begin
+  SetLength(Result, 8);
+  PInt64(Pointer(Result))^ := v;
+end;
+
+procedure PaddingRight8(const src; srcLen: Integer; var dst; dstLen: Integer; paddingValue: Byte);
+begin
+  if srcLen >= dstLen then
+    Move(src, dst, dstLen)
+  else
+  begin
+    Move(src, dst, srcLen);
+    FillChar(PAnsiChar(@dst)[srcLen], dstLen - srcLen, paddingValue);
+  end;
+end;
+
+procedure PaddingRight8(const src: RawByteString; var dst; dstLen: Integer; paddingValue: Byte);
+begin
+  PaddingRight8(Pointer(src)^, length(src), dst, dstLen, paddingValue);
+end;
+
+procedure xorBuffer(const operand1, operand2; bufLen: Integer; var dst);
+var
+  i: Integer;
+begin
+  for i := 0 to bufLen - 1 do
+    PByte(PAnsiChar(@dst) + i)^ := PByte(PAnsiChar(@operand1) + i)^ xor PByte(PAnsiChar(@operand2) + i)^;
+end;
+
+procedure andBuffer(const operand1, operand2; bufLen: Integer; var dst);
+var
+  i: Integer;
+begin
+  for i := 0 to bufLen - 1 do
+    PByte(PAnsiChar(@dst) + i)^ := PByte(PAnsiChar(@operand1) + i)^ and PByte(PAnsiChar(@operand2) + i)^;
+end;
+
+procedure orBuffer(const operand1, operand2; bufLen: Integer; var dst);
+var
+  i: Integer;
+begin
+  for i := 0 to bufLen - 1 do
+    PByte(PAnsiChar(@dst) + i)^ := PByte(PAnsiChar(@operand1) + i)^ or PByte(PAnsiChar(@operand2) + i)^;
+end;
+
+function RotateLeft32(v: UInt32; n: Integer): UInt32;
+begin
+  n := n mod 32;
+  Result := (v shl n) or (v shr (32 - n));
+end;
+
+function RotateRight32(v: UInt32; n: Integer): UInt32;
+begin
+  n := n mod 32;
+  Result := (v shr n) or (v shl (32 - n));
+end;
+
+function RotateLeft64(v: UInt64; n: Integer): UInt64;
+begin
+  n := n mod 64;
+  Result := (v shl n) or (v shr (64 - n));
+end;
+
+function RotateRight64(v: UInt64; n: Integer): UInt64;
+begin
+  n := n mod 64;
+  Result := (v shr n) or (v shl (64 - n));
+end;
+
+function sar32(value: UInt32; bits: Integer): UInt32;
+{$IFDEF WIN64}
+const
+  SAR32_MASKS: array [0 .. 1] of Int32 = (0, -1);
+var
+  idx: Integer;
+begin
+  bits := bits mod 32;
+  idx := ((Int32(1) shl 31) and value) shr 31;
+  Result := (value shr bits) or (SAR32_MASKS[idx] shl (32 - bits));
+end;
+{$ELSE}
+asm
+  mov ecx, bits
+  sar value, cl
+end;
+{$ENDIF}
+
+function sar64(value: Int64; bits: Integer): Int64;
+const
+  SAR64_MASKS: array [0 .. 1] of Int64 = (0, -1);
+var
+  idx: Integer;
+begin
+  bits := bits mod 64;
+  idx := ((Int64(1) shl 63) and value) shr 63;
+
+  Result := (value shr bits) or (SAR64_MASKS[idx] shl (64 - bits));
+end;
+
+function ReverseByteOrder32(v: UInt32): UInt32;
+begin
+  Result := (v shr 24) or ((v shr 8) and $FF00) or (v shl 24) or ((v shl 8) and $FF0000);
+end;
+
+function ReverseByteOrder64(v: UInt64): UInt64;
+var
+  p: PUInt32;
+begin
+  Result := (v shl 32) or (v shr 32);
+  p := PUInt32(@Result);
+  p^ := ReverseByteOrder32(p^);
+  Inc(p);
+  p^ := ReverseByteOrder32(p^);
+end;
+
+function BigEndianToSys(v: UInt32): UInt32;
+begin
+  Result := ReverseByteOrder32(v);
+end;
+
+function SysToBigEndian(v: UInt32): UInt32;
+begin
+  Result := ReverseByteOrder32(v);
+end;
+
+function LittleEndianToSys(v: UInt32): UInt32;
+begin
+  Result := v;
+end;
+
+function SysToLittleEndian(v: UInt32): UInt32;
+begin
+  Result := v;
+end;
+
+function ReverseByteOrder16(v: UInt32): UInt32; inline;
+begin
+  Result := Word(v shl 8) or Word(v shr 8);
+end;
+
+function BigEndianToSys(v: Word): Word;
+begin
+  Result := ReverseByteOrder16(v);
+end;
+
+function SysToBigEndian(v: Word): Word;
+begin
+  Result := ReverseByteOrder16(v);
+end;
+
+function LittleEndianToSys(v: Word): Word;
+begin
+  Result := v;
+end;
+
+function SysToLittleEndian(v: Word): Word;
+begin
+  Result := v;
+end;
+
+function IsSameMethod(const method1, method2): Boolean;
+begin
+  Result := (TMethod(method1).code = TMethod(method2).code) and (TMethod(method1).data = TMethod(method2).data);
 end;
 
 function IsEqualFloat(d1, d2: Double): Boolean;
@@ -1501,8 +3407,25 @@ var
 begin
   diff := d1 - d2;
 
-  if diff >= 0 then Result := diff < 0.0001
-  else Result := -diff < 0.0001;
+  if diff >= 0 then
+    Result := diff < 0.0001
+  else
+    Result := -diff < 0.0001;
+end;
+
+function myhtoll(v: Int64): Int64;
+var
+  tmp1: array [0 .. 7] of Byte absolute v;
+  tmp2: array [0 .. 7] of Byte absolute Result;
+begin
+  tmp2[0] := tmp1[7];
+  tmp2[1] := tmp1[6];
+  tmp2[2] := tmp1[5];
+  tmp2[3] := tmp1[4];
+  tmp2[4] := tmp1[3];
+  tmp2[5] := tmp1[2];
+  tmp2[6] := tmp1[1];
+  tmp2[7] := tmp1[0];
 end;
 
 function ConsoleExists: Boolean;
@@ -1515,13 +3438,15 @@ end;
 
 function SafeWriteln(const s: RawByteString): Boolean;
 begin
-  if IsConsole then Writeln(s);
+  if IsConsole then
+    Writeln(s);
   Result := True;
 end;
 
-function SafeWriteln(const s: UnicodeString): Boolean;
+function SafeWriteln(const s: u16string): Boolean;
 begin
-  if IsConsole then Writeln(s);
+  if IsConsole then
+    Writeln(s);
   Result := True;
 end;
 
@@ -1534,13 +3459,20 @@ end;
 procedure print_var_rec(const vr: TVarRec);
 begin
   case vr.VType of
-    vtInteger:    write(vr.VInteger);
-    vtBoolean:    write(vr.VBoolean);
-    vtChar:       write(vr.VChar);
-    vtExtended:   write(FloatToStr(vr.VExtended^));
-    vtString:     write(vr.VString^);
-    vtPointer:    write(Format('%.8x', [vr.VPointer]));
-    vtPChar:      write(vr.VPChar);
+    vtInteger:
+      write(vr.VInteger);
+    vtBoolean:
+      write(vr.VBoolean);
+    vtChar:
+      write(vr.VChar);
+    vtExtended:
+      write(FloatToStr(vr.VExtended^));
+    vtString:
+      write(vr.VString^);
+    vtPointer:
+      write(Format('%.8x', [vr.VPointer]));
+    vtPChar:
+      write(vr.VPChar);
     vtObject:
       begin
         write('object(');
@@ -1555,27 +3487,34 @@ begin
         write(')');
       end;
 
-    vtWideChar:     write(vr.VWideChar);
-    vtPWideChar:    write(vr.VPWideChar);
-    vtAnsiString:   write(RawByteString(vr.VAnsiString));
-    vtCurrency:     write(FloatToStr(vr.VCurrency^));
-    vtVariant:      write(vr.VVariant^);
-    vtInterface:    write('interface');
-    {$IFDEF UNICODE}
-    vtUnicodeString:   write(UnicodeString(vr.VUnicodeString));
-    {$ENDIF}
-    vtInt64:        write(vr.VInt64^);
+    vtWideChar:
+      write(vr.VWideChar);
+    vtPWideChar:
+      write(vr.VPWideChar);
+    vtAnsiString:
+      write(RawByteString(vr.VAnsiString));
+    vtCurrency:
+      write(FloatToStr(vr.VCurrency^));
+    vtVariant:
+      write(vr.VVariant^);
+    vtInterface:
+      write('interface');
+    vtWideString:
+      write(WideString(vr.VWideString));
+    vtUnicodeString:
+      write(u16string(vr.VUnicodeString));
+    vtInt64:
+      write(vr.VInt64^);
   end;
 end;
 
-function PrintArray(const args: array of const; const separator: string;
-  LineFeed: Boolean): Boolean;
+function PrintArray(const args: array of const ; const separator: string; LineFeed: Boolean): Boolean;
 var
   i: Integer;
 begin
-  if Length(args) > 0 then 
+  if length(args) > 0 then
   begin
-    print_var_rec(TVarRec(args[Low(args)]));
+    print_var_rec(TVarRec(args[ Low(args)]));
 
     for i := Low(args) + 1 to High(args) do
     begin
@@ -1584,7 +3523,8 @@ begin
     end;
   end;
 
-  if LineFeed then Writeln;
+  if LineFeed then
+    Writeln;
 
   Result := True;
 end;
@@ -1595,8 +3535,7 @@ begin
   Result := True;
 end;
 
-function OutputDebugArray(const args: array of const; const separator: string;
-  LineFeed: Boolean): Boolean;
+function OutputDebugArray(const args: array of const ; const separator: string; LineFeed: Boolean): Boolean;
 var
   str: string;
   i: Integer;
@@ -1612,26 +3551,41 @@ begin
       str := str + separator;
 
     case vr.VType of
-      vtInteger:    str := str + IntToStr(vr.VInteger);
-      vtBoolean:    str := str + BoolToStr(vr.VBoolean, True);
-      vtChar:       str := str + string(RawByteString(vr.VChar));
-      vtExtended:   str := str + FloatToStr(vr.VExtended^);
-      vtString:     str := str + string(vr.VString^);
-      vtPointer:    str := Format('%.8x', [vr.VPointer]);
-      vtPChar:      str := str + string(RawByteString(vr.VPChar));
-      vtObject:     str := str + 'object(' + vr.VObject.ClassName + ')';
+      vtInteger:
+        str := str + IntToStr(vr.VInteger);
+      vtBoolean:
+        str := str + BoolToStr(vr.VBoolean, True);
+      vtChar:
+        str := str + string(RawByteString(vr.VChar));
+      vtExtended:
+        str := str + FloatToStr(vr.VExtended^);
+      vtString:
+        str := str + string(vr.VString^);
+      vtPointer:
+        str := Format('%.8x', [NativeInt(vr.VPointer)]);
+      vtPChar:
+        str := str + string(RawByteString(vr.VPChar));
+      vtObject:
+        str := str + 'object(' + vr.VObject.ClassName + ')';
 
-      vtClass:      str := str + 'class(' + vr.VClass.ClassName + ')';
-      vtWideChar:   str := str + vr.VWideChar;
-      vtPWideChar:  str := str + vr.VPWideChar;
-      vtAnsiString: str := str + string(RawByteString(vr.VAnsiString));
-      vtCurrency:   str := str + FloatToStr(vr.VCurrency^);
-      vtVariant:    str := str + vr.VVariant^;
-      vtInterface:  str := str + 'interface';
-      {$IFDEF UNICODE}
-      vtUnicodeString: str := str + UnicodeString(vr.VUnicodeString);
-      {$ENDIF}
-      vtInt64:      str := str + IntToStr(vr.VInt64^);
+      vtClass:
+        str := str + 'class(' + vr.VClass.ClassName + ')';
+      vtWideChar:
+        str := str + vr.VWideChar;
+      vtPWideChar:
+        str := str + vr.VPWideChar;
+      vtAnsiString:
+        str := str + string(RawByteString(vr.VAnsiString));
+      vtCurrency:
+        str := str + FloatToStr(vr.VCurrency^);
+      vtVariant:
+        str := str + vr.VVariant^;
+      vtInterface:
+        str := str + 'interface';
+      vtUnicodeString:
+        str := str + u16string(vr.VUnicodeString);
+      vtInt64:
+        str := str + IntToStr(vr.VInt64^);
     end;
   end;
 
@@ -1653,225 +3607,744 @@ end;
 
 function DbgOutputException(e: Exception): Boolean;
 begin
-  if IsConsole then WritelnException(e)
-  else OutputDebugException(e);
+  if IsConsole then
+    WritelnException(e)
+  else
+    OutputDebugException(e);
   Result := True;
 end;
 
 function DbgOutputException(const func: string; e: Exception): Boolean;
 begin
-  if IsConsole then  WritelnException(func, e)
-  else OutputDebugException(func, e);
+  if IsConsole then
+    WritelnException(func, e)
+  else
+    OutputDebugException(func, e);
   Result := True;
 end;
 
-function DbgOutputA(const msg: RawByteString): Boolean;
+procedure MyOutputDebugString(const s: u16string);
 begin
-  if IsConsole then Writeln(msg)
-  else OutputDebugStringA(PAnsiChar(msg));
+  OutputDebugStringW(PWideChar(s));
+end;
+
+procedure MyOutputDebugString(const s: RawByteString);
+begin
+  OutputDebugStringA(PAnsiChar(s));
+end;
+
+function RBStrDbgOutput(const msg: RawByteString): Boolean;
+begin
+  if IsConsole then
+    Writeln(msg)
+  else
+    OutputDebugStringA(PAnsiChar(msg));
   Result := True;
 end;
 
-function DbgOutputW(const msg: UnicodeString): Boolean;
+function UStrDbgOutput(const msg: u16string): Boolean;
 begin
-  if IsConsole then Writeln(msg)
-  else OutputDebugStringW(PWideChar(msg));
+  if IsConsole then
+    Writeln(msg)
+  else
+    OutputDebugStringW(PWideChar(msg));
   Result := True;
 end;
 
-function DbgOutput(const msg: string): Boolean;
+function DbgOutput(const msg: u16string): Boolean;
 begin
-  if IsConsole then Writeln(msg)
-  else OutputDebugString(PChar(msg));
+  if IsConsole then
+    Writeln(msg)
+  else
+    OutputDebugStringW(PWideChar(msg));
   Result := True;
 end;
 
-function DbgOutputArray(const args: array of const;
-  const separator: string; LineFeed: Boolean): Boolean;
+function DbgOutput(const msg: RawByteString): Boolean;
 begin
-  if IsConsole then PrintArray(args, separator, LineFeed)
-  else OutputDebugArray(args, separator, LineFeed);
+  if IsConsole then
+    Writeln(msg)
+  else
+    OutputDebugStringA(PAnsiChar(msg));
   Result := True;
 end;
 
-function DbgOutputFmtA(const fmt: RawByteString; const args: array of const): Boolean;
+function DbgOutput(const args: array of const ; const separator: string = #32;
+  LineFeed: Boolean = True): Boolean; overload;
 begin
-  if IsConsole then Writeln(AnsiFormat(fmt, args))
-  else OutputDebugStringA(PAnsiChar(AnsiFormat(fmt, args)));
+  if IsConsole then
+    PrintArray(args, separator, LineFeed)
+  else
+    OutputDebugArray(args, separator, LineFeed);
   Result := True;
 end;
 
-function DbgOutputFmtW(const fmt: UnicodeString; const args: array of const): Boolean;
+function DbgOutputFmtA(const fmt: RawByteString; const args: array of const ): Boolean;
 begin
-  if IsConsole then Writeln(WideFormat(fmt, args))
-  else OutputDebugStringW(PWideChar(WideFormat(fmt, args)));
+  if IsConsole then
+    Writeln(RBStrFormat(fmt, args))
+  else
+    OutputDebugStringA(PAnsiChar(RBStrFormat(fmt, args)));
   Result := True;
 end;
 
-function DbgOutputFmt(const fmt: string; const args: array of const): Boolean;
+function DbgOutputFmtW(const fmt: u16string; const args: array of const ): Boolean;
 begin
-  if IsConsole then Writeln(Format(fmt, args))
-  else OutputDebugString(PChar(Format(fmt, args)));
+  if IsConsole then
+    Writeln(WideFormat(fmt, args))
+  else
+    OutputDebugStringW(PWideChar(WideFormat(fmt, args)));
   Result := True;
 end;
 
-function BufToUnicodeTest(src: PAnsiChar; srclen: DWORD; CodePage: Integer): Integer;
+function DbgOutputFmt(const fmt: string; const args: array of const ): Boolean;
 begin
-  Result := MultiByteToWideChar(CodePage, 0, src, srclen, nil, 0);
+  if IsConsole then
+    Writeln(Format(fmt, args))
+  else
+    OutputDebugString(PChar(Format(fmt, args)));
+  Result := True;
 end;
 
-function BufToUnicode(src: PAnsiChar; srclen: DWORD; dst: PWideChar; CodePage: Integer): Integer; overload;
+function AsciiCompare(s1: PAnsiChar; len1: Integer; s2: PAnsiChar; len2: Integer): Integer;
+var
+  i, len: Integer;
 begin
-  Result := MultiByteToWideChar(CodePage, 0, src, srclen, dst, MaxInt);
+  Result := 0;
+
+  if len1 > len2 then
+    len := len2
+  else
+    len := len1;
+
+  for i := 0 to len - 1 do
+  begin
+    Result := Ord(s1[i]) - Ord(s2[i]);
+    if Result <> 0 then
+      Break;
+  end;
+
+  if Result = 0 then
+    Result := len1 - len2;
 end;
 
-function BufToUnicode(src: PAnsiChar; srclen: DWORD; CodePage: Integer): UnicodeString; overload;
+function RBStrAsciiCompare(const s1, s2: RawByteString): Integer;
+begin
+  Result := AsciiCompare(PAnsiChar(s1), length(s1), PAnsiChar(s2), length(s2));
+end;
+
+function AsciiICompare(s1: PAnsiChar; len1: Integer; s2: PAnsiChar; len2: Integer): Integer;
+var
+  i, len: Integer;
+  c1, c2: AnsiChar;
+begin
+  Result := 0;
+
+  if len1 > len2 then
+    len := len2
+  else
+    len := len1;
+
+  for i := 0 to len - 1 do
+  begin
+    c1 := s1[i];
+    c2 := s2[i];
+
+    if c1 in ['A' .. 'Z'] then
+      Inc(c1, 32);
+    if c2 in ['A' .. 'Z'] then
+      Inc(c2, 32);
+    Result := Ord(c1) - Ord(c2);
+    if Result <> 0 then
+      Break;
+  end;
+
+  if Result = 0 then
+    Result := len1 - len2;
+end;
+
+function AsciiICompare(const s1, s2: RawByteString): Integer; overload;
+begin
+  Result := AsciiICompare(PAnsiChar(s1), length(s1), PAnsiChar(s2), length(s2));
+end;
+
+function RBStrAsciiICompare(const s1, s2: RawByteString): Integer;
+begin
+  Result := AsciiICompare(PAnsiChar(s1), length(s1), PAnsiChar(s2), length(s2));
+end;
+
+function AsciiCompare(s1: PWideChar; len1: Integer; s2: PWideChar; len2: Integer): Integer;
+var
+  i, len: Integer;
+begin
+  Result := 0;
+
+  if len1 > len2 then
+    len := len2
+  else
+    len := len1;
+
+  for i := 0 to len - 1 do
+  begin
+    Result := Ord(s1[i]) - Ord(s2[i]);
+    if Result <> 0 then
+      Break;
+  end;
+
+  if Result = 0 then
+    Result := len1 - len2;
+end;
+
+function UStrAsciiCompare(const s1, s2: u16string): Integer;
+begin
+  Result := AsciiCompare(PWideChar(s1), length(s1), PWideChar(s2), length(s2));
+end;
+
+function AsciiICompare(s1: PWideChar; len1: Integer; s2: PWideChar; len2: Integer): Integer;
+var
+  i, len: Integer;
+  c1, c2: WideChar;
+begin
+  Result := 0;
+
+  if len1 > len2 then
+    len := len2
+  else
+    len := len1;
+
+  for i := 0 to len - 1 do
+  begin
+    c1 := s1[i];
+    c2 := s2[i];
+
+    if (c1 >= 'A') and (c1 <= 'Z') then
+      Inc(c1, 32);
+    if (c2 >= 'A') and (c2 <= 'Z') then
+      Inc(c2, 32);
+    Result := Ord(c1) - Ord(c2);
+    if Result <> 0 then
+      Break;
+  end;
+
+  if Result = 0 then
+    Result := len1 - len2;
+end;
+
+function UStrAsciiICompare(const s1, s2: u16string): Integer;
+begin
+  Result := AsciiICompare(PWideChar(s1), length(s1), PWideChar(s2), length(s2));
+end;
+
+function AsciiBuf2UStr(buf: PAnsiChar; len: Integer): u16string;
+var
+  i: Integer;
+begin
+  if len = -1 then
+    len := {$IF CompilerVersion > 22} AnsiStrings.{$IFEND} StrLen(buf);
+
+  SetLength(Result, len);
+
+  for i := 0 to len - 1 do
+    PWideChar(Result)[i] := WideChar(buf[i]);
+end;
+
+function Ascii2UStr(const s: RawByteString): u16string;
+var
+  i, len: Integer;
+begin
+  len := length(s);
+  SetLength(Result, len);
+
+  for i := 0 to len - 1 do
+    PWideChar(Result)[i] := WideChar(PAnsiChar(s)[i]);
+end;
+
+function BufToUnicodeTest(src: PAnsiChar; srcLen: Integer; CodePage: Integer): Integer;
+begin
+  Result := MultiByteToWideChar(CodePage, 0, src, srcLen, nil, 0);
+  if srcLen < 0 then
+    Dec(Result);
+end;
+
+function CheckCodePage(src: PAnsiChar; srcLen: Integer; CodePage: Integer; out dstLen: Integer): Boolean;
+begin
+  dstLen := MultiByteToWideChar(CodePage, MB_ERR_INVALID_CHARS, src, srcLen, nil, 0);
+
+  Result := (dstLen > 0) or (GetLastError <> ERROR_NO_UNICODE_TRANSLATION);
+
+  if (dstLen > 0) and (srcLen < 0) then
+    Dec(dstLen);
+end;
+
+function BufToUnicodeTestEx(src: PAnsiChar; srcLen: Integer; const CodePages: array of Integer;
+  out RealCodePage: Integer): Integer;
+var
+  i, dstLen: Integer;
+begin
+  Result := -1;
+
+  for i := Low(CodePages) to High(CodePages) do
+  begin
+    dstLen := MultiByteToWideChar(CodePages[i], MB_ERR_INVALID_CHARS, src, srcLen, nil, 0);
+
+    if dstLen > 0 then
+    begin
+      if srcLen < 0 then
+        Dec(dstLen);
+      RealCodePage := CodePages[i];
+      Result := dstLen;
+      Break;
+    end;
+  end;
+end;
+
+function BufToUnicode(src: PAnsiChar; srcLen: Integer; dst: PWideChar; dstLen, CodePage: Integer): Integer; overload;
+begin
+  Result := MultiByteToWideChar(CodePage, 0, src, srcLen, dst, dstLen);
+end;
+
+function BufToUnicode(src: PAnsiChar; srcLen: Integer; CodePage: Integer): u16string; overload;
 var
   L: Integer;
 begin
-  L := BufToUnicodeTest(src, srclen, CodePage);
+  L := BufToUnicodeTest(src, srcLen, CodePage);
   SetLength(Result, L);
-  MultiByteToWideChar(CodePage, 0, src, srclen, PWideChar(Result), L + 1);
+  MultiByteToWideChar(CodePage, 0, src, srcLen, PWideChar(Result), L);
 end;
 
-procedure AnsiStrAssignWideChar(dst: PAnsiChar; c: WideChar; CodePage: Integer);
+function BufToBSTR(src: PAnsiChar; srcLen: Integer; CodePage: Integer): WideString;
+var
+  L: Integer;
 begin
-  WideCharToMultiByte(CodePage, 0, @c, 1, dst, 3, nil, nil);
+  L := BufToUnicodeTest(src, srcLen, CodePage);
+  SetLength(Result, L);
+  MultiByteToWideChar(CodePage, 0, src, srcLen, PWideChar(Result), L);
 end;
 
-function BufToMultiByteTest(src: PWideChar; srclen: DWORD; CodePage: Integer): Integer;
+function BufToUnicodeEx(src: PAnsiChar; srcLen: Integer; dst: PWideChar; dstLen: Integer;
+  const CodePages: array of Integer): Integer;
+var
+  CodePage, L: Integer;
 begin
-  Result := WideCharToMultiByte(CodePage, 0, src, srclen, nil, 0, nil, nil);
+  L := BufToUnicodeTestEx(src, srcLen, CodePages, CodePage);
+
+  if (L <= 0) or (L > dstLen) then
+    Result := 0
+  else
+    Result := MultiByteToWideChar(CodePage, 0, src, srcLen, dst, dstLen);
 end;
 
-function BufToMultiByte(src: PWideChar; srclen: DWORD; dst: PAnsiChar; CodePage: Integer): Integer;
+function BufToUnicodeEx(src: PAnsiChar; srcLen: Integer; const CodePages: array of Integer): u16string;
+var
+  CodePage, L: Integer;
 begin
-  Result := WideCharToMultiByte(CodePage, 0, src, srclen, dst, srclen * 3, nil, nil);
+  L := BufToUnicodeTestEx(src, srcLen, CodePages, CodePage);
+
+  if L <= 0 then
+    Result := ''
+  else
+  begin
+    SetLength(Result, L);
+    MultiByteToWideChar(CodePage, 0, src, srcLen, PWideChar(Result), L);
+  end;
 end;
 
-function BufToMultiByte(src: PWideChar; srclen: DWORD; CodePage: Integer): RawByteString;
+function AnsiStrAssignWideChar(dst: PAnsiChar; dstLen: Integer; c: WideChar; CodePage: Integer): Integer;
 begin
-  SetLength(Result, srclen * 3);
-  SetLength(Result, BufToMultiByte(src, srclen, PAnsiChar(Result), CodePage));
+  Result := WideCharToMultiByte(CodePage, 0, @c, 1, dst, dstLen, nil, nil);
 end;
 
-function UStrToMultiByte(const src: UnicodeString; dst: PAnsiChar; CodePage: Integer): Integer;
+function BufToMultiByteTest(src: PWideChar; srcLen: Integer; CodePage: Integer): Integer;
 begin
-  Result := WideCharToMultiByte(CodePage, 0, PWideChar(src), Length(src), dst, Length(src) * 3, nil, nil);
+  Result := WideCharToMultiByte(CodePage, 0, src, srcLen, nil, 0, nil, nil);
+  if srcLen < 0 then
+    Dec(Result);
 end;
 
-function UStrToMultiByte(const src: UnicodeString; CodePage: Integer): RawByteString;
+function BufToMultiByte(src: PWideChar; srcLen: Integer; dst: PAnsiChar; dstLen, CodePage: Integer): Integer;
 begin
-  SetLength(Result, Length(src) * 3);
-  SetLength(Result, BufToMultiByte(PWideChar(src), Length(src), PAnsiChar(Result), CodePage));
+  Result := WideCharToMultiByte(CodePage, 0, src, srcLen, dst, dstLen, nil, nil);
 end;
 
-function ReplaceIfNotEqual(var dst: RawByteString; const src: RawByteString;
-  pEStayNETrue: PBoolean): Boolean;
+function BufToMultiByte(src: PWideChar; srcLen: Integer; CodePage: Integer): RawByteString;
+var
+  L: Integer;
 begin
-  if dst = src then Result := False
-  else begin
+  L := BufToMultiByteTest(src, srcLen, CodePage);
+  SetLength(Result, L);
+  BufToMultiByte(src, srcLen, PAnsiChar(Result), L, CodePage);
+end;
+
+function UStrToMultiByte(const src: u16string; dst: PAnsiChar; dstLen, CodePage: Integer): Integer;
+begin
+  Result := WideCharToMultiByte(CodePage, 0, PWideChar(src), length(src), dst, dstLen, nil, nil);
+end;
+
+function UStrToMultiByte(const src: u16string; CodePage: Integer): RawByteString;
+var
+  L: Integer;
+begin
+  L := BufToMultiByteTest(PWideChar(src), length(src), CodePage);
+  SetLength(Result, L);
+  BufToMultiByte(PWideChar(src), length(src), PAnsiChar(Result), L, CodePage);
+end;
+
+function RBStrToUnicode(const src: RawByteString; dst: PWideChar; dstLen, CodePage: Integer): Integer; overload;
+begin
+  Result := MultiByteToWideChar(CodePage, 0, PAnsiChar(src), length(src), dst, dstLen);
+end;
+
+function RBStrToUnicode(const src: RawByteString; CodePage: Integer): u16string; overload;
+var
+  L: Integer;
+begin
+  L := BufToUnicodeTest(PAnsiChar(src), length(src), CodePage);
+  SetLength(Result, L);
+  MultiByteToWideChar(CodePage, 0, PAnsiChar(src), length(src), PWideChar(Result), L);
+end;
+
+function RBStrToUnicodeEx(const src: RawByteString; dst: PWideChar; dstLen: Integer;
+  const CodePages: array of Integer): Integer;
+var
+  CodePage, L: Integer;
+begin
+  L := BufToUnicodeTestEx(PAnsiChar(src), length(src), CodePages, CodePage);
+
+  if (L <= 0) or (L > dstLen) then
+    Result := 0
+  else
+    Result := MultiByteToWideChar(CodePage, 0, PAnsiChar(src), length(src), dst, dstLen);
+end;
+
+function RBStrToUnicodeEx(const src: RawByteString; const CodePages: array of Integer): u16string;
+var
+  CodePage, L: Integer;
+begin
+  L := BufToUnicodeTestEx(PAnsiChar(src), length(src), CodePages, CodePage);
+
+  if L <= 0 then
+    Result := ''
+  else
+  begin
+    SetLength(Result, L);
+    MultiByteToWideChar(CodePage, 0, PAnsiChar(src), length(src), PWideChar(Result), L);
+  end;
+end;
+
+function ReplaceIfNotEqual(var dst: RawByteString; const src: RawByteString; pEStayNETrue: PBoolean): Boolean;
+begin
+  if dst = src then
+    Result := False
+  else
+  begin
     dst := src;
-    if Assigned(pEStayNETrue) then pEStayNETrue^ := True;
+    if Assigned(pEStayNETrue) then
+      pEStayNETrue^ := True;
     Result := True;
   end;
 end;
 
-function ReplaceIfNotEqual(var dst: UnicodeString; const src: UnicodeString;
-  pEStayNETrue: PBoolean): Boolean;
+function ReplaceIfNotEqual(var dst: u16string; const src: u16string; pEStayNETrue: PBoolean): Boolean;
 begin
-  if dst = src then Result := False
-  else begin
+  if dst = src then
+    Result := False
+  else
+  begin
     dst := src;
-    if Assigned(pEStayNETrue) then pEStayNETrue^ := True;
+    if Assigned(pEStayNETrue) then
+      pEStayNETrue^ := True;
     Result := True;
   end;
 end;
 
-function ReplaceIfNotEqual(var dst: Integer; const src: Integer;
-  pEStayNETrue: PBoolean): Boolean;
+function ReplaceIfNotEqual(var dst: Integer; const src: Integer; pEStayNETrue: PBoolean): Boolean;
 begin
-  if dst = src then Result := False
-  else begin
+  if dst = src then
+    Result := False
+  else
+  begin
     dst := src;
-    if Assigned(pEStayNETrue) then pEStayNETrue^ := True;
+    if Assigned(pEStayNETrue) then
+      pEStayNETrue^ := True;
     Result := True;
   end;
 end;
 
-function ReplaceIfNotEqual(var dst: Int64; const src: Int64;
-  pEStayNETrue: PBoolean): Boolean;
+function ReplaceIfNotEqual(var dst: Int64; const src: Int64; pEStayNETrue: PBoolean): Boolean;
 begin
-  if dst = src then Result := False
-  else begin
+  if dst = src then
+    Result := False
+  else
+  begin
     dst := src;
-    if Assigned(pEStayNETrue) then pEStayNETrue^ := True;
+    if Assigned(pEStayNETrue) then
+      pEStayNETrue^ := True;
     Result := True;
   end;
 end;
 
-function ReplaceIfNotEqual(var dst: Double; const src: Double;
-  pEStayNETrue: PBoolean): Boolean;
+function ReplaceIfNotEqual(var dst: Double; const src: Double; pEStayNETrue: PBoolean): Boolean;
 begin
-  if dst = src then Result := False
-  else begin
+  if dst = src then
+    Result := False
+  else
+  begin
     dst := src;
-    if Assigned(pEStayNETrue) then pEStayNETrue^ := True;
+    if Assigned(pEStayNETrue) then
+      pEStayNETrue^ := True;
     Result := True;
   end;
 end;
 
-function ReplaceIfNotEqual(var dst: Real; const src: Real;
-  pEStayNETrue: PBoolean): Boolean;
+(*
+function ReplaceIfNotEqual(var dst: Real; const src: Real; pEStayNETrue: PBoolean): Boolean;
 begin
-  if dst = src then Result := False
-  else begin
+  if dst = src then
+    Result := False
+  else
+  begin
     dst := src;
-    if Assigned(pEStayNETrue) then pEStayNETrue^ := True;
+    if Assigned(pEStayNETrue) then
+      pEStayNETrue^ := True;
+    Result := True;
+  end;
+end;
+*)
+
+function ReplaceIfNotEqual(var dst: Boolean; const src: Boolean; pEStayNETrue: PBoolean): Boolean;
+begin
+  if dst = src then
+    Result := False
+  else
+  begin
+    dst := src;
+    if Assigned(pEStayNETrue) then
+      pEStayNETrue^ := True;
     Result := True;
   end;
 end;
 
-function ReplaceIfNotEqual(var dst: Boolean; const src: Boolean;
-  pEStayNETrue: PBoolean): Boolean;
+function JsonEscape(const s: u16string): u16string;
 begin
-  if dst = src then Result := False
-  else begin
-    dst := src;
-    if Assigned(pEStayNETrue) then pEStayNETrue^ := True;
-    Result := True;
+  Result := UStrReplace(s, '\', '\\', [rfReplaceAll]);
+  Result := UStrReplace(Result, '/', '\/', [rfReplaceAll]);
+  Result := UStrReplace(Result, '''', '\''', [rfReplaceAll]);
+  Result := UStrReplace(Result, '"', '\"', [rfReplaceAll]);
+  Result := UStrReplace(Result, #13, '\r', [rfReplaceAll]);
+  Result := UStrReplace(Result, #10, '\n', [rfReplaceAll]);
+  Result := UStrReplace(Result, #9, '\t', [rfReplaceAll]);
+  Result := UStrReplace(Result, #0, '\0x00', [rfReplaceAll]);
+end;
+
+function JsonEscape(const s: WideString): WideString;
+begin
+  Result := BStrReplace(s, '\', '\\', [rfReplaceAll]);
+  Result := BStrReplace(Result, '/', '\/', [rfReplaceAll]);
+  Result := BStrReplace(Result, '''', '\''', [rfReplaceAll]);
+  Result := BStrReplace(Result, '"', '\"', [rfReplaceAll]);
+  Result := BStrReplace(Result, #13, '\r', [rfReplaceAll]);
+  Result := BStrReplace(Result, #10, '\n', [rfReplaceAll]);
+  Result := BStrReplace(Result, #9, '\t', [rfReplaceAll]);
+  Result := BStrReplace(Result, #0, '\0x00', [rfReplaceAll]);
+end;
+
+function JsonEscape(const s: RawByteString): RawByteString;
+begin
+  Result := RBStrReplace(s, '\', '\\', [rfReplaceAll]);
+  Result := RBStrReplace(Result, '/', '\/', [rfReplaceAll]);
+  Result := RBStrReplace(Result, '''', '\''', [rfReplaceAll]);
+  Result := RBStrReplace(Result, '"', '\"', [rfReplaceAll]);
+  Result := RBStrReplace(Result, #13, '\r', [rfReplaceAll]);
+  Result := RBStrReplace(Result, #10, '\n', [rfReplaceAll]);
+  Result := RBStrReplace(Result, #9, '\t', [rfReplaceAll]);
+  Result := RBStrReplace(Result, #0, '\0x00', [rfReplaceAll]);
+end;
+
+function RBStrRepeat(const s: RawByteString; RepeatCount: Integer): RawByteString;
+var
+  i, L: Integer;
+begin
+  if (RepeatCount = 0) or (s = '') then
+    Result := ''
+  else if RepeatCount = 1 then
+    Result := s
+  else
+  begin
+    L := length(s);
+    SetLength(Result, L * RepeatCount);
+
+    for i := 0 to RepeatCount - 1 do
+      Move(Pointer(s)^, PAnsiChar(Result)[i * L], L);
   end;
 end;
 
-function UStrLen(const s: UnicodeString): Integer;
+function UStrRepeat(const s: u16string; RepeatCount: Integer): u16string;
+var
+  i, L: Integer;
 begin
-  Result := Length(s);
+  if (RepeatCount = 0) or (s = '') then
+    Result := ''
+  else if RepeatCount = 1 then
+    Result := s
+  else
+  begin
+    L := length(s);
+    SetLength(Result, L * RepeatCount);
+
+    for i := 0 to RepeatCount - 1 do
+      Move(Pointer(s)^, PWideChar(Result)[i * L], L * 2);
+  end;
+end;
+
+procedure StrZeroAndFree(var s: string);
+begin
+  if s <> '' then
+  begin
+    FillChar(Pointer(s)^, length(s) * SizeOf(s[1]), 0);
+    s := '';
+  end;
+end;
+
+procedure ZeroStringA(s: PAnsiChar);
+begin
+  if Assigned(s) then
+    while s^ <> #0 do
+      s^ := #0;
+end;
+
+procedure RBStrZero(const s: RawByteString);
+begin
+  if s <> '' then
+    FillChar(Pointer(s)^, length(s) * SizeOf(s[1]), 0);
+end;
+
+procedure RBStrZeroAndFree(var s: RawByteString);
+begin
+  if s <> '' then
+  begin
+    FillChar(Pointer(s)^, length(s) * SizeOf(s[1]), 0);
+    s := '';
+  end;
+end;
+
+procedure ZeroStringW(s: PWideChar);
+begin
+  if Assigned(s) then
+    while s^ <> #0 do
+      s^ := #0;
+end;
+
+procedure UStrZero(const s: u16string);
+begin
+  if s <> '' then
+    FillChar(Pointer(s)^, length(s) * SizeOf(s[1]), 0);
+end;
+
+procedure UStrZeroAndFree(var s: u16string);
+begin
+  if s <> '' then
+  begin
+    FillChar(Pointer(s)^, length(s) * SizeOf(s[1]), 0);
+    s := '';
+  end;
+end;
+
+function GetStringLengthFast(s: Pointer): Integer;
+begin
+  Result := (PInt32(s) - 1)^;
+end;
+
+(* copy from Delphi 2010 RTL *)
+function StrLenA(const str: PAnsiChar): Integer;
+asm
+  { Check the first byte }
+  cmp byte ptr [eax], 0
+  je @ZeroLength
+  { Get the negative of the string start in edx }
+  mov edx, eax
+  neg edx
+  { Word align }
+  add eax, 1
+  and eax, -2
+@ScanLoop:
+  mov cx, [eax]
+  add eax, 2
+  test cl, ch
+  jnz @ScanLoop
+  test cl, cl
+  jz @ReturnLess2
+  test ch, ch
+  jnz @ScanLoop
+  lea eax, [eax + edx - 1]
+  ret
+@ReturnLess2:
+  lea eax, [eax + edx - 2]
+  ret
+@ZeroLength:
+  xor eax, eax
+end;
+
+(* copy from Delphi 2010 RTL *)
+function StrLenW(s: PWideChar): Integer;
+asm
+  { Check the first byte }
+  cmp word ptr [eax], 0
+  je @ZeroLength
+  { Get the negative of the string start in edx }
+  mov edx, eax
+  neg edx
+@ScanLoop:
+  mov cx, word ptr [eax]
+  add eax, 2
+  test cx, cx
+  jnz @ScanLoop
+  lea eax, [eax + edx - 2]
+  shr eax, 1
+  ret
+@ZeroLength:
+  xor eax, eax
+end;
+
+function UStrLen(const s: u16string): Integer;
+begin
+  Result := System.Length(s);
 end;
 
 function BStrLen(const s: WideString): Integer;
 begin
-  Result := Length(s);
+  Result := System.Length(s);
 end;
 
-function StrLenW(s: PWideChar): Integer;
+function RBSOf(ch: AnsiChar; len: Integer): RawByteString;
+var
+  i: Integer;
 begin
-  Result := 0;
+  SetLength(Result, len);
 
-  if Assigned(s) then
-  begin
-    while (s^ <> #0) do
-    begin
-      Inc(Result);
-      Inc(s);
-    end;
-  end;
+  for i := 0 to len - 1 do
+    PAnsiChar(Result)[i] := ch;
+end;
+
+function UStrOf(ch: WideChar; len: Integer): u16string;
+var
+  i: Integer;
+begin
+  SetLength(Result, len);
+
+  for i := 0 to len - 1 do
+    PWideChar(Result)[i] := ch;
+end;
+
+function StrOf(buf: PChar; len: Integer): string;
+begin
+  SetString(Result, buf, len);
 end;
 
 function WCharArrayStrLen(const chars: array of WideChar): Integer;
 var
   i: Integer;
 begin
-  Result := Length(chars);
+  Result := length(chars);
 
   for i := Low(chars) to High(chars) do
   begin
@@ -1887,7 +4360,7 @@ function ByteArrayStrLen(const chars: array of AnsiChar): Integer;
 var
   i: Integer;
 begin
-  Result := Length(chars);
+  Result := length(chars);
 
   for i := Low(chars) to High(chars) do
   begin
@@ -1907,10 +4380,10 @@ begin
 
   SetLength(Result, L);
 
-  Move(chars[Low(chars)], Pointer(Result)^, L shl 1);
+  Move(chars[ Low(chars)], Pointer(Result)^, L shl 1);
 end;
 
-function Array2UStr(const chars: array of WideChar): UnicodeString;
+function Array2UStr(const chars: array of WideChar): u16string;
 var
   L: Integer;
 begin
@@ -1918,35 +4391,37 @@ begin
 
   SetLength(Result, L);
 
-  Move(chars[Low(chars)], Pointer(Result)^, L shl 1);
+  Move(chars[ Low(chars)], Pointer(Result)^, L shl 1);
 end;
 
 procedure WStr2Array(var dst: array of WideChar; const src: WideString);
 var
   L: Integer;
 begin
-  L := Length(src);
+  L := length(src);
 
-  if L > Length(dst) then L := Length(dst);
+  if L > length(dst) then
+    L := length(dst);
 
-  Move(Pointer(src)^, dst[Low(dst)], L shl 1);
+  Move(Pointer(src)^, dst[ Low(dst)], L shl 1);
 
-  if L < Length(dst) then
-    dst[Low(dst) + L] := #0;
+  if L < length(dst) then
+    dst[ Low(dst) + L] := #0;
 end;
 
-procedure UStr2Array(var dst: array of WideChar; const src: UnicodeString);
+procedure UStr2Array(var dst: array of WideChar; const src: u16string);
 var
   L: Integer;
 begin
-  L := Length(src);
+  L := length(src);
 
-  if L > Length(dst) then L := Length(dst);
+  if L > length(dst) then
+    L := length(dst);
 
-  Move(Pointer(src)^, dst[Low(dst)], L shl 1);
+  Move(Pointer(src)^, dst[ Low(dst)], L shl 1);
 
-  if L < Length(dst) then
-    dst[Low(dst) + L] := #0;
+  if L < length(dst) then
+    dst[ Low(dst) + L] := #0;
 end;
 
 function ByteArray2Str(const chars: array of AnsiChar): RawByteString;
@@ -1954,27 +4429,41 @@ var
   L: Integer;
 begin
   L := ByteArrayStrLen(chars);
-
   SetLength(Result, L);
+  Move(chars[ Low(chars)], Pointer(Result)^, L);
+end;
 
-  Move(chars[Low(chars)], Pointer(Result)^, L);
+function ByteArray2UStr(const chars: array of AnsiChar): u16string;
+var
+  i, L: Integer;
+begin
+  L := ByteArrayStrLen(chars);
+  SetLength(Result, L);
+  for i := 0 to L - 1 do
+    PWideChar(Result)[i] := WideChar(chars[i]);
 end;
 
 procedure RawByteStr2Array(var dst: array of AnsiChar; const src: RawByteString);
 var
   L: Integer;
 begin
-  L := Length(src);
+  L := length(src);
 
-  if L > Length(dst) then L := Length(dst);
+  if L > length(dst) then
+    L := length(dst);
 
-  Move(Pointer(src)^, dst[Low(dst)], L);
+  Move(Pointer(src)^, dst[ Low(dst)], L);
 
-  if L < Length(dst) then
-    dst[Low(dst) + L] := #0;
+  if L < length(dst) then
+    dst[ Low(dst) + L] := #0;
 end;
 
-function WCharArrayCat(const arr1, arr2: array of WideChar): UnicodeString;
+function UStrPas(const str: PWideChar): u16string;
+begin
+  Result := str;
+end;
+
+function WCharArrayCat(const arr1, arr2: array of WideChar): u16string;
 var
   L1, L2: Integer;
 begin
@@ -1990,7 +4479,7 @@ begin
     Move(arr2[0], PWideChar(Result)[L1], L2 shl 1);
 end;
 
-function WCharArrayCat(const arr1, arr2, arr3: array of WideChar): UnicodeString;
+function WCharArrayCat(const arr1, arr2, arr3: array of WideChar): u16string;
 var
   L1, L2, L3: Integer;
 begin
@@ -2010,7 +4499,7 @@ begin
     Move(arr3[0], PWideChar(Result)[L1 + L2], L3 shl 1);
 end;
 
-function WCharArrayCat(const arr1, arr2, arr3, arr4: array of WideChar): UnicodeString;
+function WCharArrayCat(const arr1, arr2, arr3, arr4: array of WideChar): u16string;
 var
   L1, L2, L3, L4: Integer;
 begin
@@ -2034,7 +4523,7 @@ begin
     Move(arr4[0], PWideChar(Result)[L1 + L2 + L3], L4 shl 1);
 end;
 
-function WCharArrayCat(const arr1, arr2, arr3, arr4, arr5: array of WideChar): UnicodeString;
+function WCharArrayCat(const arr1, arr2, arr3, arr4, arr5: array of WideChar): u16string;
 var
   L1, L2, L3, L4, L5: Integer;
 begin
@@ -2062,49 +4551,61 @@ begin
     Move(arr5[0], PWideChar(Result)[L1 + L2 + L3 + L4], L5 shl 1);
 end;
 
-function RawByteStrInsertAfter(const src, prefix, ToInsert: AnsiString; StartIndex: Integer = 1; EndIndex: Integer = 0): AnsiString;
+function RawByteStrInsertAfter(const src, prefix, ToInsert: AnsiString; first: Integer = 1;
+  last: Integer = 0): AnsiString;
 var
-  P: Integer;
+  p: Integer;
 begin
   Result := src;
 
-  if (EndIndex > Length(src)) or (EndIndex <= 0) then EndIndex := Length(src);
+  if (last > length(src)) or (last <= 0) then
+    last := length(src);
 
-  if (StartIndex <= 0) or (StartIndex >= EndIndex) then Exit;
+  if (first <= 0) or (first >= last) then
+    Exit;
 
-  P := StrPosA(prefix, src, StartIndex, EndIndex);
+  p := RBStrPos(prefix, src, first, last);
 
-  if P <= 0 then Exit;
+  if p <= 0 then
+    Exit;
 
-  Result := Copy(src, 1, P + Length(prefix) - 1) + ToInsert + Copy(src, P + Length(prefix), Length(src) + 1 - P - Length(prefix));
+  Result := Copy(src, 1, p + length(prefix) - 1) + ToInsert + Copy(src, p + length(prefix),
+    length(src) + 1 - p - length(prefix));
 end;
 
-function UStrInsertAfter(const src, prefix, ToInsert: UnicodeString; StartIndex: Integer = 1; EndIndex: Integer = 0): UnicodeString;
+function UStrInsertAfter(const src, prefix, ToInsert: u16string; first: Integer = 1;
+  last: Integer = 0): u16string;
 var
-  P: Integer;
+  p: Integer;
 begin
   Result := src;
 
-  if (EndIndex > Length(src)) or (EndIndex <= 0) then EndIndex := Length(src);
+  if (last > length(src)) or (last <= 0) then
+    last := length(src);
 
-  if (StartIndex <= 0) or (StartIndex >= EndIndex) then Exit;
+  if (first <= 0) or (first >= last) then
+    Exit;
 
-  P := UStrPos(prefix, src, StartIndex, EndIndex);
+  p := UStrPos(prefix, src, first, last);
 
-  if P <= 0 then Exit;
+  if p <= 0 then
+    Exit;
 
-  Result := Copy(src, 1, P + Length(prefix) - 1) + ToInsert + Copy(src, P + Length(prefix), Length(src) + 1 - P - Length(prefix));
+  Result := Copy(src, 1, p + length(prefix) - 1) + ToInsert + Copy(src, p + length(prefix),
+    length(src) + 1 - p - length(prefix));
 end;
 
 function RegisterCOMComponet(pFileName: PChar): Boolean;
 var
-  hLib: HMODULE;
-  RegProc: function(): BOOL; stdcall;
+  hLib: hModule;
+  RegProc: function(): BOOL;
+stdcall;
 begin
   Result := False;
   hLib := LoadLibrary(pFileName);
 
-  if hLib = 0 then Exit;
+  if hLib = 0 then
+    Exit;
 
   try
     RegProc := GetProcAddress(hLib, 'DllRegisterServer');
@@ -2123,14 +4624,103 @@ var
   i: Integer;
 begin
   Result := '';
-  for i := Length(url) downto 1 do
+  for i := length(url) downto 1 do
   begin
     if url[i] = '/' then
     begin
-      Result := Copy(url, i + 1, Length(url) - i);
+      Result := Copy(url, i + 1, length(url) - i);
       Break;
     end;
   end;
+end;
+
+function UrlExtractFileExt(const url: string): string;
+var
+  i, L: Integer;
+begin
+  Result := '';
+  L := length(url);
+  for i := L downto 1 do
+  begin
+    if url[i] = '/' then
+      Break;
+
+    if url[i] = '.' then
+    begin
+      Result := Copy(url, i + 1, length(url) - i);
+      Break;
+    end;
+  end;
+end;
+
+function IsPictureExt(const ext: string): Boolean;
+begin
+  Result := SameText(ext, 'jpg') or SameText(ext, 'jpeg') or SameText(ext, 'gif') or SameText(ext, 'png') or SameText
+    (ext, 'tiff') or SameText(ext, 'bmp');
+end;
+
+function HttpExpandUrl(const url, schema, host: u16string): u16string;
+begin
+  if url = '' then
+    Result := ''
+  else if url[1] = ':' then
+  begin
+    if schema = '' then
+      Result := 'http' + url
+    else
+      Result := schema + url;
+  end
+  else if url[1] = '/' then
+  begin
+    if (length(url) > 1) and (url[2] = '/') then
+    begin
+      if schema = '' then
+        Result := 'http:' + url
+      else
+        Result := schema + ':' + url;
+    end
+    else
+    begin
+      if schema = '' then
+        Result := 'http://' + host + url
+      else
+        Result := schema + '://' + host + url;
+    end;
+  end
+  else
+    Result := url;
+end;
+
+function HttpExpandUrl(const url, schema, host: RawByteString): RawByteString; overload;
+begin
+  if url = '' then
+    Result := ''
+  else if url[1] = ':' then
+  begin
+    if schema = '' then
+      Result := 'http' + url
+    else
+      Result := schema + url;
+  end
+  else if url[1] = '/' then
+  begin
+    if (length(url) > 1) and (url[2] = '/') then
+    begin
+      if schema = '' then
+        Result := 'http:' + url
+      else
+        Result := schema + ':' + url;
+    end
+    else
+    begin
+      if schema = '' then
+        Result := 'http://' + host + url
+      else
+        Result := schema + '://' + host + url;
+    end;
+  end
+  else
+    Result := url;
 end;
 
 function HttpEncodeCStrTest(str: PAnsiChar; const non_conversions: RawByteString): Integer;
@@ -2146,7 +4736,7 @@ begin
 
   while Sp^ <> #0 do
   begin
-    if (Sp^ in ['0'..'9', 'A'..'Z', 'a'..'z']) then
+    if (Sp^ in ['0' .. '9', 'A' .. 'Z', 'a' .. 'z']) then
     begin
       Inc(Result);
       Inc(Sp);
@@ -2155,7 +4745,7 @@ begin
 
     found := False;
 
-    for i := 1 to Length(non_conversions) do
+    for i := 1 to length(non_conversions) do
       if non_conversions[i] = Sp^ then
       begin
         found := True;
@@ -2194,7 +4784,7 @@ begin
 
   while Sp^ <> #0 do
   begin
-    if (Sp^ in ['0'..'9', 'A'..'Z', 'a'..'z']) then
+    if (Sp^ in ['0' .. '9', 'A' .. 'Z', 'a' .. 'z']) then
     begin
       Rp^ := Sp^;
       Inc(Rp);
@@ -2204,7 +4794,7 @@ begin
 
     found := False;
 
-    for i := 1 to Length(non_conversions) do
+    for i := 1 to length(non_conversions) do
       if non_conversions[i] = Sp^ then
       begin
         found := True;
@@ -2229,7 +4819,7 @@ begin
 
     Rp[0] := '%';
     Rp[1] := HEX_SYMBOLS[PByte(Sp)^ shr 4 + 1];
-    Rp[2] := HEX_SYMBOLS[PByte(Sp)^ and $0f + 1];
+    Rp[2] := HEX_SYMBOLS[PByte(Sp)^ and $0F + 1];
     Inc(Rp, 3);
     Inc(Sp);
   end;
@@ -2243,8 +4833,7 @@ begin
   HttpEncodeCStr2Buf(src, PAnsiChar(Result), non_conversions);
 end;
 
-function HttpEncodeBufTest(const buf; buflen: Integer;
-  const non_conversions: RawByteString): Integer;
+function HttpEncodeBufTest(const buf; bufLen: Integer; const non_conversions: RawByteString): Integer;
 const
   HEX_SYMBOLS: RawByteString = '0123456789ABCDEF';
 var
@@ -2252,13 +4841,13 @@ var
   found: Boolean;
   i: Integer;
 begin
-  Result := 0;  
+  Result := 0;
   Sp := PAnsiChar(@buf);
-  buf_end := Sp + buflen;
+  buf_end := Sp + bufLen;
 
   while Sp < buf_end do
   begin
-    if (Sp^ in ['0'..'9', 'A'..'Z', 'a'..'z']) then
+    if (Sp^ in ['0' .. '9', 'A' .. 'Z', 'a' .. 'z']) then
     begin
       Inc(Result);
       Inc(Sp);
@@ -2267,7 +4856,7 @@ begin
 
     found := False;
 
-    for i := 1 to Length(non_conversions) do
+    for i := 1 to length(non_conversions) do
       if non_conversions[i] = Sp^ then
       begin
         found := True;
@@ -2293,8 +4882,7 @@ begin
   end;
 end;
 
-function HttpEncodeBuf2Buf(const buf; buflen: Integer; dst: PAnsiChar;
-  const non_conversions: RawByteString): Integer;
+function HttpEncodeBuf2Buf(const buf; bufLen: Integer; dst: PAnsiChar; const non_conversions: RawByteString): Integer;
 const
   HEX_SYMBOLS: RawByteString = '0123456789ABCDEF';
 var
@@ -2303,12 +4891,12 @@ var
   i: Integer;
 begin
   Sp := PAnsiChar(@buf);
-  buf_end := Sp + buflen;
+  buf_end := Sp + bufLen;
   Rp := dst;
 
   while Sp < buf_end do
   begin
-    if (Sp^ in ['0'..'9', 'A'..'Z', 'a'..'z']) then
+    if (Sp^ in ['0' .. '9', 'A' .. 'Z', 'a' .. 'z']) then
     begin
       Rp^ := Sp^;
       Inc(Rp);
@@ -2318,7 +4906,7 @@ begin
 
     found := False;
 
-    for i := 1 to Length(non_conversions) do
+    for i := 1 to length(non_conversions) do
       if non_conversions[i] = Sp^ then
       begin
         found := True;
@@ -2343,7 +4931,7 @@ begin
 
     Rp[0] := '%';
     Rp[1] := HEX_SYMBOLS[PByte(Sp)^ shr 4 + 1];
-    Rp[2] := HEX_SYMBOLS[PByte(Sp)^ and $0f + 1];
+    Rp[2] := HEX_SYMBOLS[PByte(Sp)^ and $0F + 1];
     Inc(Rp, 3);
     Inc(Sp);
   end;
@@ -2351,33 +4939,31 @@ begin
   Result := Rp - dst;
 end;
 
-function HttpEncodeBuf(const src; srclen: Integer;
-  const non_conversions: RawByteString): RawByteString;
+function HttpEncodeBuf(const src; srcLen: Integer; const non_conversions: RawByteString): RawByteString;
 begin
-  SetLength(Result, srclen * 3);
+  SetLength(Result, srcLen * 3);
 
-  SetLength(Result, HttpEncodeBuf2Buf(src, srclen, PAnsiChar(Result), non_conversions));
+  SetLength(Result, HttpEncodeBuf2Buf(src, srcLen, PAnsiChar(Result), non_conversions));
 end;
 
 function HttpEncode(const src, non_conversions: RawByteString): RawByteString;
 begin
-  SetLength(Result, Length(src) * 3);
+  SetLength(Result, length(src) * 3);
 
-  SetLength(Result, HttpEncodeBuf2Buf(Pointer(src)^, Length(src),
-    PAnsiChar(Result), non_conversions));
+  SetLength(Result, HttpEncodeBuf2Buf(Pointer(src)^, length(src), PAnsiChar(Result), non_conversions));
 end;
 
-function HttpDecodeBufTest(const buf; buflen: Integer; invalid: PPAnsiChar): Integer;
+function HttpDecodeBufTest(const buf; bufLen: Integer; invalid: PPAnsiChar): Integer;
 var
   Sp, Cp, buf_end: PAnsiChar;
 begin
   Sp := PAnsiChar(@buf);
-  buf_end := Sp + buflen;
+  buf_end := Sp + bufLen;
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
-
-  while Sp <  buf_end do
+  while Sp < buf_end do
   begin
     if Sp^ = '+' then
     begin
@@ -2392,7 +4978,8 @@ begin
 
       if Sp >= buf_end then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 1;
+        if Assigned(invalid) then
+          invalid^ := Sp - 1;
         Break;
       end;
 
@@ -2408,30 +4995,30 @@ begin
 
       if Sp >= buf_end then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
-      if not ( ( (Cp^ >= '0') and (Cp^ <= '9') ) or
-        ( (Cp^ >= 'A') and (Cp^ <= 'Z') ) or
-        ( (Cp^ >= 'a') and (Cp^ <= 'z') ) ) then
+      if not(((Cp^ >= '0') and (Cp^ <= '9')) or ((Cp^ >= 'A') and (Cp^ <= 'Z')) or ((Cp^ >= 'a') and (Cp^ <= 'z'))) then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
-      if not ( ( (Sp^ >= '0') and (Sp^ <= '9') ) or
-        ( (Sp^ >= 'A') and (Sp^ <= 'Z') ) or
-        ( (Sp^ >= 'a') and (Sp^ <= 'z') ) ) then
+      if not(((Sp^ >= '0') and (Sp^ <= '9')) or ((Sp^ >= 'A') and (Sp^ <= 'Z')) or ((Sp^ >= 'a') and (Sp^ <= 'z'))) then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
       Inc(Sp);
       Inc(Result);
     end
-    else begin
+    else
+    begin
       Inc(Result);
       Inc(Sp);
     end;
@@ -2440,24 +5027,23 @@ end;
 
 function HttpDecodeStrTest(const str: RawByteString; invalid: PPAnsiChar = nil): Integer;
 begin
-  Result := HttpDecodeBufTest(Pointer(str)^, Length(str), invalid);
+  Result := HttpDecodeBufTest(Pointer(str)^, length(str), invalid);
 end;
-
 {$WARNINGS OFF}
 
-function HttpDecodeBuf2Buf(const buf; buflen: Integer;
-  dst: PAnsiChar; invalid: PPAnsiChar): Integer;
+function HttpDecodeBuf2Buf(const buf; bufLen: Integer; dst: PAnsiChar; invalid: PPAnsiChar): Integer;
 var
   Sp, Rp, Cp, buf_end: PAnsiChar;
   v: Integer;
 begin
   Sp := PAnsiChar(@buf);
-  buf_end := Sp + buflen;
+  buf_end := Sp + bufLen;
   Rp := dst;
-  
-  if Assigned(invalid) then invalid^ := nil;
 
-  while Sp <  buf_end do
+  if Assigned(invalid) then
+    invalid^ := nil;
+
+  while Sp < buf_end do
   begin
     if Sp^ = '+' then
     begin
@@ -2473,7 +5059,8 @@ begin
 
       if Sp >= buf_end then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 1;
+        if Assigned(invalid) then
+          invalid^ := Sp - 1;
         Break;
       end;
 
@@ -2490,23 +5077,34 @@ begin
 
       if Sp >= buf_end then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
-        Break;
-      end;
-      
-      if (Cp^ >= '0') and (Cp^ <= '9') then v := (Ord(Cp^) - 48) shl 4
-      else if (Cp^ >= 'A') and (Cp^ <= 'Z') then v := (Ord(Cp^) - 55) shl 4
-      else if (Cp^ >= 'a') and (Cp^ <= 'z') then v := (Ord(Cp^) - 87) shl 4
-      else begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
-      if (Sp^ >= '0') and (Sp^ <= '9') then Inc(v, Ord(Sp^) - 48)
-      else if (Sp^ >= 'A') and (Sp^ <= 'Z') then Inc(v, Ord(Sp^) - 55)
-      else if (Sp^ >= 'a') and (Sp^ <= 'z') then Inc(v, Ord(Sp^) - 87)
-      else begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+      if (Cp^ >= '0') and (Cp^ <= '9') then
+        v := (Ord(Cp^) - 48) shl 4
+      else if (Cp^ >= 'A') and (Cp^ <= 'Z') then
+        v := (Ord(Cp^) - 55) shl 4
+      else if (Cp^ >= 'a') and (Cp^ <= 'z') then
+        v := (Ord(Cp^) - 87) shl 4
+      else
+      begin
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
+        Break;
+      end;
+
+      if (Sp^ >= '0') and (Sp^ <= '9') then
+        Inc(v, Ord(Sp^) - 48)
+      else if (Sp^ >= 'A') and (Sp^ <= 'Z') then
+        Inc(v, Ord(Sp^) - 55)
+      else if (Sp^ >= 'a') and (Sp^ <= 'z') then
+        Inc(v, Ord(Sp^) - 87)
+      else
+      begin
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
@@ -2514,7 +5112,8 @@ begin
       Inc(Sp);
       Inc(Rp);
     end
-    else begin
+    else
+    begin
       Rp^ := Sp^;
       Inc(Rp);
       Inc(Sp);
@@ -2523,26 +5122,28 @@ begin
 
   Result := Rp - dst;
 end;
-
 {$WARNINGS ON}
 
-function HttpDecodeBuf(const buf; buflen: Integer; invalid: PPAnsiChar): RawByteString;
+function HttpDecodeBuf(const buf; bufLen: Integer; invalid: PPAnsiChar): RawByteString;
 var
   _invalid: PAnsiChar;
   L: Integer;
 begin
-  SetLength(Result, buflen);
-  L := HttpDecodeBuf2Buf(buf, buflen, PAnsiChar(Result), @_invalid);
+  SetLength(Result, bufLen);
+  L := HttpDecodeBuf2Buf(buf, bufLen, PAnsiChar(Result), @_invalid);
 
-  if Assigned(invalid) then invalid^ := _invalid;
+  if Assigned(invalid) then
+    invalid^ := _invalid;
 
-  if Assigned(_invalid) then Result := ''
-  else SetLength(Result, L);
+  if Assigned(_invalid) then
+    Result := ''
+  else
+    SetLength(Result, L);
 end;
 
 function HttpDecode(const src: RawByteString; invalid: PPAnsiChar): RawByteString;
 begin
-  Result := HttpDecodeBuf(Pointer(src)^, Length(src));
+  Result := HttpDecodeBuf(Pointer(src)^, length(src));
 end;
 
 function HttpDecodeCStrTest(src: PAnsiChar; invalid: PPAnsiChar): Integer;
@@ -2551,8 +5152,8 @@ var
 begin
   Sp := PAnsiChar(src);
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
-
+  if Assigned(invalid) then
+    invalid^ := nil;
 
   while Sp^ <> #0 do
   begin
@@ -2569,7 +5170,8 @@ begin
 
       if Sp^ = #0 then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 1;
+        if Assigned(invalid) then
+          invalid^ := Sp - 1;
         Break;
       end;
 
@@ -2585,36 +5187,35 @@ begin
 
       if Sp^ = #0 then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
-      if not ( ( (Cp^ >= '0') and (Cp^ <= '9') ) or
-        ( (Cp^ >= 'A') and (Cp^ <= 'Z') ) or
-        ( (Cp^ >= 'a') and (Cp^ <= 'z') ) ) then
+      if not(((Cp^ >= '0') and (Cp^ <= '9')) or ((Cp^ >= 'A') and (Cp^ <= 'Z')) or ((Cp^ >= 'a') and (Cp^ <= 'z'))) then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
-      if not ( ( (Sp^ >= '0') and (Sp^ <= '9') ) or
-        ( (Sp^ >= 'A') and (Sp^ <= 'Z') ) or
-        ( (Sp^ >= 'a') and (Sp^ <= 'z') ) ) then
+      if not(((Sp^ >= '0') and (Sp^ <= '9')) or ((Sp^ >= 'A') and (Sp^ <= 'Z')) or ((Sp^ >= 'a') and (Sp^ <= 'z'))) then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
       Inc(Sp);
       Inc(Result);
     end
-    else begin
+    else
+    begin
       Inc(Result);
       Inc(Sp);
     end;
   end;
 end;
-
 {$WARNINGS OFF}
 
 function HttpDecodeCStr2Buf(str, dst: PAnsiChar; invalid: PPAnsiChar): Integer;
@@ -2624,8 +5225,9 @@ var
 begin
   Sp := PAnsiChar(str);
   Rp := dst;
-  
-  if Assigned(invalid) then invalid^ := nil;
+
+  if Assigned(invalid) then
+    invalid^ := nil;
 
   while Sp^ <> #0 do
   begin
@@ -2643,7 +5245,8 @@ begin
 
       if Sp^ = #0 then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 1;
+        if Assigned(invalid) then
+          invalid^ := Sp - 1;
         Break;
       end;
 
@@ -2660,23 +5263,34 @@ begin
 
       if Sp^ = #0 then
       begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
-        Break;
-      end;
-      
-      if (Cp^ >= '0') and (Cp^ <= '9') then v := (Ord(Cp^) - 48) shl 4
-      else if (Cp^ >= 'A') and (Cp^ <= 'Z') then v := (Ord(Cp^) - 55) shl 4
-      else if (Cp^ >= 'a') and (Cp^ <= 'z') then v := (Ord(Cp^) - 87) shl 4
-      else begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
-      if (Sp^ >= '0') and (Sp^ <= '9') then Inc(v, Ord(Sp^) - 48)
-      else if (Cp^ >= 'A') and (Cp^ <= 'Z') then Inc(v, Ord(Sp^) - 55)
-      else if (Cp^ >= 'a') and (Cp^ <= 'z') then Inc(v, Ord(Sp^) - 87)
-      else begin
-        if Assigned(invalid) then invalid^ := Sp - 2;
+      if (Cp^ >= '0') and (Cp^ <= '9') then
+        v := (Ord(Cp^) - 48) shl 4
+      else if (Cp^ >= 'A') and (Cp^ <= 'Z') then
+        v := (Ord(Cp^) - 55) shl 4
+      else if (Cp^ >= 'a') and (Cp^ <= 'z') then
+        v := (Ord(Cp^) - 87) shl 4
+      else
+      begin
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
+        Break;
+      end;
+
+      if (Sp^ >= '0') and (Sp^ <= '9') then
+        Inc(v, Ord(Sp^) - 48)
+      else if (Cp^ >= 'A') and (Cp^ <= 'Z') then
+        Inc(v, Ord(Sp^) - 55)
+      else if (Cp^ >= 'a') and (Cp^ <= 'z') then
+        Inc(v, Ord(Sp^) - 87)
+      else
+      begin
+        if Assigned(invalid) then
+          invalid^ := Sp - 2;
         Break;
       end;
 
@@ -2684,7 +5298,8 @@ begin
       Inc(Sp);
       Inc(Rp);
     end
-    else begin
+    else
+    begin
       Rp^ := Sp^;
       Inc(Rp);
       Inc(Sp);
@@ -2701,15 +5316,27 @@ var
 begin
   L := HttpDecodeCStrTest(str, @_invalid);
 
-  if Assigned(invalid) then invalid^ := _invalid;
+  if Assigned(invalid) then
+    invalid^ := _invalid;
 
-  if Assigned(_invalid) then Result := ''
-  else begin
+  if Assigned(_invalid) then
+    Result := ''
+  else
+  begin
     SetLength(Result, L);
     HttpDecodeCStr2Buf(str, PAnsiChar(Result), nil);
   end;
 end;
 
+function encodeURIComponent(const s: u16string): RawByteString;
+begin
+  Result := HttpEncode(UTF8Encode(s));
+end;
+
+function decodeURIComponent(const s: RawByteString): u16string;
+begin
+  Result := WinAPI_UTF8Decode(HttpDecode(s));
+end;
 {$WARNINGS ON}
 
 function UrlExtractPathA(const url: RawByteString): RawByteString;
@@ -2717,24 +5344,43 @@ var
   p, i: Integer;
 begin
   Result := '';
-  p := StrPosA('://', url);
+  p := RBStrPos('://', url);
 
   if p <= 0 then
     p := 1
   else
     Inc(p, 3);
 
-  for i := p to Length(url) do
+  for i := p to length(url) do
   begin
     if url[i] = '/' then
     begin
-      Result := Copy(url, i, Length(url) + 1 - i);
+      Result := Copy(url, i, length(url) + 1 - i);
       Break;
     end;
   end;
 end;
 
-function UrlExtractPathW(const url: UnicodeString): UnicodeString;
+function UrlExtractHost(const url: u16string): u16string;
+var
+  L, P1, P2: Integer;
+begin
+  Result := '';
+  L := Length(url);
+  if L = 0 then Exit;
+  if (url[1]) = '/' then Exit;
+  P1 := UStrPos('//', url);
+  if P1 > 0 then Inc(P1, 2)
+  else P1 := 1;
+
+  P2 := P1;
+  while (P2<=L) and (url[P2] <> '/') do Inc(P2);
+
+  if (P2-P1=L) then Result := url
+  else Result := Copy(url, P1, P2-P1);
+end;
+
+function UrlExtractPathW(const url: u16string): u16string;
 var
   p, i: Integer;
 begin
@@ -2746,11 +5392,11 @@ begin
   else
     Inc(p, 3);
 
-  for i := p to Length(url) do
+  for i := p to length(url) do
   begin
     if url[i] = '/' then
     begin
-      Result := Copy(url, i, Length(url) + 1 - i);
+      Result := Copy(url, i, length(url) + 1 - i);
       Break;
     end;
   end;
@@ -2760,18 +5406,90 @@ function CloneList(src: TList): TList;
 begin
   if src = nil then
     Result := nil
-  else begin
+  else
+  begin
     Result := TList.Create;
-    Result.Count := src.Count;
+    Result.count := src.count;
 
-    if Result.Count > 0 then
-      Move(src.List[0], Result.List[0], SizeOf(Pointer) * src.Count);
+    if Result.count > 0 then
+      Move(src.list[0], Result.list[0], SizeOf(Pointer) * src.count);
   end;
+end;
+
+procedure Move2List(src, dest: TList);
+begin
+  dest.count := src.count;
+
+  if dest.count > 0 then
+    Move(src.list[0], dest.list[0], SizeOf(Pointer) * src.count);
+
+  src.clear;
+end;
+
+function _LaunchProcess(const ApplicationName, CommandLine, CurrentDirectory: string): TProcessInformation;
+var
+  StartInfo: TStartupInfo;
+  lpApplicationName, lpCommandLine: PChar;
+begin
+  FillChar(Result, 0, SizeOf(Result));
+  FillChar(StartInfo, SizeOf(StartInfo), 0);
+  StartInfo.cb := SizeOf(StartInfo);
+  StartInfo.dwFlags := STARTF_USESHOWWINDOW;
+  StartInfo.wShowWindow := SW_NORMAL;
+  lpApplicationName := StringToPChar(ApplicationName);
+  lpCommandLine := StringToPChar(CommandLine);
+
+  if (lpApplicationName <> nil) or (lpCommandLine <> nil) then
+  begin
+    (*
+    if ApplicationName is empty, lpCommandLine must be writable,
+    so we make a copy of CommandLine
+    *)
+    if lpApplicationName = nil then
+      lpCommandLine := StringToPChar(Copy(CommandLine, 1, Length(CommandLine)));
+
+    if not Windows.CreateProcess(lpApplicationName, lpCommandLine, nil, nil, False, 0, nil,
+      StringToPChar(CurrentDirectory), StartInfo, Result) then
+      FillChar(Result, 0, SizeOf(Result));
+  end
+  else
+    SetLastError(ERROR_INVALID_PARAMETER);
+end;
+
+function LaunchProcess(const ApplicationName, CommandLine, CurrentDirectory: string): Boolean;
+var
+  ProcessInfo: TProcessInformation;
+begin
+  ProcessInfo := _LaunchProcess(ApplicationName, CommandLine, CurrentDirectory);
+
+  if ProcessInfo.hProcess <> 0 then
+  begin
+    CloseHandle(ProcessInfo.hThread);
+    CloseHandle(ProcessInfo.hProcess);
+    Result := True;
+  end
+  else
+    Result := False;
+end;
+
+function LaunchProcessEx(const ApplicationName, CommandLine, CurrentDirectory: string): THandle;
+var
+  ProcessInfo: TProcessInformation;
+begin
+  ProcessInfo := _LaunchProcess(ApplicationName, CommandLine, CurrentDirectory);
+
+  if ProcessInfo.hProcess <> 0 then
+  begin
+    CloseHandle(ProcessInfo.hThread);
+    Result := ProcessInfo.hProcess;
+  end
+  else
+    Result := 0;
 end;
 
 procedure NavigateWithDefaultBrowser(const url: string);
 begin
-  ShellExecute(0, 'open', PChar(url), nil, nil, SW_SHOW) //弹出对话窗口
+  ShellExecute(0, 'open', PChar(url), nil, nil, SW_SHOW) // 弹出对话窗口
 end;
 
 function Res2StrA(const ResName: string; const ResType: string): RawByteString;
@@ -2781,42 +5499,232 @@ begin
   rs := TResourceStream.Create(HInstance, ResName, PChar(ResType));
 
   try
-    SetLength(Result, rs.Size);
+    SetLength(Result, rs.size);
 
     rs.Seek(0, soFromBeginning);
 
-    rs.ReadBuffer(Pointer(Result)^, rs.Size);
+    rs.ReadBuffer(Pointer(Result)^, rs.size);
 
   finally
     rs.Free;
   end;
 end;
 
-procedure SaveResToFile(const ResName, ResType, SavePath: string);
-//函数功能：获取图标资源
-//返回类型：TBitmap
-//参数作用：
-//         resname 资源名称
-//         restype 资源类型
+function Res2RBStrNoBOM(const ResName: string; const ResType: string): RawByteString;
 var
-  Res: TResourceStream;
+  rs: TResourceStream;
+  bom: array [0 .. 3] of Byte;
+  L: Integer;
+begin
+  (*
+    UTF-8	0xEF 0xBB 0xBF
+    UTF-16 BE	0xFE 0xFF
+    UTF-16 LE	0xFF 0xFE
+    UTF-32 BE	0x00 0x00 0xFE 0xFF
+    UTF-32 LE	0xFF 0xFE 0x00 0x00
+    *)
+  rs := TResourceStream.Create(HInstance, ResName, PChar(ResType));
+
+  try
+    L := rs.size;
+
+    if rs.size >= 3 then
+    begin
+      rs.Seek(0, soFromBeginning);
+      rs.Read(bom, 3);
+
+      // UTF8 BOM EF BB BF
+      if (bom[0] = $EF) or (bom[1] = $BB) and (bom[2] = $BF) then
+        Dec(L, 3)
+      else
+        rs.Seek(0, soFromBeginning);
+    end;
+
+    SetLength(Result, L);
+
+    rs.ReadBuffer(Pointer(Result)^, L);
+  finally
+    rs.Free;
+  end;
+end;
+
+procedure Res2StringList(const ResName: string; const ResType: string; strs: TStrings);
+var
+  rs: TResourceStream;
+begin
+  rs := TResourceStream.Create(HInstance, ResName, PChar(ResType));
+
+  try
+    rs.Seek(0, soFromBeginning);
+    strs.LoadFromStream(rs);
+  finally
+    rs.Free;
+  end;
+end;
+
+procedure SaveResToFile(const ResName, ResType, SavePath: string);
+// 函数功能：获取图标资源
+// 返回类型：TBitmap
+// 参数作用：
+// resname 资源名称
+// restype 资源类型
+var
+  res: TResourceStream;
 begin
   res := TResourceStream.Create(HInstance, PChar(ResName), PChar(ResType));
   try
-    Res.SaveToFile(SavePath);
+    res.SaveToFile(SavePath);
   finally
     res.Free;
   end;
 end;
 
-function StrToBoolA(const s: string; def: Boolean): Boolean;
+function StrToBoolA(s: PAnsiChar; len: Integer; def: Boolean): Boolean;
+var
+  pwc: PAnsiChar;
+  v: Int64;
 begin
-  if SameText(s, 'false') or (s = '0') then
-    Result := False
-  else if SameText(s, 'true') or (s = '1') then
-    Result := True
+  v := BufToInt64A(s, len, @pwc);
+
+  if Assigned(pwc) then
+  begin
+    if (len = 4) and ((s[0] = 'T') or (s[0] = 't')) and ((s[1] = 'R') or (s[1] = 'r')) and
+      ((s[2] = 'U') or (s[2] = 'u')) and ((s[3] = 'E') or (s[3] = 'e')) then
+      Result := True
+    else if (len = 5) and ((s[0] = 'F') or (s[0] = 'f')) and ((s[1] = 'A') or (s[1] = 'a')) and
+      ((s[2] = 'L') or (s[2] = 'l')) and ((s[3] = 'S') or (s[3] = 's')) and ((s[4] = 'E') or (s[4] = 'e')) then
+      Result := False
+    else
+      Result := def;
+  end
   else
-    Result := def;
+    Result := v <> 0;
+end;
+
+function RBStrToBool(const s: RawByteString; def: Boolean): Boolean;
+begin
+  Result := StrToBoolA(PAnsiChar(s), length(s), def);
+end;
+
+function StrToBoolW(s: PWideChar; len: Integer; def: Boolean): Boolean;
+var
+  pwc: PWideChar;
+  v: Int64;
+begin
+  v := BufToInt64W(s, len, @pwc);
+
+  if Assigned(pwc) then
+  begin
+    if (len = 4) and ((s[0] = 'T') or (s[0] = 't')) and ((s[1] = 'R') or (s[1] = 'r')) and
+      ((s[2] = 'U') or (s[2] = 'u')) and ((s[3] = 'E') or (s[3] = 'e')) then
+      Result := True
+    else if (len = 5) and ((s[0] = 'F') or (s[0] = 'f')) and ((s[1] = 'A') or (s[1] = 'a')) and
+      ((s[2] = 'L') or (s[2] = 'l')) and ((s[3] = 'S') or (s[3] = 's')) and ((s[4] = 'E') or (s[4] = 'e')) then
+      Result := False
+    else
+      Result := def;
+  end
+  else
+    Result := v <> 0;
+end;
+
+function UStrToBool(const s: u16string; def: Boolean): Boolean;
+begin
+  Result := StrToBoolW(PWideChar(s), length(s), def);
+end;
+
+function getParentProcessId: DWORD;
+var
+  hSnapshot: THandle;
+  procEntry: TProcessEntry32;
+  myid: DWORD;
+begin
+  Result := 0;
+  myid := GetCurrentProcessId;
+  hSnapshot := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if hSnapshot <> INVALID_HANDLE_VALUE then
+    try
+      procEntry.dwSize := SizeOf(TProcessEntry32);
+      if Process32First(hSnapshot, procEntry) then
+      begin
+        repeat
+          if procEntry.th32ProcessID = myid then
+          begin
+            Result := procEntry.th32ParentProcessID;
+            Break;
+          end;
+        until not Process32Next(hSnapshot, procEntry);
+      end;
+    finally
+      CloseHandle(hSnapshot);
+    end;
+end;
+
+function getProcessFilePath_tlhlp32(const pid: DWORD): string;
+var
+  hSnapshot: THandle;
+  procEntry: TProcessEntry32;
+begin
+  Result := '';
+  hSnapshot := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if hSnapshot <> INVALID_HANDLE_VALUE then
+    try
+      procEntry.dwSize := SizeOf(TProcessEntry32);
+      if Process32First(hSnapshot, procEntry) then
+      begin
+        repeat
+          if procEntry.th32ProcessID = pid then
+          begin
+            Result := procEntry.szExeFile;
+            Break;
+          end;
+        until not Process32Next(hSnapshot, procEntry);
+      end;
+    finally
+      CloseHandle(hSnapshot);
+    end;
+end;
+
+function dslGetModuleFileName(hProcess, hModule: THandle): string;
+var
+  buf: array [0 .. MAX_PATH] of Char;
+  L: Integer;
+begin
+  Result := '';
+
+  if hProcess = 0 then
+  begin
+    L := Windows.GetModuleFileName(hModule, buf, MAX_PATH);
+    if L > 0 then
+      SetString(Result, buf, L)
+  end
+  else
+  begin
+    L := PsAPI.GetModuleFileNameEx(hProcess, hModule, buf, MAX_PATH);
+    if L > 0 then
+      SetString(Result, buf, L);
+  end;
+end;
+
+function getProcessFilePath(const pid: DWORD): string;
+var
+  hProcess: THandle;
+begin
+  if pid = GetCurrentProcessId then
+    Result := dslGetModuleFileName(0, 0)
+  else
+  begin
+    hProcess := OpenProcess(PROCESS_VM_READ or PROCESS_QUERY_INFORMATION, False, pid);
+
+    if hProcess <> 0 then
+    begin
+      Result := dslGetModuleFileName(hProcess, 0);
+      CloseHandle(hProcess);
+    end;
+
+    if Result = '' then
+      Result := getProcessFilePath_tlhlp32(pid);
+  end;
 end;
 
 function RunningInMainThread: Boolean;
@@ -2824,54 +5732,302 @@ begin
   Result := GetCurrentThreadId = MainThreadID;
 end;
 
-//获取url参数
-
-function UrlGetParamA(const url, name: RawByteString): RawByteString;
+function isLaunchedByExplorer: Boolean;
+var
+  s: string;
 begin
-  Result := GetSubstrBetweenA(url, '?' + name + '=', ['&']);
-
-  if Result = '' then
-    Result := GetSubstrBetweenA(url, '&' + name + '=', ['&']);
+  s := ExtractFileName(getProcessFilePath(getParentProcessId));
+  Result := SameText('explorer.exe', s);
 end;
 
-function UStrUrlGetParam(const url, name: UnicodeString): UnicodeString;
-begin
-  Result := GetSubstrBetweenW(url, '?' + name + '=', ['&']);
+// 获取url参数
 
-  if Result = '' then
-    Result := GetSubstrBetweenW(url, '&' + name + '=', ['&']);
+function RBStrUrlGetParam(const url, name: RawByteString): RawByteString;
+var
+  p, P2, L: Integer;
+begin
+  Result := '';
+
+  p := 1;
+  L := length(url);
+
+  while p < L do
+  begin
+    p := RBStrIPos(name, url, p);
+
+    if p <= 0 then
+      Break;
+
+    if (p > 1) and (url[p - 1] <> '?') and (url[p - 1] <> '&') then
+    begin
+      Inc(p, length(name));
+      Continue;
+    end;
+
+    Inc(p, length(name));
+
+    if (p < L) and (url[p] <> '=') then
+      Continue;
+
+    Inc(p);
+
+    if p <= L then
+    begin
+      P2 := p + 1;
+      while (P2 <= L) and (url[P2] <> '&') do
+        Inc(P2);
+      Result := Copy(url, p, P2 - p);
+    end;
+
+    Break;
+  end;
+end;
+
+function UStrUrlGetParam(const url, name: u16string): u16string;
+var
+  p, P2, L: Integer;
+begin
+  Result := '';
+
+  p := 1;
+  L := length(url);
+
+  while p < L do
+  begin
+    p := UStrIPos(name, url, p);
+
+    if p <= 0 then
+      Break;
+
+    if (p > 1) and (url[p - 1] <> '?') and (url[p - 1] <> '&') then
+    begin
+      Inc(p, length(name));
+      Continue;
+    end;
+
+    Inc(p, length(name));
+
+    if (p < L) and (url[p] <> '=') then
+      Continue;
+
+    Inc(p);
+
+    if p <= L then
+    begin
+      P2 := p + 1;
+      while (P2 <= L) and (url[P2] <> '&') do
+        Inc(P2);
+      Result := Copy(url, p, P2 - p);
+    end;
+
+    Break;
+  end;
 end;
 
 function BStrUrlGetParam(const url, name: WideString): WideString;
+var
+  p, P2, L: Integer;
 begin
-  Result := GetSubstrBetweenW(url, '?' + name + '=', ['&']);
+  Result := '';
 
-  if Result = '' then
-    Result := GetSubstrBetweenW(url, '&' + name + '=', ['&']);
+  p := 1;
+  L := length(url);
+
+  while p < L do
+  begin
+    p := BStrPos(name, url, p);
+
+    if p <= 0 then
+      Break;
+
+    if (p > 1) and (url[p - 1] <> '?') and (url[p - 1] <> '&') then
+    begin
+      Inc(p, length(name));
+      Continue;
+    end;
+
+    Inc(p, length(name));
+
+    if (p < L) and (url[p] <> '=') then
+      Continue;
+
+    Inc(p);
+
+    if p <= L then
+    begin
+      P2 := p + 1;
+      while (P2 <= L) and (url[P2] <> '&') do
+        Inc(P2);
+      Result := Copy(url, p, P2 - p);
+    end;
+
+    Break;
+  end;
 end;
 
-procedure dir_list(const ParentDir: string; strs: TStrings);
+function ExpandUrl(const url: u16string): u16string;
+begin
+  if UStrIBeginWith(url, 'http:') or UStrIBeginWith(url, 'https:') then
+    Result := url
+  else if UStrIBeginWith(url, ':') then
+    Result := 'http' + url
+  else if UStrIBeginWith(url, '//') then
+    Result := 'http:' + url
+  else
+    Result := 'http://' + url;
+end;
+
+function RBStrUrlGetFileName(const url: RawByteString): RawByteString;
+var
+  i: Integer;
+begin
+  Result := '';
+
+  for i := length(url) downto 1 do
+  begin
+    if url[i] = '/' then
+    begin
+      Result := Copy(url, i + 1, length(url) - i);
+      Break;
+    end;
+  end;
+end;
+
+function UStrUrlGetFileName(const url: u16string): u16string;
+var
+  i: Integer;
+begin
+  Result := '';
+
+  for i := length(url) downto 1 do
+  begin
+    if url[i] = '/' then
+    begin
+      Result := Copy(url, i + 1, length(url) - i);
+      Break;
+    end;
+  end;
+end;
+
+procedure EmptyFile(const FileName: string);
+var
+  hFile: THandle;
+begin
+  hFile := Windows.CreateFile(PChar(FileName), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ, nil, OPEN_EXISTING,
+    FILE_ATTRIBUTE_NORMAL, 0);
+
+  if hFile <> INVALID_HANDLE_VALUE then
+  begin
+    Windows.SetEndOfFile(hFile);
+    CloseHandle(hFile);
+  end;
+end;
+
+procedure SubDirList(const ParentDir: string; strs: TStrings);
 var
   sr: TSearchRec;
   n: Integer;
   filter: string;
 begin
-  if ParentDir = '' then Exit;
+  if ParentDir = '' then
+    Exit;
 
-  if ParentDir[Length(ParentDir)] = '\' then filter := ParentDir + '*.*'
-  else filter := ParentDir + '\*.*';
+  if ParentDir[length(ParentDir)] = '\' then
+    filter := ParentDir + '*.*'
+  else
+    filter := ParentDir + '\*.*';
 
-  if SysUtils.FindFirst(filter, faAnyFile, sr) <> 0 then Exit;
+  if SysUtils.FindFirst(filter, faAnyFile, sr) <> 0 then
+    Exit;
 
   n := 0;
 
   repeat
-    if (sr.Name <> '.') and (sr.Name <> '..') and (SR.Attr and faDirectory <> 0) then
+    if (sr.Name <> '.') and (sr.Name <> '..') and (sr.Attr and faDirectory <> 0) then
     begin
-      strs.Add(sr.Name);
+      strs.add(sr.Name);
       Inc(n);
     end;
   until (n >= 1000) or (SysUtils.FindNext(sr) <> 0);
+
+  SysUtils.FindClose(sr);
+end;
+
+function CopyDirecotry(const SrcDir, DstDir: string; recursive: Boolean): Integer;
+var
+  hFindFile: THandle;
+  FindData: TWin32FindData;
+  tmp1, tmp2, filter, FileName: string;
+begin
+  Result := 0;
+
+  ForceDirectories(DstDir);
+
+  if SrcDir[length(SrcDir)] = '\' then
+    tmp1 := SrcDir
+  else
+    tmp1 := SrcDir + '\';
+
+  filter := tmp1 + '*.*';
+
+  if DstDir[length(DstDir)] = '\' then
+    tmp2 := DstDir
+  else
+    tmp2 := DstDir + '\';
+
+  hFindFile := Windows.FindFirstFile(PChar(filter), FindData);
+
+  if hFindFile = INVALID_HANDLE_VALUE then
+    Exit;
+
+  while True do
+  begin
+    if (StrComp(FindData.cFileName, '.') <> 0) and (StrComp(FindData.cFileName, '..') <> 0) then
+    begin
+      if FindData.dwFileAttributes and FILE_ATTRIBUTE_DIRECTORY = FILE_ATTRIBUTE_DIRECTORY then
+      begin
+        FileName := FindData.cFileName;
+        if recursive then
+          Inc(Result, CopyDirecotry(tmp1 + FileName, tmp2 + FileName));
+      end
+      else
+      begin
+        FileName := FindData.cFileName;
+
+        if Windows.CopyFile(PChar(tmp1 + FileName), PChar(tmp2 + FileName), False) then
+          Inc(Result);
+      end;
+    end;
+
+    if not Windows.FindNextFile(hFindFile, FindData) then
+      Break;
+  end;
+end;
+
+procedure SearchFiles(const ParentDir, filter: string; strs: TStrings);
+var
+  sr: TSearchRec;
+  path: string;
+begin
+  if ParentDir = '' then
+    Exit;
+
+  if ParentDir[length(ParentDir)] = '\' then
+    path := ParentDir + filter
+  else
+    path := ParentDir + '\' + filter;
+
+  if SysUtils.FindFirst(path, faAnyFile, sr) <> 0 then
+    Exit;
+
+  while True do
+  begin
+    if (sr.Name <> '.') and (sr.Name <> '..') and (sr.Attr and faDirectory = 0) then
+      strs.add(sr.Name);
+
+    if SysUtils.FindNext(sr) <> 0 then
+      Break;
+  end;
 
   SysUtils.FindClose(sr);
 end;
@@ -2884,11 +6040,46 @@ begin
   end;
 end;
 
-function ConcatFolderPath(const s1, s2: string): string;
+function PathJoin(const s1, s2: string): string;
 begin
-  if s1 = '' then Result := s2
-  else if s1[Length(s1)] = '\' then Result := s1 + s2
-  else Result := s1 + '\' + s2;
+  if s1 = '' then
+    Result := s2
+  else if s1[length(s1)] = '\' then
+    Result := s1 + s2
+  else
+    Result := s1 + '\' + s2;
+end;
+
+procedure SaveStreamToFile(const FileName: string; stream: TStream; len: Integer);
+var
+  ms: TMemoryStream;
+  fs: TFileStream;
+begin
+  if stream is TMemoryStream then
+  begin
+    ms := TMemoryStream(stream);
+    SaveBufToFile(FileName, PAnsiChar(ms.Memory) + ms.Position, len);
+  end
+  else
+  begin
+    fs := TFileStream.Create(FileName, fmCreate);
+
+    try
+      fs.CopyFrom(stream, len);
+    finally
+      fs.Free;
+    end;
+  end;
+end;
+
+function SafeSaveStreamToFile(const FileName: string; stream: TStream; len: Integer): Boolean;
+begin
+  try
+    SaveStreamToFile(FileName, stream, len);
+    Result := True;
+  except
+    Result := False;
+  end;
 end;
 
 procedure SaveBufToFile(const FileName: string; buf: Pointer; len: Integer);
@@ -2904,14 +6095,46 @@ begin
 end;
 
 procedure SaveStrToFile(const FileName: string; const str: RawByteString);
+var
+  fs: TFileStream;
 begin
-  SaveBufToFile(FileName, Pointer(str), Length(str));
+  fs := TFileStream.Create(FileName, fmCreate);
+  try
+    fs.WriteBuffer(Pointer(str)^, length(str));
+  finally
+    fs.Free;
+  end;
 end;
 
 function SafeSaveStrToFile(const FileName: string; const str: RawByteString): Boolean;
 begin
   try
-    SaveBufToFile(FileName, Pointer(str), Length(str));
+    SaveBufToFile(FileName, Pointer(str), length(str));
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+procedure SaveUStrToFile(const FileName: string; const str: u16string; CodePage: Integer = CP_ACP);
+var
+  fs: TFileStream;
+  rbs: RawByteString;
+begin
+  rbs := UStrToMultiByte(str, CodePage);
+
+  fs := TFileStream.Create(FileName, fmCreate);
+  try
+    fs.WriteBuffer(Pointer(rbs)^, length(rbs));
+  finally
+    fs.Free;
+  end;
+end;
+
+function SafeSaveUStrToFile(const FileName: string; const str: u16string; CodePage: Integer = CP_ACP): Boolean;
+begin
+  try
+    SaveUStrToFile(FileName, str, CodePage);
     Result := True;
   except
     Result := False;
@@ -2926,7 +6149,7 @@ begin
   fs := TFileStream.Create(FileName, fmCreate);
   try
     for i := Low(strs) to High(strs) do
-      fs.WriteBuffer(Pointer(strs[i])^, Length(strs[i]));
+      fs.WriteBuffer(Pointer(strs[i])^, length(strs[i]));
   finally
     fs.Free;
   end;
@@ -2942,40 +6165,152 @@ begin
   end;
 end;
 
-function LoadStrFromFile(const FileName: string): RawByteString;
+function VarRecToRBS(const vr: TVarRec): RawByteString;
+begin
+  case vr.VType of
+    vtInteger:
+      Result := IntToRBStr(vr.VInteger);
+
+    vtBoolean:
+      if vr.VBoolean then
+        Result := 'true'
+      else
+        Result := 'false';
+
+    vtChar:
+      Result := vr.VChar;
+    vtExtended:
+      Result := RawByteString(FloatToStr(vr.VExtended^));
+    vtString:
+      Result := RawByteString(vr.VString^);
+    vtPointer:
+      Result := RawByteString(Format('%.8x', [vr.VPointer]));
+    vtPChar:
+      Result := RawByteString(vr.VPChar);
+    vtObject:
+      Result := 'object(' + RawByteString(vr.VObject.ClassName) + ')';
+    vtClass:
+      Result := 'class(' + RawByteString(vr.VClass.ClassName) + ')';
+    vtWideChar:
+      Result := RawByteString(vr.VWideChar);
+    vtPWideChar:
+      Result := RawByteString((u16string(vr.VPWideChar)));
+    vtAnsiString:
+      Result := (RawByteString(vr.VAnsiString));
+    vtCurrency:
+      Result := RawByteString(FloatToStr(vr.VCurrency^));
+    vtVariant:
+      Result := RawByteString(vr.VVariant^);
+    vtInterface:
+      Result := 'interface';
+    vtWideString:
+      Result := RawByteString(WideString(vr.VWideString));
+    vtUnicodeString:
+      Result := RawByteString(u16string(vr.VUnicodeString));
+    vtInt64:
+      Result := IntToRBStr(vr.VInt64^);
+  end;
+end;
+
+procedure SaveArrayToFile(const FileName: string; const values: array of const );
 var
   fs: TFileStream;
+  i: Integer;
+  rbs: RawByteString;
 begin
-  fs := TFileStream.Create(FileName, fmOpenRead);
-
+  fs := TFileStream.Create(FileName, fmCreate);
   try
-    SetLength(Result, fs.Size);
-    fs.ReadBuffer(Pointer(Result)^, Length(Result));
+    for i := Low(values) to High(values) do
+    begin
+      rbs := VarRecToRBS(values[i]);
+      fs.WriteBuffer(Pointer(rbs)^, length(rbs));
+    end;
+
   finally
     fs.Free;
   end;
 end;
 
+function SafeSaveArrayToFile(const FileName: string; const values: array of const ): Boolean;
+begin
+  try
+    SaveArrayToFile(FileName, values);
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+function LoadStrFromFile(const FileName: string): RawByteString;
+var
+  fs: TFileStream;
+begin
+  fs := TFileStream.Create(FileName, fmOpenRead or fmShareDenyNone);
+
+  try
+    SetLength(Result, fs.size);
+    fs.ReadBuffer(Pointer(Result)^, length(Result));
+  finally
+    fs.Free;
+  end;
+end;
+
+function getStreamContentType(data: TStream): RawByteString;
+var
+  bytes: array [0 .. 3] of Byte;
+  bookmark: Int64;
+begin
+  {
+    JPEG FFD8FF
+    PNG 89504E47
+    GIF 47494638
+    Bitmap 424D
+    }
+  Result := 'application/octet-stream';
+  bookmark := data.Position;
+
+  if data.Size <= 4 then
+    Exit;
+
+  try
+    data.ReadBuffer(bytes, SizeOf(bytes));
+    data.Position := bookmark;
+
+    if (bytes[0] = $FF) and (bytes[1] = $D8) and (bytes[2] = $FF) then
+      Result := 'image/jpeg'
+    else if (bytes[0] = $89) and (bytes[1] = $50) and (bytes[2] = $4E) and
+      (bytes[3] = $47) then
+      Result := 'image/png'
+    else if (bytes[0] = $47) and (bytes[1] = $49) and (bytes[2] = $46) and
+      (bytes[3] = $38) then
+      Result := 'image/gif'
+    else if (bytes[0] = $42) and (bytes[1] = $4D) then
+      Result := 'image/bmp'
+  finally
+    data.Position := bookmark;
+  end;
+end;
+
 function Stream2String(stream: TStream): RawByteString;
 begin
-  SetLength(Result, stream.Size - stream.Position);
-  stream.ReadBuffer(Pointer(Result)^, Length(Result));
+  SetLength(Result, stream.size - stream.Position);
+  stream.ReadBuffer(Pointer(Result)^, length(Result));
 end;
 
 procedure UTF8EncodeFile(const FileName: string);
 var
   s: UTF8String;
 begin
-  s := UTF8EncodeUStr(UnicodeString(LoadStrFromFile(FileName)));
-  SaveBufToFile(FileName, Pointer(s), Length(s));
+  s := UTF8EncodeUStr(u16string(LoadStrFromFile(FileName)));
+  SaveBufToFile(FileName, Pointer(s), length(s));
 end;
 
 procedure UTF8DecodeFile(const FileName: string);
 var
-  s: UnicodeString;
+  s: u16string;
 begin
   s := UTF8DecodeStr(LoadStrFromFile(FileName));
-  SaveBufToFile(FileName, Pointer(s), Length(s) * 2);
+  SaveBufToFile(FileName, Pointer(s), length(s) * 2);
 end;
 
 procedure HttpEncodeFile(const FileName: string);
@@ -2994,17 +6329,64 @@ begin
   SaveStrToFile(FileName, s);
 end;
 
+function UTF16Decode(const s: RawByteString): u16string;
+var
+  i, p, n, L: Integer;
+begin
+  // \u672a\u5206\u914d\u6216\u8005\u5185\u7f51IP
+  n := 0;
+  L := length(s);
+
+  SetLength(Result, length(s));
+
+  p := 1;
+
+  while p <= L - 5 do
+  begin
+    if (s[p] = '\') and ((s[p + 1] = 'u') or (s[p + 1] = 'U')) then
+    begin
+      Inc(n);
+      Word(Result[n]) := HexToUInt32A(PAnsiChar(s) + p + 1, 4, nil);
+      Inc(p, 6);
+    end
+    else
+    begin
+      Inc(n);
+      Result[n] := WideChar(s[p]);
+      Inc(p);
+    end;
+  end;
+
+  for i := p to L do
+  begin
+    Inc(n);
+    Result[n] := WideChar(s[i]);
+  end;
+
+  SetLength(Result, n);
+end;
+
 function FormatSysTime(const st: TSystemTime; const fmt: string): string;
 begin
-  Result := Format('%d_%d_%d_%d_%d_%d', [st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond]); 
+  Result := Format('%d_%d_%d_%d_%d_%d', [st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond]);
 end;
 
 function FormatSysTimeNow(const fmt: string): string;
 var
   st: TSystemTime;
-begin 
+begin
   GetLocalTime(st);
   Result := FormatSysTime(st, fmt);
+end;
+
+function RBStrNow: RawByteString;
+var
+  st: TSystemTime;
+begin
+  GetLocalTime(st);
+
+  Result := RBStrFormat('%.4d/%.2d/%.2d %.2d:%.2d:%.2d %.3d', [st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute,
+    st.wSecond, st.wMilliseconds]);
 end;
 
 function SameHour(former, later: TDateTime): Boolean;
@@ -3026,7 +6408,7 @@ begin
   Result := (year = year2) and (month = month2);
 end;
 
-function SameYear(former, Later: TDateTime): Boolean;
+function SameYear(former, later: TDateTime): Boolean;
 var
   year, month, day, hour, minute, second, msec, year2: Word;
 begin
@@ -3039,22 +6421,20 @@ procedure SystemTimeIncMilliSeconds(var st: TSystemTime; value: Int64);
 var
   dt: TDateTime;
 begin
-  dt := EncodeDateTime(st.wYear, st.wMonth, st.wDay, st.wHour,
-    st.wMinute, st.wSecond, st.wMilliseconds);
+  dt := EncodeDateTime(st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 
-  DecodeDateTime(IncMilliSecond(dt, value), st.wYear, st.wMonth, st.wDay,
-    st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+  DecodeDateTime(IncMilliSecond(dt, value), st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+    st.wMilliseconds);
 end;
 
 procedure SystemTimeIncSeconds(var st: TSystemTime; value: Int64);
 var
   dt: TDateTime;
 begin
-  dt := EncodeDateTime(st.wYear, st.wMonth, st.wDay, st.wHour,
-    st.wMinute, st.wSecond, st.wMilliseconds);
+  dt := EncodeDateTime(st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 
-  DecodeDateTime(IncSecond(dt, value), st.wYear, st.wMonth, st.wDay,
-    st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+  DecodeDateTime(IncSecond(dt, value), st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+    st.wMilliseconds);
 end;
 
 procedure SystemTimeIncMinutes(var st: TSystemTime; value: Integer);
@@ -3071,6 +6451,7 @@ end;
 
 procedure SystemTimeIncMonths(var st: TSystemTime; value: Integer);
 begin
+
 end;
 
 procedure SystemTimeIncYears(var st: TSystemTime; value: Integer);
@@ -3084,8 +6465,7 @@ var
 begin
   GetSystemTime(utcdt);
   with utcdt do
-    Result := EncodeDate(wYear, wMonth, wDay) +
-      EncodeTime(wHour, wMinute, wSecond, wMilliseconds);
+    Result := EncodeDate(wYear, wMonth, wDay) + EncodeTime(wHour, wMinute, wSecond, wMilliseconds);
 end;
 
 function UTCToLocal(dt: TDateTime): TDateTime;
@@ -3095,6 +6475,15 @@ begin
   GetTimeZoneInformation(tzi);
 
   Result := IncMinute(dt, -tzi.Bias);
+end;
+
+function LocalToUTC(dt: TDateTime): TDateTime;
+var
+  tzi: TTimeZoneInformation;
+begin
+  GetTimeZoneInformation(tzi);
+
+  Result := IncMinute(dt, tzi.Bias);
 end;
 
 function UTCLocalDiff: Integer;
@@ -3107,7 +6496,7 @@ end;
 
 function DateTimeToJava(d: TDateTime): Int64;
 begin
-  Result := MilliSecondsBetween(d, JAVA_TIME_START);
+  Result := MilliSecondsBetween(JAVA_TIME_START, d);
 end;
 
 function JavaToDateTime(t: Int64): TDateTime;
@@ -3119,142 +6508,535 @@ begin
   Result := JAVA_TIME_START + d1 / d2;
 end;
 
-function RandomStringA(CharSet: RawByteString; CharCount: Integer): RawByteString;
+function getWebTimestamp: Int64;
+begin
+  Result := DateTimeToJava(UTCNow);
+end;
+
+function GMTStringToDateTime(const s: RawByteString): TDateTime;
 var
-  I: Integer;
+  numbers: array [0 .. 5] of Int64;
+  n, m: Integer;
+begin
+  ///// to be optimized !!!!!
+  (* set-cookie format
+  Fri, 08-Jan-2016 15:42:53 GMT
+  Tue, 09-Feb-2016 07:47:51 GMT
+  Fri, 30 Jan 2026 15:49:19 GMT
+  Mon, 23-Jan-2017 02:26:34 GMT
+  *)
+
+  (* JavaScript format
+  Mon Jan 23 2017 19:33:54 GMT+0800
+  Tue Jul 14 2009 13:32:31 GMT+0800
+  *)
+
+  Result := 0.0;
+
+  n := RBStrExtractIntegers(s, numbers);
+
+  if n = 6 then
+    Result := EncodeDateTime(numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5], 0)
+  else begin
+    if RBStrIPos('Jan', s) > 0 then m := 1
+    else if RBStrIPos('Feb', s) > 0 then m := 2
+    else if RBStrIPos('Mar', s) > 0 then m := 3
+    else if RBStrIPos('Apr', s) > 0 then m := 4
+    else if RBStrIPos('May', s) > 0 then m := 5
+    else if RBStrIPos('Jun', s) > 0 then m := 6
+    else if RBStrIPos('Jul', s) > 0 then m := 7
+    else if RBStrIPos('Aug', s) > 0 then m := 8
+    else if RBStrIPos('Sep', s) > 0 then m := 9
+    else if RBStrIPos('Oct', s) > 0 then m := 10
+    else if RBStrIPos('Nov', s) > 0 then m := 11
+    else if RBStrIPos('Dec', s) > 0 then m := 12
+    else m := 0;
+
+    if m > 0 then
+      Result := EncodeDateTime(numbers[1], m, numbers[0], numbers[2], numbers[3], numbers[4], 0);
+  end;
+end;
+
+function GMTStringToDateTime(const s: string): TDateTime;
+var
+  numbers: array [0 .. 5] of Int64;
+  n, m: Integer;
+begin
+  ///// to be optimized !!!!!
+  (* set-cookie format
+  Fri, 08-Jan-2016 15:42:53 GMT
+  Tue, 09-Feb-2016 07:47:51 GMT
+  Fri, 30 Jan 2026 15:49:19 GMT
+  Mon, 23-Jan-2017 02:26:34 GMT
+  *)
+
+  (* JavaScript format
+  Mon Jan 23 2017 19:33:54 GMT+0800
+  Tue Jul 14 2009 13:32:31 GMT+0800
+  *)
+
+  Result := 0.0;
+
+  n := UStrExtractIntegers(s, numbers);
+
+  if n = 6 then
+    Result := EncodeDateTime(numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5], 0)
+  else begin
+    if UStrIPos('Jan', s) > 0 then m := 1
+    else if UStrIPos('Feb', s) > 0 then m := 2
+    else if UStrIPos('Mar', s) > 0 then m := 3
+    else if UStrIPos('Apr', s) > 0 then m := 4
+    else if UStrIPos('May', s) > 0 then m := 5
+    else if UStrIPos('Jun', s) > 0 then m := 6
+    else if UStrIPos('Jul', s) > 0 then m := 7
+    else if UStrIPos('Aug', s) > 0 then m := 8
+    else if UStrIPos('Sep', s) > 0 then m := 9
+    else if UStrIPos('Oct', s) > 0 then m := 10
+    else if UStrIPos('Nov', s) > 0 then m := 11
+    else if UStrIPos('Dec', s) > 0 then m := 12
+    else m := 0;
+
+    if m > 0 then
+      Result := EncodeDateTime(numbers[1], m, numbers[0], numbers[2], numbers[3], numbers[4], 0);
+  end;
+end;
+
+function dateTimeToGMTRawBytes(const st: TSystemTime; buf: PAnsiChar; utcbias: Integer): Integer;
+var
+  hours, minutes: Integer;
+begin
+  ///// to be optimized !!!!!
+  buf[0] := AnsiChar(WEEKDAY_SHORTHANDS[st.wDayOfWeek][0]);
+  buf[1] := AnsiChar(WEEKDAY_SHORTHANDS[st.wDayOfWeek][1]);
+  buf[2] := AnsiChar(WEEKDAY_SHORTHANDS[st.wDayOfWeek][2]);
+  buf[3] := #32;
+  buf[4] := AnsiChar(MONTH_SHORTHANDS[st.wMonth][0]);
+  buf[5] := AnsiChar(MONTH_SHORTHANDS[st.wMonth][1]);
+  buf[6] := AnsiChar(MONTH_SHORTHANDS[st.wMonth][2]);
+  buf[7] := #32;
+
+  if st.wDay < 10 then
+  begin
+    buf[8] := '0';
+    buf[9] := AnsiChar(st.wDay + $30);
+  end
+  else begin
+    buf[8] := AnsiChar(st.wDay div 10 + $30);
+    buf[9] := AnsiChar(st.wDay mod 10 + $30);;
+  end;
+
+  buf[10] := #32;
+  StrInt(buf + 15, st.wYear);
+  buf[15] := #32;
+
+  if st.wHour < 10 then
+  begin
+    buf[16] := '0';
+    buf[17] := AnsiChar(st.wHour + $30);
+  end
+  else begin
+    buf[16] := AnsiChar(st.wHour div 10 + $30);
+    buf[17] := AnsiChar(st.wHour mod 10 + $30);;
+  end;
+  buf[18] := ':';
+
+  if st.wMinute < 10 then
+  begin
+    buf[19] := '0';
+    buf[20] := AnsiChar(st.wMinute + $30);
+  end
+  else begin
+    buf[19] := AnsiChar(st.wMinute div 10 + $30);
+    buf[20] := AnsiChar(st.wMinute mod 10 + $30);;
+  end;
+  buf[21] := ':';
+
+  if st.wSecond < 10 then
+  begin
+    buf[22] := '0';
+    buf[23] := AnsiChar(st.wSecond + $30);
+  end
+  else begin
+    buf[22] := AnsiChar(st.wSecond div 10 + $30);
+    buf[23] := AnsiChar(st.wSecond mod 10 + $30);;
+  end;
+  buf[24] := #32;
+  buf[25] := 'G';
+  buf[26] := 'M';
+  buf[27] := 'T';
+  if utcbias > 1440 then
+    utcbias := UTCLocalDiff;
+
+  if utcbias = 0 then
+    Result := 28
+  else begin
+    if utcbias > 0 then
+      buf[28] := '+'
+    else begin
+      buf[28] := '-';
+      utcbias := -utcbias;
+    end;
+    hours := utcbias div 60;
+    minutes := utcbias mod 60;
+    buf[29] := AnsiChar(hours div 10 + $30);
+    buf[30] := AnsiChar(hours mod 10 + $30);
+    buf[31] := AnsiChar(minutes div 10 + $30);
+    buf[32] := AnsiChar(minutes div 10 + $30);
+    Result := 33;
+  end;
+end;
+
+function dateTimeToGMTRawBytes(const st: TSystemTime; utcbias: Integer): RawByteString;
+var
+  buf: array [0..32] of AnsiChar;
+begin
+  SetString(Result, buf, dateTimeToGMTRawBytes(st, buf, utcbias));
+end;
+
+function dateTimeToGMTRawBytes(dt: TDateTime; utcbias: Integer): RawByteString;
+var
+  st: TSystemTime;
+begin
+  DateTimeToSystemTime(dt, st);
+  Result := dateTimeToGMTRawBytes(st, utcbias);
+end;
+
+function dateTimeToGMTString(const st: TSystemTime; buf: PWideChar; utcbias: Integer): Integer;
+var
+  hours, minutes: Integer;
+begin
+  //Tue Jul 14 2009 13:32:31 GMT+0800
+  ///// to be optimized !!!!!
+  buf[0] := Char(WEEKDAY_SHORTHANDS[st.wDayOfWeek][0]);
+  buf[1] := Char(WEEKDAY_SHORTHANDS[st.wDayOfWeek][1]);
+  buf[2] := Char(WEEKDAY_SHORTHANDS[st.wDayOfWeek][2]);
+  buf[3] := #32;
+  buf[4] := Char(MONTH_SHORTHANDS[st.wMonth][0]);
+  buf[5] := Char(MONTH_SHORTHANDS[st.wMonth][1]);
+  buf[6] := Char(MONTH_SHORTHANDS[st.wMonth][2]);
+  buf[7] := #32;
+
+  if st.wDay < 10 then
+  begin
+    buf[8] := '0';
+    buf[9] := Char(st.wDay + $30);
+  end
+  else begin
+    buf[8] := Char(st.wDay div 10 + $30);
+    buf[9] := Char(st.wDay mod 10 + $30);;
+  end;
+
+  buf[10] := #32;
+  StrInt(buf + 15, st.wYear);
+  buf[15] := #32;
+
+  if st.wHour < 10 then
+  begin
+    buf[16] := '0';
+    buf[17] := Char(st.wHour + $30);
+  end
+  else begin
+    buf[16] := Char(st.wHour div 10 + $30);
+    buf[17] := Char(st.wHour mod 10 + $30);;
+  end;
+  buf[18] := ':';
+
+  if st.wMinute < 10 then
+  begin
+    buf[19] := '0';
+    buf[20] := Char(st.wMinute + $30);
+  end
+  else begin
+    buf[19] := Char(st.wMinute div 10 + $30);
+    buf[20] := Char(st.wMinute mod 10 + $30);;
+  end;
+  buf[21] := ':';
+
+  if st.wSecond < 10 then
+  begin
+    buf[22] := '0';
+    buf[23] := Char(st.wSecond + $30);
+  end
+  else begin
+    buf[22] := Char(st.wSecond div 10 + $30);
+    buf[23] := Char(st.wSecond mod 10 + $30);;
+  end;
+  buf[24] := #32;
+  buf[25] := 'G';
+  buf[26] := 'M';
+  buf[27] := 'T';
+  if utcbias > 1440 then
+    utcbias := UTCLocalDiff;
+
+  if utcbias = 0 then
+    Result := 28
+  else begin
+    if utcbias > 0 then
+      buf[28] := '+'
+    else begin
+      buf[28] := '-';
+      utcbias := -utcbias;
+    end;
+    hours := utcbias div 60;
+    minutes := utcbias mod 60;
+    buf[29] := Char(hours div 10 + $30);
+    buf[30] := Char(hours mod 10 + $30);
+    buf[31] := Char(minutes div 10 + $30);
+    buf[32] := Char(minutes div 10 + $30);
+    Result := 33;
+  end;
+end;
+
+function dateTimeToGMTString(const st: TSystemTime; utcbias: Integer): string;
+var
+  buf: array [0..32] of Char;
+begin
+  SetString(Result, buf, dateTimeToGMTString(st, buf, utcbias));
+end;
+
+function dateTimeToGMTString(dt: TDateTime; utcbias: Integer): string;
+var
+  st: TSystemTime;
+begin
+  DateTimeToSystemTime(dt, st);
+  Result := dateTimeToGMTString(st, utcbias);
+end;
+
+function IsPrintable(ch: AnsiChar): Boolean;
+begin
+  Result := (ch = #13) or (ch = #10) or (ch = #9) or (ch >= #32);
+end;
+
+function IsPrintableString(const s: RawByteString): Boolean;
+var
+  i: Integer;
+begin
+  Result := True;
+
+  for i := 0 to length(s) - 1 do
+  begin
+    if not IsPrintable(PAnsiChar(s)[i]) then
+    begin
+      Result := False;
+      Break;
+    end;
+  end;
+end;
+
+function IsPrintableString(const buf; bufLen: Integer): Boolean;
+var
+  i: Integer;
+begin
+  Result := True;
+
+  for i := 0 to bufLen - 1 do
+  begin
+    if not IsPrintable(PAnsiChar(@buf)[i]) then
+    begin
+      Result := False;
+      Break;
+    end;
+  end;
+end;
+
+function RandomBytes(count: Integer): RawByteString;
+var
+  i: Integer;
+  pch: PAnsiChar;
+begin
+  SetLength(Result, count);
+  pch := PAnsiChar(Result);
+  for i := 0 to count - 1 do
+    pch[i] := AnsiChar(Random($100));
+end;
+
+function RandomRBStr(CharSet: RawByteString; CharCount: Integer): RawByteString;
+var
+  i: Integer;
   pch: PAnsiChar;
 begin
   SetLength(Result, CharCount);
   pch := PAnsiChar(Result);
-  for I := 0 to CharCount - 1 do
-    pch[I] := CharSet[Random(Length(CharSet)) + 1];
+  for i := 0 to CharCount - 1 do
+    pch[i] := CharSet[Random(length(CharSet)) + 1];
 end;
 
-function RandomAlphaStringA(CharCount: Integer; types: TCharTypes): RawByteString;
+function RandomAlphaRBStr(CharCount: Integer; Types: TCharTypes): RawByteString;
 var
-  charset: RawByteString;
+  CharSet: RawByteString;
 begin
-  if chAlphaUpperCase in types then
+  if chAlphaUpperCase in Types then
   begin
-    if chAlphaLowerCase in types then
-      charset := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    if chAlphaLowerCase in Types then
+      CharSet := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     else
-      charset := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      CharSet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   end
   else
-    charset := 'abcdefghjklmnopqrstuvwxyz';
+    CharSet := 'abcdefghjklmnopqrstuvwxyz';
 
-  Result := RandomStringA(charset, CharCount);
+  Result := RandomRBStr(CharSet, CharCount);
 end;
 
-function RandomDigitStringA(CharCount: Integer): RawByteString;
+function RandomDigitRBStr(CharCount: Integer): RawByteString;
 begin
-  Result := RandomStringA('0123456789', CharCount);
+  Result := RandomRBStr('0123456789', CharCount);
 end;
 
-function RandomAlphaDigitStringA(CharCount: Integer; types: TCharTypes): RawByteString;
+function RandomAlphaDigitRBStr(CharCount: Integer; Types: TCharTypes): RawByteString;
 var
-  charset: RawByteString;
+  CharSet: RawByteString;
 begin
-  if chAlphaUpperCase in types then
+  if chAlphaUpperCase in Types then
   begin
-    if chAlphaLowerCase in types then
-      charset := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    if chAlphaLowerCase in Types then
+      CharSet := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     else
-      charset := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      CharSet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   end
   else
-    charset := 'abcdefghjklmnopqrstuvwxyz0123456789';
+    CharSet := 'abcdefghjklmnopqrstuvwxyz0123456789';
 
-  Result := RandomStringA(charset, CharCount);
+  Result := RandomRBStr(CharSet, CharCount);
 end;
 
-function RandomStringW(CharSet: UnicodeString; CharCount: Integer): UnicodeString;
+function RandomUStr(CharSet: u16string; CharCount: Integer): u16string;
 var
-  I: Integer;
+  i: Integer;
   pch: PWideChar;
 begin
   SetLength(Result, CharCount);
   pch := PWideChar(Result);
-  for I := 0 to CharCount - 1 do
-    pch[I] := CharSet[Random(Length(CharSet)) + 1];
+  for i := 0 to CharCount - 1 do
+    pch[i] := CharSet[Random(length(CharSet)) + 1];
 end;
 
-function RandomAlphaStringW(CharCount: Integer; types: TCharTypes): UnicodeString;
+function RandomAlphaUStr(CharCount: Integer; Types: TCharTypes): u16string;
 var
-  charset: UnicodeString;
+  CharSet: u16string;
 begin
-  if chAlphaUpperCase in types then
+  if chAlphaUpperCase in Types then
   begin
-    if chAlphaLowerCase in types then
-      charset := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    if chAlphaLowerCase in Types then
+      CharSet := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     else
-      charset := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      CharSet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   end
   else
-    charset := 'abcdefghjklmnopqrstuvwxyz';
+    CharSet := 'abcdefghjklmnopqrstuvwxyz';
 
-  Result := RandomStringW(charset, CharCount);
+  Result := RandomUStr(CharSet, CharCount);
 end;
 
-function RandomDigitStringW(CharCount: Integer): UnicodeString;
+function RandomDigitUStr(CharCount: Integer): u16string;
 begin
-  Result := RandomStringW('0123456789', CharCount);
+  Result := RandomUStr('0123456789', CharCount);
 end;
 
-function RandomAlphaDigitStringW(CharCount: Integer; types: TCharTypes): UnicodeString;
+function RandomAlphaDigitUStr(CharCount: Integer; Types: TCharTypes): u16string;
 var
-  charset: UnicodeString;
+  CharSet: u16string;
 begin
-  if chAlphaUpperCase in types then
+  if chAlphaUpperCase in Types then
   begin
-    if chAlphaLowerCase in types then
-      charset := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    if chAlphaLowerCase in Types then
+      CharSet := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     else
-      charset := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      CharSet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   end
   else
-    charset := 'abcdefghjklmnopqrstuvwxyz0123456789';
+    CharSet := 'abcdefghjklmnopqrstuvwxyz0123456789';
 
-  Result := RandomStringW(charset, CharCount);
+  Result := RandomUStr(CharSet, CharCount);
+end;
+
+function RandomBStr(CharSet: u16string; CharCount: Integer): WideString;
+var
+  i: Integer;
+  pch: PWideChar;
+begin
+  SetLength(Result, CharCount);
+  pch := PWideChar(Result);
+  for i := 0 to CharCount - 1 do
+    pch[i] := CharSet[Random(length(CharSet)) + 1];
+end;
+
+function RandomAlphaBStr(CharCount: Integer; Types: TCharTypes = [chAlphaUpperCase, chAlphaLowerCase]): WideString;
+var
+  CharSet: u16string;
+begin
+  if chAlphaUpperCase in Types then
+  begin
+    if chAlphaLowerCase in Types then
+      CharSet := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    else
+      CharSet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  end
+  else
+    CharSet := 'abcdefghjklmnopqrstuvwxyz';
+
+  Result := RandomBStr(CharSet, CharCount);
+end;
+
+function RandomDigitBStr(CharCount: Integer): WideString;
+begin
+  Result := RandomBStr('0123456789', CharCount);
+end;
+
+function RandomAlphaDigitBStr(CharCount: Integer; Types: TCharTypes): WideString;
+var
+  CharSet: u16string;
+begin
+  if chAlphaUpperCase in Types then
+  begin
+    if chAlphaLowerCase in Types then
+      CharSet := 'abcdefghjklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    else
+      CharSet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  end
+  else
+    CharSet := 'abcdefghjklmnopqrstuvwxyz0123456789';
+
+  Result := RandomBStr(CharSet, CharCount);
 end;
 
 function RandomCNMobile: RawByteString;
 const
-  SAPrefix: array[0..29] of RawByteString = ('134', '135', '136', '137', '138',
-    '139', '147', '150', '151', '152', '157', '158', '159', '182', '183',
-    '187', '188', '130', '131', '132', '155', '156', '185', '186', '145',
-    '133', '153', '189', '180', '181');
+  SAPrefix: array [0 .. 29] of RawByteString = ('134', '135', '136', '137', '138', '139', '147', '150', '151', '152',
+    '157', '158', '159', '182', '183', '187', '188', '130', '131', '132', '155', '156', '185', '186', '145', '133',
+    '153', '189', '180', '181');
 var
   prefix: RawByteString;
   i: Integer;
 begin
-  prefix := SAPrefix[Random(Length(SAPrefix))];
+  prefix := SAPrefix[Random(length(SAPrefix))];
   SetLength(Result, 11);
   PAnsiChar(Result)[0] := prefix[1];
   PAnsiChar(Result)[1] := prefix[2];
   PAnsiChar(Result)[2] := prefix[3];
 
-  for i := 3 to Length(Result) - 1 do
+  for i := 3 to length(Result) - 1 do
     PAnsiChar(Result)[i] := AnsiChar(Ord('0') + Random(10));
 end;
 
-function UTF8EncodeBufferTest(src: PWideChar; srclen: Integer): Integer;
+function UTF8EncodeBufferTest(src: PWideChar; srcLen: Integer): Integer;
 var
   i: Integer;
   c: Word;
 begin
   Result := 0;
 
-  if src = nil then Exit;
+  if src = nil then
+    Exit;
 
-  for i := 0 to srclen - 1 do
+  for i := 0 to srcLen - 1 do
   begin
     c := Word(src[i]);
 
     if c > $7F then
     begin
-      if c > $7FF then Inc(Result);
+      if c > $7FF then
+        Inc(Result);
       Inc(Result);
     end;
 
@@ -3268,7 +7050,8 @@ var
 begin
   Result := 0;
 
-  if src = nil then Exit;
+  if src = nil then
+    Exit;
 
   while src^ <> #0 do
   begin
@@ -3276,7 +7059,8 @@ begin
 
     if c > $7F then
     begin
-      if c > $7FF then Inc(Result);
+      if c > $7FF then
+        Inc(Result);
       Inc(Result);
     end;
 
@@ -3286,16 +7070,17 @@ begin
   end;
 end;
 
-function UTF8EncodeBuffer(src: PWideChar; srclen: Integer; dest: PAnsiChar): Integer;
+function UTF8EncodeBuffer(src: PWideChar; srcLen: Integer; dest: PAnsiChar): Integer;
 var
   i: Integer;
   c: Word;
 begin
   Result := 0;
 
-  if src = nil then Exit;
+  if src = nil then
+    Exit;
 
-  for i := 0 to srclen - 1 do
+  for i := 0 to srcLen - 1 do
   begin
     c := Word(src[i]);
 
@@ -3311,7 +7096,8 @@ begin
       dest[Result + 2] := AnsiChar($80 or (c and $3F));
       Inc(Result, 3);
     end
-    else begin
+    else
+    begin
       dest[Result] := AnsiChar($C0 or (c shr 6));
       dest[Result + 1] := AnsiChar($80 or (c and $3F));
       Inc(Result, 2);
@@ -3325,7 +7111,8 @@ var
 begin
   Result := 0;
 
-  if src = nil then Exit;
+  if src = nil then
+    Exit;
 
   while src^ <> #0 do
   begin
@@ -3343,7 +7130,8 @@ begin
       dest[Result + 2] := AnsiChar($80 or (c and $3F));
       Inc(Result, 3);
     end
-    else begin
+    else
+    begin
       dest[Result] := AnsiChar($C0 or (c shr 6));
       dest[Result + 1] := AnsiChar($80 or (c and $3F));
       Inc(Result, 2);
@@ -3364,48 +7152,49 @@ begin
   UTF8EncodeCStr(src, PAnsiChar(Result));
 end;
 
-function UTF8EncodeBuffer(src: PWideChar; srclen: Integer): UTF8String;
+function UTF8EncodeBuffer(src: PWideChar; srcLen: Integer): UTF8String;
 begin
-  SetLength(Result, srclen * 3);
+  SetLength(Result, srcLen * 3);
 
-  SetLength(Result, UTF8EncodeBuffer(src, srclen, PAnsiChar(Result)));
+  SetLength(Result, UTF8EncodeBuffer(src, srcLen, PAnsiChar(Result)));
 end;
 
-function UTF8EncodeUStr(const src: UnicodeString; dest: PAnsiChar): Integer;
+function UTF8EncodeUStr(const src: u16string; dest: PAnsiChar): Integer;
 begin
-  Result := UTF8EncodeBuffer(PWideChar(src), Length(src), dest);
+  Result := UTF8EncodeBuffer(PWideChar(src), length(src), dest);
 end;
 
 function UTF8EncodeBStr(const src: WideString; dest: PAnsiChar): Integer;
 begin
-  Result := UTF8EncodeBuffer(PWideChar(src), Length(src), dest);
+  Result := UTF8EncodeBuffer(PWideChar(src), length(src), dest);
 end;
 
-function UTF8EncodeUStr(const src: UnicodeString): UTF8String;
+function UTF8EncodeUStr(const src: u16string): UTF8String;
 begin
-  SetLength(Result, Length(src) * 3);
+  SetLength(Result, length(src) * 3);
 
-  SetLength(Result, UTF8EncodeBuffer(PWideChar(src), Length(src), PAnsiChar(Result)));
+  SetLength(Result, UTF8EncodeBuffer(PWideChar(src), length(src), PAnsiChar(Result)));
 end;
 
 function UTF8EncodeBStr(const src: WideString): UTF8String;
 begin
-  SetLength(Result, Length(src) * 3);
+  SetLength(Result, length(src) * 3);
 
-  SetLength(Result, UTF8EncodeBuffer(PWideChar(src), Length(src), PAnsiChar(Result)));
+  SetLength(Result, UTF8EncodeBuffer(PWideChar(src), length(src), PAnsiChar(Result)));
 end;
 
-function UTF8DecodeBufferTest(src: PAnsiChar; srclen: Integer; invalid: PPAnsiChar): Integer;
+function UTF8DecodeBufferTest(src: PAnsiChar; srcLen: Integer; invalid: PPAnsiChar): Integer;
 var
   i: Integer;
   c: Byte;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
   i := 0;
 
-  while i < srclen do
+  while i < srcLen do
   begin
     c := PByte(src + i)^;
     Inc(i);
@@ -3413,9 +7202,10 @@ begin
     if c and $80 <> 0 then
     begin
       // incomplete multibyte char
-      if i >= srclen then
+      if i >= srcLen then
       begin
-        if Assigned(invalid) then invalid^ := src + i - 1;
+        if Assigned(invalid) then
+          invalid^ := src + i - 1;
 
         Exit;
       end;
@@ -3430,14 +7220,16 @@ begin
         (* malformed trail byte or out of range char *)
         if c and $C0 <> $80 then
         begin
-          if Assigned(invalid) then invalid^ := src + i - 2;
+          if Assigned(invalid) then
+            invalid^ := src + i - 2;
           Exit;
         end;
 
         (* incomplete multibyte char *)
-        if i >= srclen then
+        if i >= srcLen then
         begin
-          if Assigned(invalid) then invalid^ := src + i - 2;
+          if Assigned(invalid) then
+            invalid^ := src + i - 2;
           Exit;
         end;
       end;
@@ -3448,7 +7240,8 @@ begin
       (* malformed trail byte *)
       if (c and $C0) <> $80 then
       begin
-        if Assigned(invalid) then invalid^ := src + i - 3;
+        if Assigned(invalid) then
+          invalid^ := src + i - 3;
         Exit;
       end;
     end;
@@ -3462,7 +7255,8 @@ var
   c: Byte;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
   while src^ <> #0 do
   begin
@@ -3474,7 +7268,8 @@ begin
       // incomplete multibyte char
       if src^ = #0 then
       begin
-        if Assigned(invalid) then invalid^ := src - 1;
+        if Assigned(invalid) then
+          invalid^ := src - 1;
 
         Exit;
       end;
@@ -3489,14 +7284,16 @@ begin
         (* malformed trail byte or out of range char *)
         if c and $C0 <> $80 then
         begin
-          if Assigned(invalid) then invalid^ := src - 2;
+          if Assigned(invalid) then
+            invalid^ := src - 2;
           Exit;
         end;
 
         (* incomplete multibyte char *)
         if src^ = #0 then
         begin
-          if Assigned(invalid) then invalid^ := src - 2;
+          if Assigned(invalid) then
+            invalid^ := src - 2;
           Exit;
         end;
       end;
@@ -3507,7 +7304,8 @@ begin
       (* malformed trail byte *)
       if (c and $C0) <> $80 then
       begin
-        if Assigned(invalid) then invalid^ := src - 3;
+        if Assigned(invalid) then
+          invalid^ := src - 3;
         Exit;
       end;
     end;
@@ -3516,19 +7314,19 @@ begin
   end;
 end;
 
-function UTF8DecodeBuffer(src: PAnsiChar; srclen: Integer; dest: PWideChar;
-  invalid: PPAnsiChar): Integer;
+function UTF8DecodeBuffer(src: PAnsiChar; srcLen: Integer; dest: PWideChar; invalid: PPAnsiChar): Integer;
 var
   i: Integer;
   c: Byte;
   wc: Word;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
   i := 0;
 
-  while i < srclen  do
+  while i < srcLen do
   begin
     wc := PByte(src + i)^;
     Inc(i);
@@ -3536,9 +7334,10 @@ begin
     if wc and $80 <> 0 then
     begin
       (* incomplete multibyte char *)
-      if i >= SrcLen then
+      if i >= srcLen then
       begin
-        if Assigned(invalid) then invalid^ := src + i - 1;
+        if Assigned(invalid) then
+          invalid^ := src + i - 1;
         Exit;
       end;
 
@@ -3552,14 +7351,16 @@ begin
         (* malformed trail byte or out of range char *)
         if c and $C0 <> $80 then
         begin
-          if Assigned(invalid) then invalid^ := src + i - 2;
+          if Assigned(invalid) then
+            invalid^ := src + i - 2;
           Exit;
         end;
 
         (* incomplete multibyte char *)
-        if i >= srclen then
+        if i >= srcLen then
         begin
-          if Assigned(invalid) then invalid^ := src + i - 2;
+          if Assigned(invalid) then
+            invalid^ := src + i - 2;
           Exit;
         end;
 
@@ -3571,7 +7372,8 @@ begin
 
       if c and $C0 <> $80 then
       begin
-        if Assigned(invalid) then invalid^ := src + i - 3;
+        if Assigned(invalid) then
+          invalid^ := src + i - 3;
         Exit;
       end;
 
@@ -3591,7 +7393,8 @@ var
   wc: Word;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
   while src^ <> #0 do
   begin
@@ -3603,7 +7406,8 @@ begin
       (* incomplete multibyte char *)
       if src^ = #0 then
       begin
-        if Assigned(invalid) then invalid^ := src - 1;
+        if Assigned(invalid) then
+          invalid^ := src - 1;
         Exit;
       end;
 
@@ -3617,14 +7421,16 @@ begin
         (* malformed trail byte or out of range char *)
         if c and $C0 <> $80 then
         begin
-          if Assigned(invalid) then invalid^ := src - 2;
+          if Assigned(invalid) then
+            invalid^ := src - 2;
           Exit;
         end;
 
         (* incomplete multibyte char *)
         if src^ = #0 then
         begin
-          if Assigned(invalid) then invalid^ := src - 2;
+          if Assigned(invalid) then
+            invalid^ := src - 2;
           Exit;
         end;
 
@@ -3636,7 +7442,8 @@ begin
 
       if c and $C0 <> $80 then
       begin
-        if Assigned(invalid) then invalid^ := src - 3;
+        if Assigned(invalid) then
+          invalid^ := src - 3;
         Exit;
       end;
 
@@ -3650,13 +7457,13 @@ begin
   end;
 end;
 
-function UTF8DecodeBuffer(src: PAnsiChar; srclen: Integer; invalid: PPAnsiChar): UnicodeString;
+function UTF8DecodeBuffer(src: PAnsiChar; srcLen: Integer; invalid: PPAnsiChar): u16string;
 begin
-  SetLength(Result, Length(src));
-  SetLength(Result, UTF8DecodeBuffer(src, srclen, PWideChar(Result), invalid));
+  SetLength(Result, length(src));
+  SetLength(Result, UTF8DecodeBuffer(src, srcLen, PWideChar(Result), invalid));
 end;
 
-function UTF8DecodeCStr(src: PAnsiChar; invalid: PPAnsiChar): UnicodeString;
+function UTF8DecodeCStr(src: PAnsiChar; invalid: PPAnsiChar): u16string;
 var
   L: Integer;
   _invalid: PAnsiChar;
@@ -3665,10 +7472,12 @@ begin
 
   if Assigned(_invalid) then
   begin
-    if Assigned(invalid) then invalid^ := _invalid;
+    if Assigned(invalid) then
+      invalid^ := _invalid;
     Result := '';
   end
-  else begin
+  else
+  begin
     SetLength(Result, L);
     SetLength(Result, UTF8DecodeCStr(src, PWideChar(Result), invalid));
   end;
@@ -3676,22 +7485,37 @@ end;
 
 function UTF8DecodeStr(const src: RawByteString; dest: PWideChar; invalid: PPAnsiChar): Integer;
 begin
-  Result := UTF8DecodeBuffer(PAnsiChar(src), Length(src), dest, invalid);
+  Result := UTF8DecodeBuffer(PAnsiChar(src), length(src), dest, invalid);
 end;
 
-function UTF8DecodeStr(const src: RawByteString; invalid: PPAnsiChar): UnicodeString;
+function UTF8DecodeStr(const src: RawByteString; invalid: PPAnsiChar): u16string;
 begin
-  SetLength(Result, Length(src));
-  SetLength(Result, UTF8DecodeBuffer(PAnsiChar(src), Length(src), PWideChar(Result), invalid));
+  SetLength(Result, length(src));
+  SetLength(Result, UTF8DecodeBuffer(PAnsiChar(src), length(src), PWideChar(Result), invalid));
 end;
 
-function StrIsEmptyA(const s: RawByteString): Boolean;
+function WinAPI_UTF8Decode(s: PAnsiChar; len: Integer): u16string;
+begin
+  Result := BufToUnicode(s, len, CP_UTF8);
+end;
+
+function WinAPI_UTF8Decode(const s: RawByteString): u16string;
+begin
+  Result := BufToUnicode(PAnsiChar(s), length(s), CP_UTF8);
+end;
+
+function WinAPI_UTF8Decode_2bstr(const s: RawByteString): WideString;
+begin
+  Result := BufToBSTR(PAnsiChar(s), length(s), CP_UTF8);
+end;
+
+function RBStrIsEmpty(const s: RawByteString): Boolean;
 var
   i: Integer;
 begin
   Result := True;
 
-  for i := 1 to Length(s) do
+  for i := 1 to length(s) do
   begin
     if Ord(s[i]) > 32 then
     begin
@@ -3701,13 +7525,13 @@ begin
   end;
 end;
 
-function UStrIsEmpty(const s: UnicodeString): Boolean;
+function UStrIsEmpty(const s: u16string): Boolean;
 var
   i: Integer;
 begin
   Result := True;
 
-  for i := 1 to Length(s) do
+  for i := 1 to length(s) do
   begin
     if Ord(s[i]) > 32 then
     begin
@@ -3717,7 +7541,977 @@ begin
   end;
 end;
 
-procedure StrUpperW(str: PWideChar; len: Integer);
+procedure SBC2DBCW(str: PWideChar);
+begin
+  while str^ <> #0 do
+  begin
+    if PWord(str)^ = 12288 then
+      PWord(str)^ := 32
+    else if (PWord(str)^ > 65280) and (PWord(str)^ < 65375) then
+      PWord(str)^ := PWord(str)^ - 65248;
+
+    Inc(str);
+  end;
+end;
+
+procedure SBC2DBCW(str: PWideChar; len: Integer);
+var
+  i: Integer;
+begin
+  for i := 0 to len - 1 do
+  begin
+    if PWord(str + i)^ = 12288 then
+      PWord(str + i)^ := 32
+    else if (PWord(str + i)^ > 65280) and (PWord(str + i)^ < 65375) then
+      PWord(str + i)^ := PWord(str + i)^ - 65248;
+  end;
+end;
+
+function UStrSBC2DBC(const str: u16string): u16string;
+var
+  i, L: Integer;
+  src, dst: PWideChar;
+  c: Word;
+begin
+  L := length(str);
+  SetLength(Result, L);
+  src := PWideChar(str);
+  dst := PWideChar(Result);
+
+  for i := 0 to L - 1 do
+  begin
+    c := PWord(src + i)^;
+
+    if c = 12288 then
+      PWord(dst + i)^ := 32
+    else if (c > 65280) and (c < 65375) then
+      PWord(dst + i)^ := c - 65248
+    else
+      PWord(dst + i)^ := c;
+  end;
+end;
+
+function BStrSBC2DBC(const str: WideString): WideString;
+var
+  i, L: Integer;
+  src, dst: PWideChar;
+  c: Word;
+begin
+  L := length(str);
+  SetLength(Result, L);
+  src := PWideChar(str);
+  dst := PWideChar(Result);
+
+  for i := 0 to L - 1 do
+  begin
+    c := PWord(src + i)^;
+
+    if c = 12288 then
+      PWord(dst + i)^ := 32
+    else if (c > 65280) and (c < 65375) then
+      PWord(dst + i)^ := c - 65248
+    else
+      PWord(dst + i)^ := c;
+  end;
+end;
+
+procedure DBC2SBCW(str: PWideChar);
+begin
+  while str^ <> #0 do
+  begin
+    if PWord(str)^ = 32 then
+      PWord(str)^ := 12288
+    else if (PWord(str)^ > 32) and (PWord(str)^ < 127) then
+      PWord(str)^ := PWord(str)^ + 65248;
+
+    Inc(str);
+  end;
+end;
+
+procedure DBC2SBCW(str: PWideChar; len: Integer);
+var
+  i: Integer;
+begin
+  for i := 0 to len - 1 do
+  begin
+    if PWord(str + i)^ = 32 then
+      PWord(str + i)^ := 12288
+    else if (PWord(str + i)^ > 32) and (PWord(str + i)^ < 127) then
+      PWord(str + i)^ := PWord(str + i)^ + 65248;
+  end;
+end;
+
+function UStrDBC2SBC(const str: u16string): u16string;
+var
+  i, L: Integer;
+  src, dst: PWideChar;
+  c: Word;
+begin
+  L := length(str);
+  SetLength(Result, L);
+  src := PWideChar(str);
+  dst := PWideChar(Result);
+
+  for i := 0 to L - 1 do
+  begin
+    c := PWord(src + i)^;
+
+    if c = 32 then
+      PWord(dst + i)^ := 12288
+    else if (c > 32) and (c < 127) then
+      PWord(dst + i)^ := c + 65248
+    else
+      PWord(dst + i)^ := c;
+  end;
+end;
+
+function BStrDBC2SBC(const str: WideString): WideString;
+var
+  i, L: Integer;
+  src, dst: PWideChar;
+  c: Word;
+begin
+  L := length(str);
+  SetLength(Result, L);
+  src := PWideChar(str);
+  dst := PWideChar(Result);
+
+  for i := 0 to L - 1 do
+  begin
+    c := PWord(src + i)^;
+
+    if c = 32 then
+      PWord(dst + i)^ := 12288
+    else if (c > 32) and (c < 127) then
+      PWord(dst + i)^ := c + 65248
+    else
+      PWord(dst + i)^ := c;
+  end;
+end;
+
+function GetHexNumberA(c: AnsiChar): Integer; inline;
+begin
+  case c of
+    '0' .. '9':
+      Result := Integer(c) - Ord('0');
+    'a' .. 'f':
+      Result := 10 + Integer(c) - Ord('a');
+    'A' .. 'F':
+      Result := 10 + Integer(c) - Ord('A');
+  else
+    Result := -1;
+  end;
+end;
+
+function cstrUnescapeA(src: PAnsiChar; dst: PAnsiChar; dstLen: Integer; pUnescaped: PInteger): Integer;
+var
+  p: PAnsiChar;
+  b1, b2, b3, nUnescaped: Integer;
+  procedure append(c: AnsiChar);
+  begin
+    if dstLen > Result then
+      dst[Result] := c;
+
+    Inc(Result);
+  end;
+
+begin
+  Result := 0;
+
+  if pUnescaped = nil then
+    pUnescaped := @nUnescaped;
+
+  pUnescaped^ := 0;
+  p := src;
+
+  while p^ <> #0 do
+  begin
+    if (p^ = '\') and ((p + 1)^ <> #0) then
+    begin
+      case (p + 1)^ of
+        'a':
+          begin
+            append(#7);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'b':
+          begin
+            append(#8);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'f':
+          begin
+            append(#12);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'n':
+          begin
+            append(#10);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'r':
+          begin
+            append(#13);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        't':
+          begin
+            append(#9);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'v':
+          begin
+            append(#11);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        '\':
+          begin
+            append('\');
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+
+        'x':
+          begin
+            if (p + 2)^ = #0 then
+            begin
+              b1 := -1;
+              b2 := -1;
+            end
+            else
+            begin
+              b1 := GetHexNumberA((p + 2)^);
+
+              if (p + 3)^ = #0 then
+                b2 := -1
+              else
+                b2 := GetHexNumberA((p + 3)^);
+            end;
+
+            if b1 < 0 then
+            begin
+              append('x');
+              Inc(pUnescaped^);
+              Inc(p, 2);
+            end
+            else if b2 < 0 then
+            begin
+              append(AnsiChar(b1));
+              Inc(pUnescaped^);
+              Inc(p, 3);
+            end
+            else
+            begin
+              append(AnsiChar(b1 shl 4 + b2));
+              Inc(pUnescaped^);
+              Inc(p, 4);
+            end;
+          end;
+
+        '0' .. '7':
+          begin
+            b1 := PWord(p + 1)^ - 48;
+
+            if (p + 2)^ = #0 then
+            begin
+              b2 := -1;
+              b3 := -1;
+            end
+            else
+            begin
+              if ((p + 2)^ >= '0') and ((p + 2)^ <= '7') then
+                b2 := PWord(p + 2)^ - 48
+              else
+                b2 := -1;
+
+              if (p + 3)^ = #0 then
+                b3 := -1
+              else if ((p + 3)^ >= '0') and ((p + 3)^ <= '7') then
+                b3 := PWord(p + 3)^ - 48
+              else
+                b3 := -1;
+            end;
+
+            if b2 < 0 then
+            begin
+              append(AnsiChar(b1));
+              Inc(pUnescaped^);
+              Inc(p, 2);
+            end
+            else if b3 < 0 then
+            begin
+              append(AnsiChar(b1 shl 3 + b2));
+              Inc(pUnescaped^);
+              Inc(p, 3);
+            end
+            else
+            begin
+              append(AnsiChar(b1 shl 6 + b2 shl 3 + b3));
+              Inc(pUnescaped^);
+              Inc(p, 4);
+            end;
+          end;
+
+      else
+        begin
+          append((p + 1)^);
+          Inc(p, 2);
+        end;
+      end;
+    end
+    else
+    begin
+      append(p^);
+      Inc(p);
+    end;
+  end;
+end;
+
+function cstrUnescapeA(src: PAnsiChar): RawByteString;
+var
+  L, nEscaped: Integer;
+begin
+  L := cstrUnescapeA(src, nil, 0, @nEscaped);
+
+  if nEscaped = 0 then
+    SetString(Result, src, L)
+  else
+  begin
+    SetLength(Result, L);
+    cstrUnescapeA(src, PAnsiChar(Result), L, @nEscaped);
+  end;
+end;
+
+function cstrUnescapeA(src: PAnsiChar; srcLen: Integer; dst: PAnsiChar; dstLen: Integer; pUnescaped: PInteger): Integer;
+var
+  p, last: PAnsiChar;
+  b1, b2, b3, nUnescaped: Integer;
+  procedure append(c: AnsiChar);
+  begin
+    if dstLen > Result then
+      dst[Result] := c;
+
+    Inc(Result);
+  end;
+
+begin
+  Result := 0;
+  p := src;
+  last := src + srcLen;
+  if pUnescaped = nil then
+    pUnescaped := @nUnescaped;
+
+  pUnescaped^ := 0;
+
+  while p < last do
+  begin
+    if (p^ = '\') and (p < last - 1) then
+    begin
+      case (p + 1)^ of
+        'a':
+          begin
+            append(#7);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'b':
+          begin
+            append(#8);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'f':
+          begin
+            append(#12);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'n':
+          begin
+            append(#10);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'r':
+          begin
+            append(#13);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        't':
+          begin
+            append(#9);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'v':
+          begin
+            append(#11);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        '\':
+          begin
+            append('\');
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+
+        'x':
+          begin
+            if p = last - 2 then
+            begin
+              b1 := -1;
+              b2 := -1;
+            end
+            else
+            begin
+              b1 := GetHexNumberA((p + 2)^);
+
+              if p = last - 3 then
+                b2 := -1
+              else
+                b2 := GetHexNumberA((p + 3)^);
+            end;
+
+            if b1 < 0 then
+            begin
+              append('x');
+              Inc(pUnescaped^);
+              Inc(p, 2);
+            end
+            else if b2 < 0 then
+            begin
+              append(AnsiChar(b1));
+              Inc(pUnescaped^);
+              Inc(p, 3);
+            end
+            else
+            begin
+              append(AnsiChar(b1 shl 4 + b2));
+              Inc(pUnescaped^);
+              Inc(p, 4);
+            end;
+          end;
+
+        '0' .. '7':
+          begin
+            b1 := PByte(p + 1)^ - 48;
+
+            if p = last - 2 then
+            begin
+              b2 := -1;
+              b3 := -1;
+            end
+            else
+            begin
+              if ((p + 2)^ >= '0') and ((p + 2)^ <= '7') then
+                b2 := PByte(p + 2)^ - 48
+              else
+                b2 := -1;
+
+              if p = last - 3 then
+                b3 := -1
+              else if ((p + 3)^ >= '0') and ((p + 3)^ <= '7') then
+                b3 := PByte(p + 3)^ - 48
+              else
+                b3 := -1;
+            end;
+
+            if b2 < 0 then
+            begin
+              append(AnsiChar(b1));
+              Inc(pUnescaped^);
+              Inc(p, 2);
+            end
+            else if b3 < 0 then
+            begin
+              append(AnsiChar(b1 shl 3 + b2));
+              Inc(pUnescaped^);
+              Inc(p, 3);
+            end
+            else
+            begin
+              append(AnsiChar(b1 shl 6 + b2 shl 3 + b3));
+              Inc(pUnescaped^);
+              Inc(p, 4);
+            end;
+          end;
+
+      else
+        begin
+          append((p + 1)^);
+          Inc(p, 2);
+        end;
+      end;
+    end
+    else
+    begin
+      append(p^);
+      Inc(p);
+    end;
+  end;
+end;
+
+function cstrUnescapeA(src: PAnsiChar; srcLen: Integer): RawByteString;
+var
+  L, nEscaped: Integer;
+begin
+  L := cstrUnescapeA(src, srcLen, nil, 0, @nEscaped);
+
+  if nEscaped = 0 then
+    SetString(Result, src, srcLen)
+  else
+  begin
+    SetLength(Result, L);
+    cstrUnescapeA(src, srcLen, PAnsiChar(Result), L, @nEscaped);
+  end;
+end;
+
+function cstrUnescape(const s: RawByteString): RawByteString;
+var
+  L, nEscaped: Integer;
+begin
+  L := cstrUnescapeA(PAnsiChar(s), length(s), nil, 0, @nEscaped);
+
+  if nEscaped = 0 then
+    Result := s
+  else
+  begin
+    SetLength(Result, L);
+    cstrUnescapeA(PAnsiChar(s), length(s), PAnsiChar(Result), L, @nEscaped);
+  end;
+end;
+
+function GetHexNumberW(c: WideChar): Integer; inline;
+begin
+  case c of
+    '0' .. '9':
+      Result := Integer(c) - Ord('0');
+    'a' .. 'f':
+      Result := 10 + Integer(c) - Ord('a');
+    'A' .. 'F':
+      Result := 10 + Integer(c) - Ord('A');
+  else
+    Result := -1;
+  end;
+end;
+
+function cstrUnescapeW(src: PWideChar; dst: PWideChar; dstLen: Integer; pUnescaped: PInteger): Integer;
+var
+  p: PWideChar;
+  b1, b2, b3, nUnescaped: Integer;
+  procedure append(c: WideChar);
+  begin
+    if dstLen > Result then
+      dst[Result] := c;
+
+    Inc(Result);
+  end;
+
+begin
+  Result := 0;
+
+  if pUnescaped = nil then
+    pUnescaped := @nUnescaped;
+
+  pUnescaped^ := 0;
+
+  p := src;
+
+  while p^ <> #0 do
+  begin
+    if (p^ = '\') and ((p + 1)^ <> #0) then
+    begin
+      case (p + 1)^ of
+        'a':
+          begin
+            append(#7);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'b':
+          begin
+            append(#8);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'f':
+          begin
+            append(#12);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'n':
+          begin
+            append(#10);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'r':
+          begin
+            append(#13);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        't':
+          begin
+            append(#9);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'v':
+          begin
+            append(#11);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        '\':
+          begin
+            append('\');
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+
+        'x':
+          begin
+            if (p + 2)^ = #0 then
+            begin
+              b1 := -1;
+              b2 := -1;
+            end
+            else
+            begin
+              b1 := GetHexNumberW((p + 2)^);
+
+              if (p + 3)^ = #0 then
+                b2 := -1
+              else
+                b2 := GetHexNumberW((p + 3)^);
+            end;
+
+            if b1 < 0 then
+            begin
+              append('x');
+              Inc(pUnescaped^);
+              Inc(p, 2);
+            end
+            else if b2 < 0 then
+            begin
+              append(WideChar(b1));
+              Inc(pUnescaped^);
+              Inc(p, 3);
+            end
+            else
+            begin
+              append(WideChar(b1 shl 4 + b2));
+              Inc(pUnescaped^);
+              Inc(p, 4);
+            end;
+          end;
+
+        '0' .. '7':
+          begin
+            b1 := PWord(p + 1)^ - 48;
+
+            if (p + 2)^ = #0 then
+            begin
+              b2 := -1;
+              b3 := -1;
+            end
+            else
+            begin
+              if ((p + 2)^ >= '0') and ((p + 2)^ <= '7') then
+                b2 := PWord(p + 2)^ - 48
+              else
+                b2 := -1;
+
+              if (p + 3)^ = #0 then
+                b3 := -1
+              else if ((p + 3)^ >= '0') and ((p + 3)^ <= '7') then
+                b3 := PWord(p + 3)^ - 48
+              else
+                b3 := -1;
+            end;
+
+            if b2 < 0 then
+            begin
+              append(WideChar(b1));
+              Inc(pUnescaped^);
+              Inc(p, 2);
+            end
+            else if b3 < 0 then
+            begin
+              append(WideChar(b1 shl 3 + b2));
+              Inc(pUnescaped^);
+              Inc(p, 3);
+            end
+            else
+            begin
+              append(WideChar(b1 shl 6 + b2 shl 3 + b3));
+              Inc(pUnescaped^);
+              Inc(p, 4);
+            end;
+          end;
+
+      else
+        begin
+          append((p + 1)^);
+          Inc(p, 2);
+        end;
+      end;
+    end
+    else
+    begin
+      append(p^);
+      Inc(p);
+    end;
+  end;
+end;
+
+function cstrUnescapeW(src: PWideChar): u16string;
+var
+  L, nUnescaped: Integer;
+begin
+  L := cstrUnescapeW(src, nil, 0, @nUnescaped);
+
+  if nUnescaped = 0 then
+    SetString(Result, src, L)
+  else
+  begin
+    SetLength(Result, L);
+    cstrUnescapeW(src, PWideChar(Result), L, @nUnescaped);
+  end;
+end;
+
+function cstrUnescapeW(src: PWideChar; srcLen: Integer; dst: PWideChar; dstLen: Integer; pUnescaped: PInteger): Integer;
+var
+  p, last: PWideChar;
+  b1, b2, b3, nUnescaped: Integer;
+  procedure append(c: WideChar);
+  begin
+    if dstLen > Result then
+      dst[Result] := c;
+
+    Inc(Result);
+  end;
+
+begin
+  Result := 0;
+
+  if pUnescaped = nil then
+    pUnescaped := @nUnescaped;
+
+  pUnescaped^ := 0;
+
+  p := src;
+  last := src + srcLen;
+
+  while p < last do
+  begin
+    if (p^ = '\') and (p < last - 1) then
+    begin
+      case (p + 1)^ of
+        'a':
+          begin
+            append(#7);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'b':
+          begin
+            append(#8);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'f':
+          begin
+            append(#12);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'n':
+          begin
+            append(#10);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'r':
+          begin
+            append(#13);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        't':
+          begin
+            append(#9);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        'v':
+          begin
+            append(#11);
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+        '\':
+          begin
+            append('\');
+            Inc(pUnescaped^);
+            Inc(p, 2);
+          end;
+
+        'x':
+          begin
+            if p = last - 2 then
+            begin
+              b1 := -1;
+              b2 := -1;
+            end
+            else
+            begin
+              b1 := GetHexNumberW((p + 2)^);
+
+              if p = last - 3 then
+                b2 := -1
+              else
+                b2 := GetHexNumberW((p + 3)^);
+            end;
+
+            if b1 < 0 then
+            begin
+              append('x');
+              Inc(pUnescaped^);
+              Inc(p, 2);
+            end
+            else if b2 < 0 then
+            begin
+              append(WideChar(b1));
+              Inc(pUnescaped^);
+              Inc(p, 3);
+            end
+            else
+            begin
+              append(WideChar(b1 shl 4 + b2));
+              Inc(pUnescaped^);
+              Inc(p, 4);
+            end;
+          end;
+
+        '0' .. '7':
+          begin
+            b1 := PWord(p + 1)^ - 48;
+
+            if p = last - 2 then
+            begin
+              b2 := -1;
+              b3 := -1;
+            end
+            else
+            begin
+              if ((p + 2)^ >= '0') and ((p + 2)^ <= '7') then
+                b2 := PWord(p + 2)^ - 48
+              else
+                b2 := -1;
+
+              if p = last - 3 then
+                b3 := -1
+              else if ((p + 3)^ >= '0') and ((p + 3)^ <= '7') then
+                b3 := PWord(p + 3)^ - 48
+              else
+                b3 := -1;
+            end;
+
+            if b2 < 0 then
+            begin
+              append(WideChar(b1));
+              Inc(pUnescaped^);
+              Inc(p, 2);
+            end
+            else if b3 < 0 then
+            begin
+              append(WideChar(b1 shl 3 + b2));
+              Inc(pUnescaped^);
+              Inc(p, 3);
+            end
+            else
+            begin
+              append(WideChar(b1 shl 6 + b2 shl 3 + b3));
+              Inc(pUnescaped^);
+              Inc(p, 4);
+            end;
+          end;
+
+      else
+        begin
+          append((p + 1)^);
+          Inc(p, 2);
+        end;
+      end;
+    end
+    else
+    begin
+      append(p^);
+      Inc(p);
+    end;
+  end;
+end;
+
+function cstrUnescapeW(src: PWideChar; srcLen: Integer): u16string;
+var
+  L, nEscaped: Integer;
+begin
+  L := cstrUnescapeW(src, srcLen, nil, 0, @nEscaped);
+
+  if nEscaped = 0 then
+    SetString(Result, src, srcLen)
+  else
+  begin
+    SetLength(Result, L);
+    cstrUnescapeW(src, srcLen, PWideChar(Result), L, @nEscaped);
+  end;
+end;
+
+function cstrUnescape(const s: u16string): u16string;
+var
+  L, nEscaped: Integer;
+begin
+  L := cstrUnescapeW(PWideChar(s), length(s), nil, 0, @nEscaped);
+
+  if nEscaped = 0 then
+    Result := s
+  else
+  begin
+    SetLength(Result, L);
+    cstrUnescapeW(PWideChar(s), length(s), PWideChar(Result), L, @nEscaped);
+  end;
+end;
+
+function StrUpperW(str: PWideChar): PWideChar; overload;
+var
+  ch: WideChar;
+begin
+  Result := str;
+
+  while str^ <> #0 do
+  begin
+    ch := str^;
+
+    if (ch >= 'a') and (ch <= 'z') then
+      str^ := WideChar(Ord(ch) - 32);
+
+    Inc(str);
+  end;
+end;
+
+function StrUpperW(str: PWideChar; len: Integer): PWideChar;
 var
   i: Integer;
   ch: WideChar;
@@ -3729,19 +8523,38 @@ begin
     if (ch >= 'a') and (ch <= 'z') then
       str[i] := WideChar(Ord(ch) - 32);
   end;
+
+  Result := str;
 end;
 
-procedure UStrUpper(const str: UnicodeString);
+procedure UStrUpper(const str: u16string);
 begin
-  StrUpperW(PWideChar(str), Length(str));
+  StrUpperW(PWideChar(str), length(str));
 end;
 
 procedure BStrUpper(const str: WideString);
 begin
-  StrUpperW(PWideChar(str), Length(str));
+  StrUpperW(PWideChar(str), length(str));
 end;
 
-procedure StrLowerW(str: PWideChar; len: Integer);
+function StrLowerW(str: PWideChar): PWideChar;
+var
+  ch: WideChar;
+begin
+  Result := str;
+
+  while str^ <> #0 do
+  begin
+    ch := str^;
+
+    if (ch >= 'A') and (ch <= 'Z') then
+      str^ := WideChar(Ord(ch) + 32);
+
+    Inc(str);
+  end;
+end;
+
+function StrLowerW(str: PWideChar; len: Integer): PWideChar;
 var
   i: Integer;
   ch: WideChar;
@@ -3753,19 +8566,38 @@ begin
     if (ch >= 'A') and (ch <= 'Z') then
       str[i] := WideChar(Ord(ch) + 32);
   end;
+
+  Result := str;
 end;
 
-procedure UStrLower(const str: UnicodeString);
+procedure UStrLower(const str: u16string);
 begin
-  StrLowerW(PWideChar(str), Length(str));
+  StrLowerW(PWideChar(str), length(str));
 end;
 
 procedure BStrLower(const str: WideString);
 begin
-  StrLowerW(PWideChar(str), Length(str));
+  StrLowerW(PWideChar(str), length(str));
 end;
 
-procedure StrUpperA(str: PAnsiChar; len: Integer);
+function StrUpperA(str: PAnsiChar): PAnsiChar;
+var
+  ch: AnsiChar;
+begin
+  Result := str;
+
+  while str^ <> #0 do
+  begin
+    ch := str^;
+
+    if (ch >= 'a') and (ch <= 'z') then
+      str^ := AnsiChar(Ord(ch) - 32);
+
+    Inc(str);
+  end;
+end;
+
+function StrUpperA(str: PAnsiChar; len: Integer): PAnsiChar;
 var
   i: Integer;
   ch: AnsiChar;
@@ -3777,14 +8609,33 @@ begin
     if (ch >= 'a') and (ch <= 'z') then
       str[i] := AnsiChar(Ord(ch) - 32);
   end;
+
+  Result := str;
 end;
 
-procedure StrUpperA(const str: RawByteString); overload;
+procedure RBStrUpper(const str: RawByteString);
 begin
-  StrUpperA(PAnsiChar(str), Length(str));
+  StrUpperA(PAnsiChar(str), length(str));
 end;
 
-procedure StrLowerA(str: PAnsiChar; len: Integer);
+function StrLowerA(str: PAnsiChar): PAnsiChar;
+var
+  ch: AnsiChar;
+begin
+  Result := str;
+
+  while str^ <> #0 do
+  begin
+    ch := str^;
+
+    if (ch >= 'A') and (ch <= 'Z') then
+      str^ := AnsiChar(Ord(ch) + 32);
+
+    Inc(str);
+  end;
+end;
+
+function StrLowerA(str: PAnsiChar; len: Integer): PAnsiChar;
 var
   i: Integer;
   ch: AnsiChar;
@@ -3796,166 +8647,2530 @@ begin
     if (ch >= 'A') and (ch <= 'Z') then
       str[i] := AnsiChar(Ord(ch) + 32);
   end;
+
+  Result := str;
 end;
 
-procedure StrLowerA(const str: RawByteString);
+function RBStrLower(const str: RawByteString): RawByteString;
 begin
-  StrLowerA(PAnsiChar(str), Length(str));
+  StrLowerA(PAnsiChar(str), length(str));
+  Result := str;
 end;
 
-procedure SetStringA(var s: RawByteString; _begin, _end: PAnsiChar);
+procedure SetRBStr(var s: RawByteString; _begin, _end: PAnsiChar);
 begin
-  if not Assigned(_begin) or not Assigned(_end) or (_end = _begin) then s := ''
-  else SetString(s, _begin, _end - _begin);
+  if not Assigned(_begin) or not Assigned(_end) or (_end <= _begin) then
+    s := ''
+  else
+    SetString(s, _begin, _end - _begin);
 end;
 
-procedure SetUString(var s: UnicodeString; _begin, _end: PWideChar);
+procedure SetUString(var s: u16string; _begin, _end: PWideChar);
 begin
-  if not Assigned(_begin) or not Assigned(_end) or (_end = _begin) then s := ''
-  else SetString(s, _begin, _end - _begin);
+  if not Assigned(_begin) or not Assigned(_end) or (_end <= _begin) then
+    s := ''
+  else
+    SetString(s, _begin, _end - _begin);
 end;
+{$REGION 'hex transfor implementation'}
 
-function MemHex(const Buffer; Size: Integer; UpperCase: Boolean): RawByteString;
+procedure ByteToHex(v: Byte; dst: PAnsiChar; UpperCase: Boolean); inline;
 const
-  HEXADECIMAL_CHARS: array[0..31] of AnsiChar =
-  ('0', '1', '2', '3', '4', '5', '6', '7',
-    '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-    '0', '1', '2', '3', '4', '5', '6', '7',
-    '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
+  HEXADECIMAL_CHARS: array [0 .. 31] of AnsiChar = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c',
+    'd', 'e', 'f', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
 var
-  i: LongWord;
-  h, l: Byte;
+  h, L: Byte;
 begin
-  SetLength(Result, Size * 2);
+  h := v shr 4;
+  L := v and $0F;
 
-  for i := 0 to Size - 1 do
+  if UpperCase then
   begin
-    h := PByte(Pointer(LongWord(@Buffer) + i))^ shr 4;
-    l := PByte(Pointer(LongWord(@Buffer) + i))^ and $0F;
+    Inc(h, 16);
+    Inc(L, 16);
+  end;
 
-    if UpperCase then
+  dst^ := HEXADECIMAL_CHARS[h];
+  dst[1] := HEXADECIMAL_CHARS[L];
+end;
+
+function MemHex(const Buffer; size: Integer; UpperCase: Boolean; delimiter: RawByteString): RawByteString;
+
+var
+  i, DelimiterLen: Integer;
+  pOutput: PAnsiChar;
+  pInput: PByte;
+begin
+  if size = 0 then
+  begin
+    Result := '';
+    Exit;
+  end;
+
+  DelimiterLen := length(delimiter);
+
+  SetLength(Result, size * 2 + DelimiterLen * (size - 1));
+  pOutput := PAnsiChar(Result);
+  pInput := PByte(@Buffer);
+  ByteToHex(pInput^, pOutput, UpperCase);
+  Inc(pInput);
+  Inc(pOutput, 2);
+
+  for i := 1 to size - 1 do
+  begin
+    if DelimiterLen > 0 then
     begin
-      Inc(h, 16);
-      Inc(l, 16);
+      Move(Pointer(delimiter)^, pOutput^, DelimiterLen);
+      Inc(pOutput, DelimiterLen);
     end;
 
-    PAnsiChar(Result)[2 * i] := HEXADECIMAL_CHARS[h];
-
-    PAnsiChar(Result)[2 * i + 1] := HEXADECIMAL_CHARS[l];
+    ByteToHex(pInput^, pOutput, UpperCase);
+    Inc(pInput);
+    Inc(pOutput, 2);
   end;
 end;
 
-function MemHex(const s: RawByteString; UpperCase: Boolean = True): RawByteString; overload;
+function MemHex(const s: RawByteString; UpperCase: Boolean; delimiter: RawByteString): RawByteString; overload;
 begin
-  Result := MemHex(Pointer(s)^, Length(s), UpperCase);
+  Result := MemHex(Pointer(s)^, length(s), UpperCase, delimiter);
 end;
 
-function HexStrToIntA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Integer;
+procedure ByteToHexW(v: Byte; dst: PWideChar; UpperCase: Boolean); inline;
+const
+  HEXADECIMAL_CHARS: array [0 .. 31] of WideChar = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c',
+    'd', 'e', 'f', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
 var
-  ptr, tail: PAnsiChar;
+  h, L: Byte;
+begin
+  h := v shr 4;
+  L := v and $0F;
+
+  if UpperCase then
+  begin
+    Inc(h, 16);
+    Inc(L, 16);
+  end;
+
+  dst^ := HEXADECIMAL_CHARS[h];
+  dst[1] := HEXADECIMAL_CHARS[L];
+end;
+
+function MemHexUStr(const Buffer; size: Integer; UpperCase: Boolean; delimiter: u16string): u16string;
+const
+  HEXADECIMAL_CHARS: array [0 .. 31] of WideChar = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c',
+    'd', 'e', 'f', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
+var
+  i, DelimiterLen: Integer;
+  pOutput: PWideChar;
+  pInput: PByte;
+begin
+  if size = 0 then
+  begin
+    Result := '';
+    Exit;
+  end;
+
+  DelimiterLen := length(delimiter);
+
+  SetLength(Result, size * 2 + DelimiterLen * (size - 1));
+  pOutput := PWideChar(Result);
+  pInput := PByte(@Buffer);
+
+  ByteToHexW(pInput^, pOutput, UpperCase);
+  Inc(pInput);
+  Inc(pOutput, 2);
+
+  for i := 1 to size - 1 do
+  begin
+    if DelimiterLen > 0 then
+    begin
+      Move(Pointer(delimiter)^, pOutput^, DelimiterLen * 2);
+      Inc(pOutput, DelimiterLen);
+    end;
+
+    ByteToHexW(pInput^, pOutput, UpperCase);
+    Inc(pInput);
+    Inc(pOutput, 2);
+  end;
+end;
+
+function MemHexUStr(const s: RawByteString; UpperCase: Boolean; delimiter: u16string): u16string;
+begin
+  Result := MemHexUStr(Pointer(s)^, length(s), UpperCase, delimiter);
+end;
+
+function hexValue(ch: AnsiChar): Byte;
+begin
+  case ch of
+    '0' .. '9':
+      Result := Byte(ch) and $0F;
+    'a' .. 'f', 'A' .. 'F':
+      Result := Byte(ch) and $0F + 9;
+  else
+    Result := $FF;
+  end;
+end;
+
+function hexValue(ch: WideChar): Byte;
+begin
+  case ch of
+    '0' .. '9':
+      Result := Word(ch) and $0F;
+    'a' .. 'f', 'A' .. 'F':
+      Result := Word(ch) and $0F + 9;
+  else
+    Result := $FF;
+  end;
+end;
+
+function isHexSymbol(ch: AnsiChar): Boolean; inline;
+begin
+  Result := ch in ['0' .. '9', 'A' .. 'Z', 'a' .. 'z'];
+end;
+
+function HexDecodeTest(hex: PAnsiChar; hexLen: Integer): Integer; inline;
+var
+  i: Integer;
+begin
+  Result := -1;
+  if hexLen mod 2 = 0 then
+  begin
+    for i := 0 to hexLen - 1 do
+      if not isHexSymbol(hex[i]) then
+        Exit;
+    Result := hexLen shr 1;
+  end;
+end;
+
+function HexDecode(hex: PAnsiChar; hexLen: Integer; var buf): Integer;
+var
+  i: Integer;
+  P1, P2: Byte;
+begin
+  Result := -1;
+  if hexLen mod 2 = 0 then
+  begin
+    for i := 0 to hexLen shr 1 - 1 do
+    begin
+      P1 := hexValue(hex[i * 2]);
+      if P1 = $FF then
+        Exit;
+      P2 := hexValue(hex[i * 2 + 1]);
+      if P2 = $FF then
+        Exit;
+
+      PAnsiChar(@buf)[i] := AnsiChar(P1 shl 4 + P2);
+    end;
+    Result := hexLen shr 1;
+  end;
+end;
+
+function HexDecode(const hex: RawByteString; var buf): Integer;
+begin
+  Result := HexDecode(PAnsiChar(hex), length(hex), buf);
+end;
+
+function HexDecode(hex: PAnsiChar; hexLen: Integer): RawByteString;
+var
+  L: Integer;
+begin
+  Result := '';
+  L := HexDecodeTest(hex, hexLen);
+
+  if L > 0 then
+  begin
+    SetLength(Result, L);
+    HexDecode(hex, hexLen, Pointer(Result)^);
+  end;
+end;
+
+function HexDecode(const hex: RawByteString): RawByteString;
+var
+  hexLen, L: Integer;
+begin
+  Result := '';
+  hexLen := length(hex);
+  L := HexDecodeTest(PAnsiChar(hex), hexLen);
+  if L > 0 then
+  begin
+    SetLength(Result, L);
+    HexDecode(PAnsiChar(hex), hexLen, Pointer(Result)^);
+  end;
+end;
+
+function HexDecodeExTest(hex: PAnsiChar; hexLen: Integer): Integer; inline;
+var
+  n: Integer;
+  p, end1, end2: PAnsiChar;
+begin
+  n := 0;
+  end1 := hex + hexLen;
+  end2 := end1 - 1;
+  p := hex;
+
+  while p < end2 do
+  begin
+    while (p < end2) and not isHexSymbol(p^) do
+      Inc(p);
+
+    if (p = end2) or not isHexSymbol(p[1]) then
+      Break;
+    Inc(n);
+    Inc(p, 2);
+  end;
+
+  if p = end1 then
+    Result := n
+  else
+    Result := -1;
+end;
+
+function HexDecodeEx(hex: PAnsiChar; hexLen: Integer; var buf): Integer;
+var
+  n: Integer;
+  p, end1, end2: PAnsiChar;
+  P1, P2: Byte;
+begin
+  n := 0;
+  end1 := hex + hexLen;
+  end2 := end1 - 1;
+  p := hex;
+
+  while p < end2 do
+  begin
+    while (p < end2) and not isHexSymbol(p^) do
+      Inc(p);
+
+    if (p = end2) or not isHexSymbol(p[1]) then
+      Break;
+
+    P1 := hexValue(p[0]);
+    P2 := hexValue(p[1]);
+
+    PAnsiChar(@buf)[n] := AnsiChar(P1 shl 4 + P2);
+
+    Inc(n);
+    Inc(p, 2);
+  end;
+
+  if p = end1 then
+    Result := n
+  else
+    Result := -1;
+end;
+
+function HexDecodeEx(const hex: RawByteString; var buf): Integer;
+begin
+  Result := HexDecodeEx(PAnsiChar(hex), length(hex), buf);
+end;
+
+function HexDecodeEx(hex: PAnsiChar; hexLen: Integer): RawByteString;
+var
+  L: Integer;
+begin
+  Result := '';
+  L := HexDecodeExTest(hex, hexLen);
+
+  if L > 0 then
+  begin
+    SetLength(Result, L);
+    HexDecodeEx(hex, hexLen, Pointer(Result)^);
+  end;
+end;
+
+function HexDecodeEx(const hex: RawByteString): RawByteString;
+var
+  hexLen, L: Integer;
+begin
+  Result := '';
+  hexLen := length(hex);
+  L := HexDecodeExTest(PAnsiChar(hex), hexLen);
+  if L > 0 then
+  begin
+    SetLength(Result, L);
+    HexDecodeEx(PAnsiChar(hex), hexLen, Pointer(Result)^);
+  end;
+end;
+
+function mixedHexDecode(hex: PAnsiChar; hexLen: Integer): RawByteString;
+const
+  SHexBegin: array [0 .. 3] of AnsiChar = ('h', 'e', 'x', '<');
+  SHexEnd: array [0 .. 0] of AnsiChar = ('>');
+var
+  sec, prefix, suffix: TAnsiCharSection;
+  P1, P2: PAnsiChar;
+  tmp: RawByteString;
+begin
+  Result := '';
+  sec._end := hex + hexLen;
+  prefix._begin := SHexBegin;
+  prefix._end := prefix._begin + Length(SHexBegin);
+  suffix._begin := SHexEnd;
+  suffix._end := suffix._begin + 1;
+  P1 := hex;
+  while P1 < sec._end do
+  begin
+    sec._begin := P1;
+    P2 := sec.ipos(prefix);
+
+    if P2 = nil then
+    begin
+      SetString(tmp, P1, sec._end - P1);
+      Result := Result + tmp;
+      Break;
+    end;
+
+    SetString(tmp, P1, P2 - P1);
+    Result := Result + tmp;
+    Inc(P2, 4);
+    P1 := P2;
+
+    while (P2 < sec._end) and (P2^ <> '>') do
+      Inc(P2);
+
+    if P2 = sec._end then
+    begin
+      Dec(P1, 4);
+      SetString(tmp, P1, P2 - P1);
+      Result := Result + tmp;
+      Break;
+    end
+    else
+    begin
+      Result := Result + HexDecodeEx(P1, P2 - P1);
+      P1 := P2 + 1;
+    end;
+  end;
+end;
+
+function mixedHexDecode(const hex: RawByteString): RawByteString;
+begin
+  Result := mixedHexDecode(PAnsiChar(hex), length(hex));
+end;
+{$ENDREGION}
+
+{$REGION 'string <=> number implementation'}
+
+procedure _calcInt(isNegative: Boolean; s: PAnsiChar; len: Integer; var number: TNumber);
+var
+  c, c2: UInt32;
+  UI64: UInt64;
+  len2: Integer;
+  function _(pch: PAnsiChar; i: Integer): UInt32; inline;
+  begin
+    Result := UInt32(pch[i]) and $0F;
+  end;
+
+begin
+  if len < 10 then
+  begin
+    number._type := numInt32;
+    c := 0;
+    case len of
+      1:
+        c := _(s, 0);
+      2:
+        c := _(s, 0) * 10 + _(s, 1);
+      3:
+        c := _(s, 0) * 100 + _(s, 1) * 10 + _(s, 2);
+      4:
+        c := _(s, 0) * 1000 + _(s, 1) * 100 + _(s, 2) * 10 + _(s, 3);
+      5:
+        c := _(s, 0) * 10000 + _(s, 1) * 1000 + _(s, 2) * 100 + _(s, 3) * 10 + _(s, 4);
+      6:
+        c := _(s, 0) * 100000 + _(s, 1) * 10000 + _(s, 2) * 1000 + _(s, 3) * 100 + _(s, 4) * 10 + _(s, 5);
+      7:
+        c := _(s, 0) * 1000000 + _(s, 1) * 100000 + _(s, 2) * 10000 + _(s, 3) * 1000 + _(s, 4) * 100 + _(s, 5) * 10 + _
+          (s, 6);
+      8:
+        c := _(s, 0) * 10000000 + _(s, 1) * 1000000 + _(s, 2) * 100000 + _(s, 3) * 10000 + _(s, 4) * 1000 + _(s, 5)
+          * 100 + _(s, 6) * 10 + _(s, 7);
+      9:
+        c := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s,
+          5) * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
+    end;
+    if isNegative then
+      number.I32 := -c
+    else
+      number.I32 := c;
+    Exit;
+  end;
+
+  c := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s, 5)
+    * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
+
+  Inc(s, 9);
+  Dec(len, 9);
+  if (c < High(UInt32) div 10) or ((c = High(UInt32) div 10) and (s[0] = '5')) then
+  begin
+    c := c * 10 + _(s, 0);
+    Inc(s);
+    Dec(len);
+
+    if len = 0 then
+    begin
+      if isNegative then
+      begin
+        if c > UInt32( High(Int32)) + 1 then
+          number.setInt64(-Int64(c))
+        else
+          number.setInt32(-c);
+      end
+      else
+        number.setUInt32(c);
+      Exit;
+    end;
+  end;
+
+  UI64 := UInt64(c);
+  len2 := len;
+  case len of
+    0:
+      c2 := 0;
+    1:
+      c2 := _(s, 0);
+    2:
+      c2 := _(s, 0) * 10 + _(s, 1);
+    3:
+      c2 := _(s, 0) * 100 + _(s, 1) * 10 + _(s, 2);
+    4:
+      c2 := _(s, 0) * 1000 + _(s, 1) * 100 + _(s, 2) * 10 + _(s, 3);
+    5:
+      c2 := _(s, 0) * 10000 + _(s, 1) * 1000 + _(s, 2) * 100 + _(s, 3) * 10 + _(s, 4);
+    6:
+      c2 := _(s, 0) * 100000 + _(s, 1) * 10000 + _(s, 2) * 1000 + _(s, 3) * 100 + _(s, 4) * 10 + _(s, 5);
+    7:
+      c2 := _(s, 0) * 1000000 + _(s, 1) * 100000 + _(s, 2) * 10000 + _(s, 3) * 1000 + _(s, 4) * 100 + _(s, 5) * 10 + _
+        (s, 6);
+    8:
+      c2 := _(s, 0) * 10000000 + _(s, 1) * 1000000 + _(s, 2) * 100000 + _(s, 3) * 10000 + _(s, 4) * 1000 + _(s, 5)
+        * 100 + _(s, 6) * 10 + _(s, 7);
+  else
+    c2 := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s, 5)
+      * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
+    len2 := 9;
+    if (len > 9) and ((c2 < High(UInt32) div 10) or ((c2 = High(UInt32) div 10) and (s[9] = '5'))) then
+    begin
+      c2 := c2 * 10 + _(s, 9);
+      Inc(len2);
+    end;
+  end;
+  Inc(s, len2);
+  Dec(len, len2);
+  UI64 := UI64 * INT64_TABLE[len2] + c2;
+
+  if len > 0 then
+  begin
+    case len of
+      1:
+        c2 := _(s, 0);
+      2:
+        c2 := _(s, 0) * 10 + _(s, 1);
+    end;
+    UI64 := UI64 * INT64_TABLE[len] + c2;
+  end;
+
+  if isNegative then
+    number.setInt64(-UI64)
+  else
+    number.setUInt64(UI64);
+end;
+
+function parseNumber(s: PAnsiChar; endAt: PPAnsiChar): TNumber;
+var
+  isNegative, expNegative: Boolean;
+  p, firstDigit, pNonZeroFrac, pDigits, intEnd, fracBegin, fracEnd: PAnsiChar;
+  maxIntBits, exponent, len, len2, i, n: Integer;
+  c: UInt32;
+  mantissa: array [0 .. 14] of AnsiChar;
+label lbl_exit, lbl_exp, lbl_float, lbl_int, lbl_power;
+begin
+  Result.clear;
+
+  if s = nil then
+  begin
+    P := s;
+    goto lbl_exit;
+  end;
+
+  s := GotoNextNotSpace(s);
+  p := s;
+  isNegative := False;
+  expNegative := False;
+  maxIntBits := 20; // UInt64
+  exponent := 0;
+
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    isNegative := True;
+    maxIntBits := 19;
+    Inc(p);
+  end;
+
+  firstDigit := p;
+
+  while p^ = '0' do
+    Inc(p);
+
+  pDigits := p;
+
+  while UInt32(p^) - 48 <= 9 do
+    Inc(p);
+
+  intEnd := p;
+
+  if p^ = '.' then
+  begin
+    Inc(p);
+    fracBegin := p;
+
+    while p^ = '0' do
+      Inc(p);
+
+    pNonZeroFrac := p;
+
+    while UInt32(p^) - 48 <= 9 do
+      Inc(p);
+    fracEnd := p;
+    if fracEnd = firstDigit + 1 then
+      goto lbl_exit;
+
+    if (pNonZeroFrac = fracEnd) and (pDigits = intEnd) then
+    begin
+      Result.setInt32(0);
+      goto lbl_exit;
+    end;
+
+    if (p^ = 'e') or (p^ = 'E') then
+      goto lbl_exp;
+    goto lbl_float;
+  end
+  else
+  begin
+    if p = firstDigit then
+      goto lbl_exit;
+    fracBegin := p;
+    fracEnd := p;
+    pNonZeroFrac := p;
+    if (p^ = 'e') or (p^ = 'E') then
+      goto lbl_exp;
+    goto lbl_float;
+  end;
+
+lbl_exp :
+  Inc(p);
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    expNegative := True;
+    Inc(p);
+  end;
+
+  while p^ = '0' do
+    Inc(p);
+
+  while True do
+  begin
+    c := UInt32(p^) - 48;
+    if c <= 9 then
+    begin
+      exponent := exponent * 10 + Integer(c);
+      Inc(p);
+    end
+    else
+      Break;
+  end;
+
+lbl_float :
+  len := intEnd - pDigits;
+  if (exponent = 0) and (pNonZeroFrac = fracEnd) and (len <= maxIntBits) then
+    goto lbl_int;
+  if expNegative then
+    exponent := -exponent;
+
+  if len > 0 then
+  begin
+    if len > length(mantissa) then
+    begin
+      Inc(exponent, len - length(mantissa));
+      len := length(mantissa);
+    end;
+    for i := 0 to len - 1 do
+      mantissa[i] := pDigits[i];
+
+    len2 := length(mantissa) - len;
+
+    if len2 > fracEnd - fracBegin then
+      len2 := fracEnd - fracBegin;
+
+    for i := 0 to len2 - 1 do
+      mantissa[len + i] := fracBegin[i];
+    Inc(len, len2);
+    Dec(exponent, len2);
+  end
+  else
+  begin
+    len := fracEnd - pNonZeroFrac;
+    if len > length(mantissa) then
+      len := length(mantissa);
+    for i := 0 to len - 1 do
+      mantissa[i] := pNonZeroFrac[i];
+    Dec(exponent, pNonZeroFrac - fracBegin + len);
+  end;
+  n := len - 1;
+  while mantissa[n] = '0' do
+    Dec(n);
+  Inc(exponent, len - n - 1);
+
+  _calcInt(isNegative, mantissa, n + 1, Result);
+
+  if exponent <> 0 then
+    Result.setExtended(Power10(Result.toExtended, exponent));
+
+  goto lbl_exit;
+
+lbl_int :
+  _calcInt(isNegative, pDigits, intEnd - pDigits, Result);
+
+lbl_exit :
+  if Assigned(endAt) then
+    endAt^ := p;
+end;
+
+function parseNumber(s: PAnsiChar; slen: Integer; endAt: PPAnsiChar): TNumber;
+var
+  isNegative, expNegative: Boolean;
+  send, p, firstDigit, pNonZeroFrac, pDigits, intEnd, fracBegin, fracEnd: PAnsiChar;
+  maxIntBits, exponent, len, len2, i, n: Integer;
+  c: UInt32;
+  mantissa: array [0 .. 14] of AnsiChar;
+label lbl_exit, lbl_exp, lbl_float, lbl_int, lbl_power;
+begin
+  Result.clear;
+  if (s = nil) or (slen <= 0) then
+  begin
+    P := s;
+    goto lbl_exit;
+  end;
+
+  send := s + slen;
+  while (s < send) and (UInt32(s^) - 1 < 32) do
+    Inc(s);
+  p := s;
+  if s = send then
+    goto lbl_exit;
+
+  fracBegin := s;
+  fracEnd := s;
+  pNonZeroFrac := s;
+  isNegative := False;
+  expNegative := False;
+  maxIntBits := 20; // UInt64
+  exponent := 0;
+
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    isNegative := True;
+    maxIntBits := 19;
+    Inc(p);
+  end;
+
+  firstDigit := p;
+
+  while (p < send) and (p^ = '0') do
+    Inc(p);
+
+  pDigits := p;
+
+  while (p < send) and (UInt32(p^) - 48 <= 9) do
+    Inc(p);
+
+  intEnd := p;
+
+  if p = send then
+    goto lbl_float;
+
+  if p^ = '.' then
+  begin
+    Inc(p);
+    fracBegin := p;
+
+    while (p < send) and (p^ = '0') do
+      Inc(p);
+
+    pNonZeroFrac := p;
+
+    while (p < send) and (UInt32(p^) - 48 <= 9) do
+      Inc(p);
+    fracEnd := p;
+    if fracEnd = firstDigit + 1 then
+      goto lbl_exit;
+
+    if (pNonZeroFrac = fracEnd) and (pDigits = intEnd) then
+    begin
+      Result.setInt32(0);
+      goto lbl_exit;
+    end;
+
+    if (p < send) and ((p^ = 'e') or (p^ = 'E')) then
+      goto lbl_exp;
+
+    goto lbl_float;
+  end
+  else
+  begin
+    if p = firstDigit then
+      goto lbl_exit;
+    if (p^ = 'e') or (p^ = 'E') then
+      goto lbl_exp;
+    goto lbl_float;
+  end;
+
+lbl_exp :
+  Inc(p);
+  if p = send then
+    goto lbl_float;
+
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    expNegative := True;
+    Inc(p);
+  end;
+
+  while (p < send) and (p^ = '0') do
+    Inc(p);
+
+  while p < send do
+  begin
+    c := UInt32(p^) - 48;
+    if c <= 9 then
+    begin
+      exponent := exponent * 10 + Integer(c);
+      Inc(p);
+    end
+    else
+      Break;
+  end;
+
+lbl_float :
+  len := intEnd - pDigits;
+  if (exponent = 0) and (pNonZeroFrac = fracEnd) and (len <= maxIntBits) then
+    goto lbl_int;
+
+  if expNegative then
+    exponent := -exponent;
+
+  if len > 0 then
+  begin
+    if len > length(mantissa) then
+    begin
+      Inc(exponent, len - length(mantissa));
+      len := length(mantissa);
+    end;
+    for i := 0 to len - 1 do
+      mantissa[i] := pDigits[i];
+
+    len2 := length(mantissa) - len;
+
+    if len2 > fracEnd - fracBegin then
+      len2 := fracEnd - fracBegin;
+
+    for i := 0 to len2 - 1 do
+      mantissa[len + i] := fracBegin[i];
+    Inc(len, len2);
+    Dec(exponent, len2);
+  end
+  else
+  begin
+    len := fracEnd - pNonZeroFrac;
+    if len > length(mantissa) then
+      len := length(mantissa);
+    for i := 0 to len - 1 do
+      mantissa[i] := pNonZeroFrac[i];
+    Dec(exponent, pNonZeroFrac - fracBegin + len);
+  end;
+  n := len - 1;
+  while mantissa[n] = '0' do
+    Dec(n);
+  Inc(exponent, len - n - 1);
+
+  _calcInt(isNegative, mantissa, n + 1, Result);
+  if exponent <> 0 then
+    Result.setExtended(Power10(Result.toExtended, exponent));
+  goto lbl_exit;
+
+lbl_int :
+  _calcInt(isNegative, pDigits, intEnd - pDigits, Result);
+
+lbl_exit :
+  if Assigned(endAt) then
+    endAt^ := p;
+end;
+
+procedure _calcInt(isNegative: Boolean; s: PWideChar; len: Integer; var number: TNumber);
+var
+  c, c2: UInt32;
+  UI64: UInt64;
+  len2: Integer;
+  function _(pch: PWideChar; i: Integer): UInt32; inline;
+  begin
+    Result := UInt32(pch[i]) and $0F;
+  end;
+
+begin
+  if len < 10 then
+  begin
+    number._type := numInt32;
+    c := 0;
+    case len of
+      1:
+        c := _(s, 0);
+      2:
+        c := _(s, 0) * 10 + _(s, 1);
+      3:
+        c := _(s, 0) * 100 + _(s, 1) * 10 + _(s, 2);
+      4:
+        c := _(s, 0) * 1000 + _(s, 1) * 100 + _(s, 2) * 10 + _(s, 3);
+      5:
+        c := _(s, 0) * 10000 + _(s, 1) * 1000 + _(s, 2) * 100 + _(s, 3) * 10 + _(s, 4);
+      6:
+        c := _(s, 0) * 100000 + _(s, 1) * 10000 + _(s, 2) * 1000 + _(s, 3) * 100 + _(s, 4) * 10 + _(s, 5);
+      7:
+        c := _(s, 0) * 1000000 + _(s, 1) * 100000 + _(s, 2) * 10000 + _(s, 3) * 1000 + _(s, 4) * 100 + _(s, 5) * 10 + _
+          (s, 6);
+      8:
+        c := _(s, 0) * 10000000 + _(s, 1) * 1000000 + _(s, 2) * 100000 + _(s, 3) * 10000 + _(s, 4) * 1000 + _(s, 5)
+          * 100 + _(s, 6) * 10 + _(s, 7);
+      9:
+        c := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s,
+          5) * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
+    end;
+    if isNegative then
+      number.I32 := -c
+    else
+      number.I32 := c;
+    Exit;
+  end;
+
+  c := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s, 5)
+    * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
+
+  Inc(s, 9);
+  Dec(len, 9);
+  if (c < High(UInt32) div 10) or ((c = High(UInt32) div 10) and (s[0] = '5')) then
+  begin
+    c := c * 10 + _(s, 0);
+    Inc(s);
+    Dec(len);
+
+    if len = 0 then
+    begin
+      if isNegative then
+      begin
+        if c > UInt32( High(Int32)) + 1 then
+          number.setInt64(-Int64(c))
+        else
+          number.setInt32(-c);
+      end
+      else
+        number.setUInt32(c);
+      Exit;
+    end;
+  end;
+
+  UI64 := UInt64(c);
+  len2 := len;
+  case len of
+    0:
+      c2 := 0;
+    1:
+      c2 := _(s, 0);
+    2:
+      c2 := _(s, 0) * 10 + _(s, 1);
+    3:
+      c2 := _(s, 0) * 100 + _(s, 1) * 10 + _(s, 2);
+    4:
+      c2 := _(s, 0) * 1000 + _(s, 1) * 100 + _(s, 2) * 10 + _(s, 3);
+    5:
+      c2 := _(s, 0) * 10000 + _(s, 1) * 1000 + _(s, 2) * 100 + _(s, 3) * 10 + _(s, 4);
+    6:
+      c2 := _(s, 0) * 100000 + _(s, 1) * 10000 + _(s, 2) * 1000 + _(s, 3) * 100 + _(s, 4) * 10 + _(s, 5);
+    7:
+      c2 := _(s, 0) * 1000000 + _(s, 1) * 100000 + _(s, 2) * 10000 + _(s, 3) * 1000 + _(s, 4) * 100 + _(s, 5) * 10 + _
+        (s, 6);
+    8:
+      c2 := _(s, 0) * 10000000 + _(s, 1) * 1000000 + _(s, 2) * 100000 + _(s, 3) * 10000 + _(s, 4) * 1000 + _(s, 5)
+        * 100 + _(s, 6) * 10 + _(s, 7);
+  else
+    c2 := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s, 5)
+      * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
+    len2 := 9;
+    if (len > 9) and ((c2 < High(UInt32) div 10) or ((c2 = High(UInt32) div 10) and (s[9] = '5'))) then
+    begin
+      c2 := c2 * 10 + _(s, 9);
+      Inc(len2);
+    end;
+  end;
+  Inc(s, len2);
+  Dec(len, len2);
+  UI64 := UI64 * INT64_TABLE[len2] + c2;
+
+  if len > 0 then
+  begin
+    case len of
+      1:
+        c2 := _(s, 0);
+      2:
+        c2 := _(s, 0) * 10 + _(s, 1);
+    end;
+    UI64 := UI64 * INT64_TABLE[len] + c2;
+  end;
+
+  if isNegative then
+    number.setInt64(-UI64)
+  else
+    number.setUInt64(UI64);
+end;
+
+function parseNumber(s: PWideChar; endAt: PPWideChar): TNumber;
+var
+  isNegative, expNegative: Boolean;
+  p, firstDigit, pNonZeroFrac, pDigits, intEnd, fracBegin, fracEnd: PWideChar;
+  maxIntBits, exponent, len, len2, i, n: Integer;
+  c: UInt32;
+  mantissa: array [0 .. 14] of WideChar;
+label lbl_exit, lbl_exp, lbl_float, lbl_int, lbl_power;
+begin
+  Result.clear;
+  if s = nil then
+  begin
+    P := s;
+    goto lbl_exit;
+  end;
+  s := GotoNextNotSpace(s);
+  p := s;
+  isNegative := False;
+  expNegative := False;
+  maxIntBits := 20; // UInt64
+  exponent := 0;
+
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    isNegative := True;
+    maxIntBits := 19;
+    Inc(p);
+  end;
+
+  firstDigit := p;
+
+  while p^ = '0' do
+    Inc(p);
+
+  pDigits := p;
+
+  while UInt32(p^) - 48 <= 9 do
+    Inc(p);
+
+  intEnd := p;
+
+  if p^ = '.' then
+  begin
+    Inc(p);
+    fracBegin := p;
+
+    while p^ = '0' do
+      Inc(p);
+
+    pNonZeroFrac := p;
+
+    while UInt32(p^) - 48 <= 9 do
+      Inc(p);
+    fracEnd := p;
+    if fracEnd = firstDigit + 1 then
+      goto lbl_exit;
+
+    if (pNonZeroFrac = fracEnd) and (pDigits = intEnd) then
+    begin
+      Result.setInt32(0);
+      goto lbl_exit;
+    end;
+
+    if (p^ = 'e') or (p^ = 'E') then
+      goto lbl_exp;
+    goto lbl_float;
+  end
+  else
+  begin
+    if p = firstDigit then
+      goto lbl_exit;
+    fracBegin := p;
+    fracEnd := p;
+    pNonZeroFrac := p;
+    if (p^ = 'e') or (p^ = 'E') then
+      goto lbl_exp;
+    goto lbl_float;
+  end;
+
+lbl_exp :
+  Inc(p);
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    expNegative := True;
+    Inc(p);
+  end;
+
+  while p^ = '0' do
+    Inc(p);
+
+  while True do
+  begin
+    c := UInt32(p^) - 48;
+    if c <= 9 then
+    begin
+      exponent := exponent * 10 + Integer(c);
+      Inc(p);
+    end
+    else
+      Break;
+  end;
+
+lbl_float :
+  len := intEnd - pDigits;
+  if (exponent = 0) and (pNonZeroFrac = fracEnd) and (len <= maxIntBits) then
+    goto lbl_int;
+  if expNegative then
+    exponent := -exponent;
+
+  if len > 0 then
+  begin
+    if len > length(mantissa) then
+    begin
+      Inc(exponent, len - length(mantissa));
+      len := length(mantissa);
+    end;
+    for i := 0 to len - 1 do
+      mantissa[i] := pDigits[i];
+
+    len2 := length(mantissa) - len;
+
+    if len2 > fracEnd - fracBegin then
+      len2 := fracEnd - fracBegin;
+
+    for i := 0 to len2 - 1 do
+      mantissa[len + i] := fracBegin[i];
+    Inc(len, len2);
+    Dec(exponent, len2);
+  end
+  else
+  begin
+    len := fracEnd - pNonZeroFrac;
+    if len > length(mantissa) then
+      len := length(mantissa);
+    for i := 0 to len - 1 do
+      mantissa[i] := pNonZeroFrac[i];
+    Dec(exponent, pNonZeroFrac - fracBegin + len);
+  end;
+  n := len - 1;
+  while mantissa[n] = '0' do
+    Dec(n);
+  Inc(exponent, len - n - 1);
+
+  _calcInt(isNegative, mantissa, n + 1, Result);
+  if exponent <> 0 then
+    Result.setExtended(Power10(Result.toExtended, exponent));
+  goto lbl_exit;
+
+lbl_int :
+  _calcInt(isNegative, pDigits, intEnd - pDigits, Result);
+
+lbl_exit :
+  if Assigned(endAt) then
+    endAt^ := p;
+end;
+
+function parseNumber(s: PWideChar; slen: Integer; endAt: PPWideChar): TNumber;
+var
+  isNegative, expNegative: Boolean;
+  send, p, firstDigit, pNonZeroFrac, pDigits, intEnd, fracBegin, fracEnd: PWideChar;
+  maxIntBits, exponent, len, len2, i, n: Integer;
+  c: UInt32;
+  mantissa: array [0 .. 14] of WideChar;
+label lbl_exit, lbl_exp, lbl_float, lbl_int, lbl_power;
+begin
+  Result.clear;
+  if (s = nil) or (slen <= 0) then
+  begin
+    P := s;
+    goto lbl_exit;
+  end;
+  send := s + slen;
+  while (s < send) and (UInt32(s^) - 1 < 32) do
+    Inc(s);
+  p := s;
+  if s = send then
+    goto lbl_exit;
+
+  fracBegin := s;
+  fracEnd := s;
+  pNonZeroFrac := s;
+  isNegative := False;
+  expNegative := False;
+  maxIntBits := 20; // UInt64
+  exponent := 0;
+
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    isNegative := True;
+    maxIntBits := 19;
+    Inc(p);
+  end;
+
+  firstDigit := p;
+
+  while (p < send) and (p^ = '0') do
+    Inc(p);
+
+  pDigits := p;
+
+  while (p < send) and (UInt32(p^) - 48 <= 9) do
+    Inc(p);
+
+  intEnd := p;
+
+  if p = send then
+    goto lbl_float;
+
+  if p^ = '.' then
+  begin
+    Inc(p);
+    fracBegin := p;
+
+    while (p < send) and (p^ = '0') do
+      Inc(p);
+
+    pNonZeroFrac := p;
+
+    while (p < send) and (UInt32(p^) - 48 <= 9) do
+      Inc(p);
+    fracEnd := p;
+    if fracEnd = firstDigit + 1 then
+      goto lbl_exit;
+
+    if (pNonZeroFrac = fracEnd) and (pDigits = intEnd) then
+    begin
+      Result.setInt32(0);
+      goto lbl_exit;
+    end;
+
+    if (p < send) and ((p^ = 'e') or (p^ = 'E')) then
+      goto lbl_exp;
+
+    goto lbl_float;
+  end
+  else
+  begin
+    if p = firstDigit then
+      goto lbl_exit;
+    if (p^ = 'e') or (p^ = 'E') then
+      goto lbl_exp;
+    goto lbl_float;
+  end;
+
+lbl_exp :
+  Inc(p);
+  if p = send then
+    goto lbl_float;
+
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    expNegative := True;
+    Inc(p);
+  end;
+
+  while (p < send) and (p^ = '0') do
+    Inc(p);
+
+  while p < send do
+  begin
+    c := UInt32(p^) - 48;
+    if c <= 9 then
+    begin
+      exponent := exponent * 10 + Integer(c);
+      Inc(p);
+    end
+    else
+      Break;
+  end;
+
+lbl_float :
+  len := intEnd - pDigits;
+  if (exponent = 0) and (pNonZeroFrac = fracEnd) and (len <= maxIntBits) then
+    goto lbl_int;
+
+  if expNegative then
+    exponent := -exponent;
+
+  if len > 0 then
+  begin
+    if len > length(mantissa) then
+    begin
+      Inc(exponent, len - length(mantissa));
+      len := length(mantissa);
+    end;
+    for i := 0 to len - 1 do
+      mantissa[i] := pDigits[i];
+
+    len2 := length(mantissa) - len;
+
+    if len2 > fracEnd - fracBegin then
+      len2 := fracEnd - fracBegin;
+
+    for i := 0 to len2 - 1 do
+      mantissa[len + i] := fracBegin[i];
+    Inc(len, len2);
+    Dec(exponent, len2);
+  end
+  else
+  begin
+    len := fracEnd - pNonZeroFrac;
+    if len > length(mantissa) then
+      len := length(mantissa);
+    for i := 0 to len - 1 do
+      mantissa[i] := pNonZeroFrac[i];
+    Dec(exponent, pNonZeroFrac - fracBegin + len);
+  end;
+  n := len - 1;
+  while mantissa[n] = '0' do
+    Dec(n);
+  Inc(exponent, len - n - 1);
+
+  _calcInt(isNegative, mantissa, n + 1, Result);
+  if exponent <> 0 then
+    Result.setExtended(Power10(Result.toExtended, exponent));
+  goto lbl_exit;
+
+lbl_int :
+  _calcInt(isNegative, pDigits, intEnd - pDigits, Result);
+
+lbl_exit :
+  if Assigned(endAt) then
+    endAt^ := p;
+end;
+
+function IntToStrFast(value: UInt; s: PAnsiChar): PAnsiChar;
+var
+  buf: array [0..11] of AnsiChar;
+  p: PAnsiChar;
+  i, len: Integer;
+begin
+  p := StrInt(buf + High(buf), value);
+  len := buf + High(buf) - p;
+  for i := 0 to len - 1 do
+    s[i] := p[i];
+  Result := s + len;
+end;
+(*
+var
+  remainder, quotient: UInt32;
+begin
+  while True do
+  begin
+    case value of
+      0 .. 9:
+        begin
+          Dec(s);
+          s^ := AnsiChar(value + $30);
+          Break;
+        end;
+      10 .. High(_0to99A):
+        begin
+          Dec(s, 2);
+          PWord(s)^ := PWord(_0to99A[value])^;
+          Break;
+        end;
+    end;
+
+    asm
+      push eax
+      push edx
+      mov eax, value
+      mov  edx, 1374389535 // use power of two reciprocal to avoid division
+      mul  edx
+      shr  edx, 5          // now edx=eax div 100
+      mov  quotient, edx
+      pop edx
+      pop eax
+    end;
+
+    remainder := value - quotient * 100;
+
+    Dec(s, 2);
+    case remainder of
+      0 .. 9:
+        PWord(s)^ := (remainder + $30) shl 8 + $30;
+    else
+      PWord(s)^ := PWord(_0to99A[remainder])^;
+    end;
+    value := quotient;
+  end;
+  Result := s;
+end;
+*)
+
+function IntToStrFast(value: Int32; s: PAnsiChar): PAnsiChar;
+begin
+  if value < 0 then
+  begin
+    Result := IntToStrFast(UInt32(-value), s + 1);
+    s^ := '-';
+  end
+  else
+    Result := IntToStrFast(UInt32(value), s);
+end;
+
+function IntToStrFast(value: UInt32; s: PWideChar): PWideChar;
+var
+  buf: array [0..11] of WideChar;
+  p: PWideChar;
+  i, len: Integer;
+begin
+  p := StrInt(buf + High(buf), value);
+  len := buf + High(buf) - p;
+  for i := 0 to len - 1 do
+    s[i] := p[i];
+  Result := s + len;
+end;
+
+function IntToStrFast(value: Int32; s: PWideChar): PWideChar;
+begin
+  if value < 0 then
+  begin
+    Result := IntToStrFast(UInt32(-value), s + 1);
+    s^ := '-';
+  end
+  else
+    Result := IntToStrFast(UInt32(value), s);
+end;
+
+function IntToStrFast(value: UInt64; s: PAnsiChar): PAnsiChar;
+var
+  buf: array [0..21] of AnsiChar;
+  p: PAnsiChar;
+  i, len: Integer;
+begin
+  p := StrInt(buf + High(buf), value);
+  len := buf + High(buf) - p;
+  for i := 0 to len - 1 do
+    s[i] := p[i];
+  Result := s + len;
+end;
+
+function IntToStrFast(value: Int64; s: PAnsiChar): PAnsiChar;
+begin
+  if value < 0 then
+  begin
+    Result := IntToStrFast(UInt64(-value), s + 1);
+    s^ := '-';
+  end
+  else
+    Result := IntToStrFast(UInt64(value), s);
+end;
+
+function IntToStrFast(value: UInt64; s: PWideChar): PWideChar;
+var
+  buf: array [0..21] of WideChar;
+  p: PWideChar;
+  i, len: Integer;
+begin
+  p := StrInt(buf + High(buf), value);
+  len := buf + High(buf) - p;
+  for i := 0 to len - 1 do
+    s[i] := p[i];
+  Result := s + len;
+end;
+
+function IntToStrFast(value: Int64; s: PWideChar): PWideChar;
+begin
+  if value < 0 then
+  begin
+    Result := IntToStrFast(UInt64(-value), s + 1);
+    s^ := '-';
+  end
+  else
+    Result := IntToStrFast(UInt64(value), s);
+end;
+
+function IntToUTF16Str(value: Int32): UTF16String;
+var
+  buf: array [0..11] of WideChar;
+  p: PWideChar;
+begin
+  if (value >= Low(_0to99UStr)) and (value <= High(_0to99UStr)) then
+    _fastAssignStr(Result, _0to99UStr[value])
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToWideStr(value: Int32): WideString;
+var
+  buf: array [0..11] of WideChar;
+  p: PWideChar;
+begin
+  if (value >= Low(_0to99UStr)) and (value <= High(_0to99UStr)) then
+    Result := _0to99UStr[value]  //
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToRawBytes(value: Int32): RawByteString;
+var
+  buf: array [0..11] of AnsiChar;
+  p: PAnsiChar;
+begin
+  if (value >= Low(_0to99A)) and (value <= High(_0to99A)) then
+    _fastAssignStr(Result, _0to99A[value])
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToStrFast(value: Int32): string;
+begin
+{$IF SizeOf(Char) = 1}
+  Result := IntToRawBytes(value);
+{$ELSE}
+  Result := IntToUTF16Str(value);
+{$IFEND}
+end;
+
+function IntToUTF16Str(value: UInt32): UTF16String;
+var
+  buf: array [0..11] of WideChar;
+  p: PWideChar;
+  L: Integer;
+begin
+  if value <= High(_0to99UStr) then
+    _fastAssignStr(Result, _0to99UStr[value])
+  else begin
+    p := StrInt(buf+High(buf), value);
+    L := buf+High(buf)-p;
+    SetString(Result, p, L);
+  end;
+end;
+
+function IntToWideStr(value: UInt32): WideString;
+var
+  buf: array [0..11] of WideChar;
+  p: PWideChar;
+begin
+  if value <= High(_0to99UStr) then
+    Result := _0to99UStr[value]
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToRawBytes(value: UInt32): RawByteString;
+var
+  buf: array [0..11] of AnsiChar;
+  p: PAnsiChar;
+begin
+  if value <= High(_0to99A) then
+    _fastAssignStr(Result, _0to99A[value])
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToStrFast(value: UInt32): string;
+begin
+{$IF SizeOf(Char) = 1}
+  Result := IntToRawBytes(value);
+{$ELSE}
+  Result := IntToUTF16Str(value);
+{$IFEND}
+end;
+
+function IntToUTF16Str(value: Int64): UTF16String;
+var
+  buf: array [0..21] of WideChar;
+  p: PWideChar;
+begin
+  if (value >= Low(_0to99UStr)) and (value <= High(_0to99UStr)) then
+    _fastAssignStr(Result, _0to99UStr[value])
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToWideStr(value: Int64): WideString;
+var
+  buf: array [0..21] of WideChar;
+  p: PWideChar;
+begin
+  if (value >= Low(_0to99UStr)) and (value <= High(_0to99UStr)) then
+    Result := _0to99UStr[value]
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToRawBytes(value: Int64): RawByteString;
+var
+  buf: array [0..21] of AnsiChar;
+  p: PAnsiChar;
+begin
+  if (value >= Low(_0to99A)) and (value <= High(_0to99A)) then
+    _fastAssignStr(Result, _0to99A[value])
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToStrFast(value: Int64): string;
+begin
+{$IF SizeOf(Char) = 1}
+  Result := IntToRawBytes(value);
+{$ELSE}
+  Result := IntToUTF16Str(value);
+{$IFEND}
+end;
+
+function IntToUTF16Str(value: UInt64): UTF16String;
+var
+  buf: array [0..21] of WideChar;
+  p: PWideChar;
+begin
+  if value <= High(_0to99UStr) then
+    _fastAssignStr(Result, _0to99UStr[value])
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToWideStr(value: UInt64): WideString;
+var
+  buf: array [0..21] of WideChar;
+  p: PWideChar;
+begin
+  if value <= High(_0to99UStr) then
+    Result := _0to99UStr[value]
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToRawBytes(value: UInt64): RawByteString;
+var
+  buf: array [0..21] of AnsiChar;
+  p: PAnsiChar;
+begin
+  if value <= High(_0to99UStr) then
+    _fastAssignStr(Result, _0to99A[value])
+  else begin
+    p := StrInt(buf+High(buf), value);
+    SetString(Result, p, buf+High(buf)-p);
+  end;
+end;
+
+function IntToStrFast(value: UInt64): string;
+begin
+{$IF SizeOf(Char) = 1}
+  Result := IntToRawBytes(value);
+{$ELSE}
+  Result := IntToUTF16Str(value);
+{$IFEND}
+end;
+
+{$IFDEF USE_RTL_POW10}
+function Power10(const mantissa: Extended; exponent: Integer): Extended;
+asm
+  fld mantissa
+  call System.@Pow10
+  fstp Result
+end;
+{$ELSE}
+var
+  POWER10_TABLE: array [0 .. 4932] of Extended;
+
+procedure initPower10Table;
+var
+  i: Integer;
+  exp: Extended;
+begin
+  exp := 1;
+  POWER10_TABLE[0] := 1;
+  for i := Low(POWER10_TABLE) + 1 to High(POWER10_TABLE) do
+  begin
+    exp := exp * 10;
+    POWER10_TABLE[i] := exp;
+  end;
+end;
+
+function Power10(mantissa: Extended; exponent: Integer): Extended;
+begin
+  Result := mantissa;
+  if exponent > 0 then
+  begin
+    while exponent > High(POWER10_TABLE) do
+    begin
+      Result := Result * POWER10_TABLE[ High(POWER10_TABLE)];
+      Dec(exponent, High(POWER10_TABLE));
+    end;
+    if exponent <> 0 then
+      Result := Result * POWER10_TABLE[exponent];
+  end
+  else if exponent < 0 then
+  begin
+    exponent := -exponent;
+    while exponent > High(POWER10_TABLE) do
+    begin
+      Result := Result / POWER10_TABLE[ High(POWER10_TABLE)];
+      Dec(exponent, High(POWER10_TABLE));
+    end;
+    if exponent <> 0 then
+      Result := Result / POWER10_TABLE[exponent];
+  end;
+end;
+{$ENDIF}
+
+{ TNumber }
+
+function TNumber.ceil: Int64;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := Math.Ceil(VDouble);
+    numExtended:
+      Result := Math.Ceil(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+procedure TNumber.clear;
+begin
+  _type := numNaN;
+end;
+
+function TNumber.expr: string;
+begin
+  case _type of
+    numNaN:
+      Result := '(NaN)';
+    numInt32:
+      Result := '(int32): ' + IntToStrFast(I32);
+    numUInt32:
+      Result := '(uint32): ' + IntToStrFast(UI32);
+    numInt64:
+      Result := '(int64): ' + IntToStrFast(I64);
+    numUInt64:
+      Result := '(uint64): ' + IntToStrFast(UI64);
+    numDouble:
+      Result := '(float): ' + FloatToStr(VDouble);
+    numExtended:
+      Result := '(extended): ' + FloatToStr(VExtended);
+  else
+    Result := '(unknown)';
+  end;
+end;
+
+function TNumber.isFloat: Boolean;
+begin
+  Result := _type in [numDouble, numExtended];
+end;
+
+function TNumber.isInteger: Boolean;
+begin
+  Result := _type in [numInt32 .. numUInt64];
+end;
+
+function TNumber.isNegative: Boolean;
+begin
+  case _type of
+    numInt32:
+      Result := I32 < 0;
+    numInt64:
+      Result := I64 < 0;
+    numDouble:
+      Result := VDouble < 0;
+    numExtended:
+      Result := VExtended < 0;
+  else
+    Result := False
+  end;
+end;
+
+function TNumber.isPositive: Boolean;
+begin
+  case _type of
+    numInt32:
+      Result := I32 >= 0;
+    numInt64:
+      Result := I64 >= 0;
+    numDouble:
+      Result := VDouble >= 0;
+    numExtended:
+      Result := VExtended >= 0;
+    numUInt32, numUInt64:
+      Result := True;
+  else
+    Result := False
+  end;
+end;
+
+function TNumber.round: Int64;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Round(VDouble);
+    numExtended:
+      Result := System.Round(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+procedure TNumber.setDouble(value: Double);
+begin
+  _type := numDouble;
+  VDouble := value;
+end;
+
+procedure TNumber.setExtended(value: Extended);
+begin
+  _type := numExtended;
+  VExtended := value;
+end;
+
+procedure TNumber.setInt32(value: Int32);
+begin
+  _type := numInt32;
+  I32 := value;
+end;
+
+procedure TNumber.setInt64(value: Int64);
+begin
+  _type := numInt64;
+  I64 := value;
+end;
+
+procedure TNumber.setUInt32(value: UInt32);
+begin
+  _type := numUInt32;
+  UI32 := value;
+end;
+
+procedure TNumber.setUInt64(value: UInt64);
+begin
+  _type := numUInt64;
+  UI64 := value;
+end;
+
+function TNumber.toExtended: Extended;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := VDouble;
+    numExtended:
+      Result := VExtended;
+  else
+    Result := 0.0;
+  end;
+end;
+
+function TNumber.toRawBytes: RawByteString;
+begin
+  case _type of
+    numInt32:
+      Result := IntToRawBytes(I32);
+    numUInt32:
+      Result := IntToRawBytes(UI32);
+    numInt64:
+      Result := IntToRawBytes(I64);
+    numUInt64:
+      Result := IntToRawBytes(UI64);
+    numDouble:
+      Result := FloatToRBStr(VDouble);
+    numExtended:
+      Result := FloatToRBStr(VExtended);
+  else
+    Result := 'NaN';
+  end;
+end;
+
+function TNumber.toString: string;
+begin
+{$IF SizeOf(Char)=1}
+  Result := Self.toRawBytes;
+{$ELSE}
+  Result := Self.toUTF16Str;
+{$IFEND}
+end;
+
+function TNumber.asInt32: Int32;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Round(VDouble);
+    numExtended:
+      Result := System.Round(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+function TNumber.asUInt32: UInt32;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Round(VDouble);
+    numExtended:
+      Result := System.Round(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+function TNumber.toUTF16Str: UTF16String;
+begin
+  case _type of
+    numInt32:
+      Result := IntToUTF16Str(I32);
+    numUInt32:
+      Result := IntToUTF16Str(UI32);
+    numInt64:
+      Result := IntToUTF16Str(I64);
+    numUInt64:
+      Result := IntToUTF16Str(UI64);
+    numDouble:
+      Result := FloatToUStr(VDouble);
+    numExtended:
+      Result := FloatToUStr(VExtended);
+  else
+    Result := 'NaN';
+  end;
+end;
+
+function TNumber.trunc: Int64;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Trunc(VDouble);
+    numExtended:
+      Result := System.Trunc(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+function TNumber.tryGetInt(var value: Int64): Boolean;
+begin
+  Result := True;
+  case _type of
+    numInt32:
+      value := I32;
+    numUInt32:
+      value := UI32;
+    numInt64:
+      value := I64;
+    numUInt64:
+      value := UI64;
+  else
+    Result := False;
+  end;
+end;
+
+function TNumber.valid: Boolean;
+begin
+  Result := _type <> numNaN;
+end;
+
+function divBy100(dividend: Int32): Int32;
+asm
+  mov  edx, 1374389535 // use power of two reciprocal to avoid division
+  mul  edx
+  shr  edx, 5          // now edx=eax div 100
+  mov  eax, edx
+end;
+
+function StrInt(s: PAnsiChar; value: UInt32): PAnsiChar;
+asm     // eax=P, edx=val
+        push    edi
+        mov     edi, eax
+        mov     eax, edx
+        cmp     eax, 10
+        jb      @below10
+@s:     cmp     eax, 100
+        lea     edi, [edi - 2]
+        jb      @below100
+        mov     ecx, eax
+        mov     edx, 1374389535 // use power of two reciprocal to avoid division
+        mul     edx
+        shr     edx, 5          // now edx=eax div 100
+        mov     eax, edx
+        imul    edx, -400
+        mov     edx, dword ptr[_0to99A + ecx * 4 + edx]
+        mov     dx, word ptr [edx]
+        test    dx, $ff00
+        jnz     @4write2char
+        shl     dx, 8
+        or      dx, $30
+@4write2char:
+        mov     [edi], dx
+        cmp     eax, 10
+        jae     @s
+        jmp     @below10
+@below100:
+        mov     eax, dword ptr[_0to99A + eax * 4]
+        mov     ax, word ptr [eax]
+        mov     [edi], ax
+        jmp     @ret
+@below10:
+        dec     edi
+        or      al, '0'
+        mov     [edi], al
+@ret:
+        mov     eax, edi
+        pop     edi
+end;
+
+function StrInt(s: PAnsiChar; const value: UInt64): PAnsiChar;
+var
+  c, c100: UInt64;
+  remaider: Int32;
+begin
+  if Int64Rec(value).Hi = 0 then
+    s := StrInt(s, UInt32(Int64Rec(value).Lo))
+  else begin
+    c := value;
+    while True do
+    begin
+      asm // by-passing the RTL is a good idea here
+        push    ebx
+        mov     edx, dword ptr[c + 4]
+        mov     eax, dword ptr[c]
+        mov     ebx, 100
+        mov     ecx, eax
+        mov     eax, edx
+        xor     edx, edx
+        div     ebx
+        mov     dword ptr[c100 + 4], eax
+        xchg    eax, ecx
+        div     ebx
+        mov     dword ptr[c100], eax
+        imul    ebx, ecx
+        mov     ecx, 100
+        mul     ecx
+        add     edx, ebx
+        pop     ebx
+        sub     dword ptr[c + 4], edx
+        sbb     dword ptr[c], eax
+      end;
+      Dec(s, 2);
+      remaider := PInt32(@c)^;
+
+      if remaider < 10 then
+        PWord(s)^ := (remaider + $30) shl 8 + $30
+      else
+        PWord(s)^ := PWord(_0to99A[remaider])^;
+      c := c100;
+      if Int64Rec(c).Hi = 0 then
+      begin
+        if Int64Rec(c).Lo <> 0 then
+          s := StrInt(s, UInt32(Int64Rec(c).Lo));
+        Break;
+      end;
+    end;
+  end;
+  Result := s;
+end;
+
+function StrInt(s: PWideChar; value: UInt32): PWideChar;
+asm     // eax=s, edx=val
+        push    edi
+        mov     edi, eax
+        mov     eax, edx
+        cmp     eax, 10
+        jb      @below10
+@s:     cmp     eax, 100
+        lea     edi, [edi - 4]
+        jb      @below100
+        mov     ecx, eax
+        mov     edx, 1374389535 // use power of two reciprocal to avoid division
+        mul     edx
+        shr     edx, 5          // now edx=eax div 100
+        mov     eax, edx
+        imul    edx, -400
+        mov     edx, dword ptr[_0to99UStr + ecx * 4 + edx]
+        mov     edx, dword ptr [edx]
+        test    edx, $ffff0000  // 0 to 9, need add a left-padding 0
+        jnz     @write2char
+        shl     edx, 16
+        or      edx, $30
+@write2char:
+        mov     [edi], edx
+        cmp     eax, 10
+        jae     @s
+        jmp     @below10
+@below100:
+        mov     eax, dword ptr[_0to99UStr + eax * 4]
+        mov     eax, dword ptr [eax]
+        mov     [edi], eax
+        jmp     @ret
+@below10:
+        lea     edi, [edi - 2]
+        or      ax, '0'
+        mov     [edi], ax
+@ret:
+        mov     eax, edi
+        pop     edi
+end;
+
+function StrInt(s: PWideChar; const value: UInt64): PWideChar;
+var
+  c, c100: UInt64;
+  remaider: Int32;
+begin
+  if Int64Rec(value).Hi = 0 then
+    s := StrInt(s, UInt32(Int64Rec(value).Lo))
+  else begin
+    c := value;
+    while True do
+    begin
+      asm // by-passing the RTL is a good idea here
+        push    ebx
+        mov     edx, dword ptr[c + 4]
+        mov     eax, dword ptr[c]
+        mov     ebx, 100
+        mov     ecx, eax
+        mov     eax, edx
+        xor     edx, edx
+        div     ebx
+        mov     dword ptr[c100 + 4], eax
+        xchg    eax, ecx
+        div     ebx
+        mov     dword ptr[c100], eax
+        imul    ebx, ecx
+        mov     ecx, 100
+        mul     ecx
+        add     edx, ebx
+        pop     ebx
+        sub     dword ptr[c + 4], edx
+        sbb     dword ptr[c], eax
+      end;
+      Dec(s, 2);
+      remaider := PInt32(@c)^;
+
+      if remaider < 10 then
+        PInt32(s)^ := (remaider + $30) shl 16 + $30
+      else
+        PInt32(s)^ := PInt32(_0to99UStr[remaider])^;
+      c := c100;
+      if Int64Rec(c).Hi = 0 then
+      begin
+        if Int64Rec(c).Lo <> 0 then
+          s := StrInt(s, UInt32(Int64Rec(c).Lo));
+        Break;
+      end;
+    end;
+  end;
+  Result := s;
+end;
+
+function StrInt(s: PAnsiChar; value: Int32): PAnsiChar;
+{$ifndef SIGNEDINT_TO_STR_ASM}
+begin
+  if value < 0 then
+  begin
+    Result := StrInt(s, UInt32(-value)) - 1;
+    Result^ := '-';
+  end
+  else
+    Result := StrInt(s, UInt32(value));
+end;
+{$else}
+asm     // eax=s, edx=value
+        mov     ecx, edx
+        sar     ecx, 31         // 0 if val>=0 or -1 if val<0
+        xor     edx, ecx
+        sub     edx, ecx        // edx=abs(val)
+        push    ebx
+        push    edi
+        mov     edi, eax
+        mov     eax, edx
+        cmp     edx, 10
+        jb      @below10  // direct process of common val<10
+@s:     lea     edi, [edi - 2]
+        cmp     eax, 100
+        jb      @below100
+        mov     ebx, eax
+        mov     edx, 1374389535 // use power of two reciprocal to avoid division
+        mul     edx
+        shr     edx, 5          // now edx=eax div 100
+        mov     eax, edx
+        imul    edx, -400
+        mov     edx, dword ptr[_0to99A + ebx * 4 + edx]
+        mov     dx, word ptr [edx]
+        test    dx, $ff00
+        jnz     @write2char
+        shl     dx, 8
+        or      dx, $30
+@write2char:
+        mov     [edi], dx
+        cmp     eax, 10
+        jae     @s
+        jmp     @below10
+@below100:
+        mov     eax, dword ptr[_0to99A + eax * 4]
+        mov     ax, word ptr [eax]
+        mov     [edi], ax
+        jmp     @ret
+@below10:
+        dec     edi
+        or      al, '0'
+        mov     [edi], al
+@ret:
+        test    ecx, ecx
+        jz      @notneg
+        dec     edi
+        mov     byte ptr[edi], '-'
+@notneg:
+        mov     eax, edi
+        pop     edi
+        pop     ebx
+end;
+{$endif}
+
+function StrInt(s: PAnsiChar; const value: Int64): PAnsiChar;
+begin
+  if value < 0 then
+  begin
+    Result := StrInt(s, UInt64(-value)) - 1;
+    Result^ := '-';
+  end
+  else
+    Result := StrInt(s, UInt64(value));
+end;
+
+function StrInt(s: PWideChar; value: Int32): PWideChar; overload;
+{$ifndef SIGNEDINT_TO_STR_ASM}
+begin
+  if value < 0 then
+  begin
+    Result := StrInt(s, UInt32(-value)) - 1;
+    Result^ := '-';
+  end
+  else
+    Result := StrInt(s, UInt32(value));
+end;
+{$else}
+asm     // eax=s, edx=value
+        mov     ecx, edx
+        sar     ecx, 31         // 0 if val>=0 or -1 if val<0
+        xor     edx, ecx
+        sub     edx, ecx        // edx=abs(val)
+        push    ebx
+        push    edi
+        mov     edi, eax
+        mov     eax, edx
+        cmp     edx, 10
+        jb      @below10  // direct process of common val<10
+@s:     lea     edi, [edi - 4]
+        cmp     eax, 100
+        jb      @below100
+        mov     ebx, eax
+        mov     edx, 1374389535 // use power of two reciprocal to avoid division
+        mul     edx
+        shr     edx, 5          // now edx=eax div 100
+        mov     eax, edx
+        imul    edx, -400
+        mov     edx, dword ptr[_0to99UStr + ebx * 4 + edx]
+        mov     edx, dword ptr [edx]
+        test    edx, $ffff0000
+        jnz     @write2char
+        shl     edx, 16
+        or      edx, $30
+@write2char:
+        mov     [edi], edx
+        cmp     eax, 10
+        jae     @s
+        jmp     @below10
+@below100:
+        mov     eax, dword ptr[_0to99UStr + eax * 4]
+        mov     eax, dword ptr [eax]
+        mov     [edi], eax
+        jmp     @ret
+@below10:
+        lea     edi, [edi - 2]
+        or      ax, '0'
+        mov     [edi], ax
+@ret:
+        test    ecx, ecx
+        jz      @notneg
+        lea     edi, [edi - 2]
+        mov     word ptr[edi], '-'
+@notneg:
+        mov     eax, edi
+        pop     edi
+        pop     ebx
+end;
+{$endif}
+
+function StrInt(s: PWideChar; const value: Int64): PWideChar; overload;
+begin
+  if value < 0 then
+  begin
+    Result := StrInt(s, UInt64(-value)) - 1;
+    Result^ := '-';
+  end
+  else
+    Result := StrInt(s, UInt64(value));
+end;
+
+function IntToStrBufA(value: Integer; buf: PAnsiChar): Integer;
+begin
+  Result := IntToStrFast(value, buf) - buf;
+end;
+
+function IntToRBStr(value: Integer): RawByteString;
+begin
+  Result := IntToRawBytes(value);
+end;
+
+function UInt32ToStrBufA(value: UInt32; buf: PAnsiChar): Integer;
+begin
+  Result := IntToStrFast(value, buf) - buf;
+end;
+
+function IntToStrBufA(value: Int64; buf: PAnsiChar): Integer; overload;
+begin
+  Result := IntToStrFast(value, buf) - buf;
+end;
+
+function IntToRBStr(value: Int64): RawByteString;
+begin
+  Result := IntToRawBytes(value);
+end;
+
+function UInt64ToStrBufA(value: UInt64; buf: PAnsiChar): Integer; overload;
+begin
+  Result := IntToStrFast(value, buf) - buf;
+end;
+
+function UInt32ToRBStr(value: UInt32): RawByteString;
+begin
+  Result := IntToRawBytes(value);
+end;
+
+function UInt64ToRBStr(value: UInt64): RawByteString;
+begin
+  Result := IntToRawBytes(value);
+end;
+
+function IntToStrBufW(value: Integer; buf: PWideChar): Integer;
+begin
+  Result := IntToStrFast(value, buf) - buf;
+end;
+
+function UInt32ToStrBufW(value: UInt32; buf: PWideChar): Integer;
+begin
+  Result := IntToStrFast(value, buf) - buf;
+end;
+
+function IntToUStr(value: Integer): u16string;
+begin
+  Result := IntToUTF16Str(value);
+end;
+
+function IntToBStr(value: Integer): WideString;
+begin
+  Result := IntToWideStr(value);
+end;
+
+function IntToStrBufW(value: Int64; buf: PWideChar): Integer; overload;
+begin
+  Result := IntToStrFast(value, buf) - buf;
+end;
+
+function IntToUStr(value: Int64): u16string;
+begin
+  Result := IntToUTF16Str(value);
+end;
+
+function IntToBStr(value: Int64): WideString;
+begin
+  Result := IntToWideStr(value);
+end;
+
+function UInt64ToStrBufW(value: UInt64; buf: PWideChar): Integer;
+begin
+  Result := IntToStrFast(value, buf) - buf;
+end;
+
+function UInt32ToUStr(value: UInt32): u16string;
+begin
+  Result := IntToUTF16Str(value);
+end;
+
+function UInt64ToUStr(value: UInt64): u16string;
+begin
+  Result := IntToUTF16Str(value);
+end;
+
+function UInt32ToStr(value: UInt32): string;
+begin
+  Result := IntToUTF16Str(value);
+end;
+
+function UInt64ToStr(value: UInt64): string;
+begin
+  Result := IntToUTF16Str(value);
+end;
+
+function UInt32ToBStr(value: UInt32): WideString; overload;
+begin
+  Result := IntToWideStr(value);
+end;
+
+function UInt64ToBStr(value: UInt64): WideString; overload;
+begin
+  Result := IntToWideStr(value);
+end;
+
+function DecimalToUInt32A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt32;
+var
+  Ptr, tail: PAnsiChar;
+  bit: Integer;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
   tail := buf + len;
-  ptr := Buf;
+  Ptr := buf;
 
-  while ptr < tail do
+  while Ptr < tail do
   begin
-    case ptr^ of
-      '0'..'9': Result := Result shl 4 + Ord(ptr^) - Ord('0');
-      'A'..'F': Result := Result shl 4 + Ord(ptr^) - Ord('A') + 10;
-      'a'..'f': Result := Result shl 4 + Ord(ptr^) - Ord('a') + 10;
-      ',':;
-    else begin
-        if Assigned(invalid) then invalid^ := ptr;
+    bit := Ord(Ptr^) - $30;
+
+    if (bit >= 0) and (bit <= 9) then
+      Result := Result * 10 + UInt32(bit)
+    else
+    begin
+      if Assigned(invalid) then
+        invalid^ := Ptr;
+      Break;
+    end;
+
+    Inc(Ptr);
+  end;
+end;
+
+function HexToUInt32A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt32;
+var
+  Ptr, tail: PAnsiChar;
+begin
+  Result := 0;
+  if Assigned(invalid) then
+    invalid^ := nil;
+  tail := buf + len;
+  Ptr := buf;
+
+  while Ptr < tail do
+  begin
+    case Ptr^ of
+      '0' .. '9':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('0');
+      'A' .. 'F':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('A') + 10;
+      'a' .. 'f':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('a') + 10;
+      ',':
+        ;
+    else
+      begin
+        if Assigned(invalid) then
+          invalid^ := Ptr;
         Break;
       end;
     end;
 
-    Inc(ptr);
-  end;
-end;
-
-
-function IntToStrBufA(value: Integer; buf: PAnsiChar): Integer;
-const
-  DIGITS: array [-9..9] of AnsiChar =
-    ('9', '8', '7', '6', '5', '4', '3', '2', '1', '0',
-    '1', '2', '3', '4', '5', '6', '7', '8', '9');
-var
-  i, L: Integer;
-  _buf: array [0..15] of AnsiChar;
-  m, _value: Integer;
-begin
-  if value = 0 then
-  begin
-    buf[0] := '0';
-    Result := 1;
-    Exit;
-  end;
-
-  Result := 0;
-  _value := value;
-
-  while _value <> 0 do
-  begin
-    m := _value mod 10;
-
-    _buf[Result] := DIGITS[m];
-
-    Inc(Result);
-
-    _value := _value div 10;
-  end;
-
-  L := Result;
-
-  if value > 0 then i := 0
-  else begin
-    buf[0] := '-';
-    i := 1;
-    Inc(Result);
-  end;
-
-  while L > 0 do
-  begin
-    Dec(L);
-    buf[i] := _buf[L];
-    Inc(i);
-  end;
-end;
-
-function IntToStrA(value: Integer): RawByteString;
-var
-  buf: array [0..15] of AnsiChar;
-  L: Integer;
-begin
-  L := IntToStrBufA(value, buf);
-  SetString(Result, buf, L);
-end;
-
-function DecimalStrToIntA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Integer;
-var
-  ptr, tail: PAnsiChar;
-  bit: Integer;
-begin
-  Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
-  tail := buf + len;
-  ptr := Buf;
-
-  while ptr < tail do
-  begin
-    bit := Ord(ptr^) - $30;
-
-    if (bit >= 0) and (bit <= 9) then
-      Result := Result * 10 + bit
-    else begin
-      if Assigned(invalid) then invalid^ := ptr;
-      Break;
-    end;
-
-    Inc(ptr);
+    Inc(Ptr);
   end;
 end;
 
@@ -3965,9 +11180,11 @@ var
 begin
   Result := 0;
 
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
-  if not Assigned(buf) or (len = 0) then Exit;
+  if not Assigned(buf) or (len <= 0) then
+    Exit;
 
   sign := 1;
 
@@ -3983,70 +11200,160 @@ begin
     Dec(len);
   end;
 
-  if len <= 0 then Exit;
+  if len <= 0 then
+  begin
+    if Assigned(invalid) then
+      invalid^ := buf;
+    Exit;
+  end;
 
   if buf[0] = '$' then
-    Result := sign * HexStrToIntA(buf + 1, len - 1, invalid)
+    Result := sign * Int32(HexToUInt32A(buf + 1, len - 1, invalid))
   else
-    Result := sign * DecimalStrToIntA(buf, len, invalid);
+    Result := sign * Int32(DecimalToUInt32A(buf, len, invalid));
 end;
 
-function StrToIntA(const str: RawByteString): Integer;
+function RBStrToInt(const str: RawByteString): Integer;
 var
   c: PAnsiChar;
 begin
-  Result := BufToIntA(PAnsiChar(str), Length(str), @c);
+  Result := BufToIntA(PAnsiChar(str), length(str), @c);
 end;
 
-function HexStrToInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Int64;
+function RBStrToIntDef(const str: RawByteString; def: Integer): Integer;
 var
-  ptr, tail: PAnsiChar;
+  c: PAnsiChar;
+begin
+  Result := BufToIntA(PAnsiChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function BufToUInt32A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt32;
+var
+  sign: Integer;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
-  tail := buf + len;
-  ptr := Buf;
 
-  while ptr < tail do
+  if Assigned(invalid) then
+    invalid^ := nil;
+
+  if not Assigned(buf) or (len <= 0) then
+    Exit;
+
+  sign := 1;
+
+  if buf[0] = '-' then
   begin
-    case ptr^ of
-      '0'..'9': Result := Result shl 4 + Ord(ptr^) - Ord('0');
-      'A'..'F': Result := Result shl 4 + Ord(ptr^) - Ord('A') + 10;
-      'a'..'f': Result := Result shl 4 + Ord(ptr^) - Ord('a') + 10;
-      ',': ;
-    else begin
-        if Assigned(invalid) then invalid^ := ptr;
+    sign := -1;
+    Inc(buf);
+    Dec(len);
+  end
+  else if buf[0] = '+' then
+  begin
+    Inc(buf);
+    Dec(len);
+  end;
+
+  if len <= 0 then
+  begin
+    if Assigned(invalid) then
+      invalid^ := buf;
+    Exit;
+  end;
+
+  if sign = 1 then
+  begin
+    if buf[0] = '$' then
+      Result := HexToUInt32A(buf + 1, len - 1, invalid)
+    else
+      Result := DecimalToUInt32A(buf, len, invalid);
+  end
+  else
+  begin
+    if buf[0] = '$' then
+      Result := UInt32(-Int32(HexToUInt32A(buf + 1, len - 1, invalid)))
+    else
+      Result := UInt32(-Int32(DecimalToUInt32A(buf + 1, len - 1, invalid)));
+  end;
+end;
+
+function RBStrToUInt32(const str: RawByteString): UInt32;
+var
+  c: PAnsiChar;
+begin
+  Result := BufToUInt32A(PAnsiChar(str), length(str), @c);
+end;
+
+function RBStrToUInt32Def(const str: RawByteString; def: UInt32): UInt32;
+var
+  c: PAnsiChar;
+begin
+  Result := BufToUInt32A(PAnsiChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function HexToUInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt64;
+var
+  Ptr, tail: PAnsiChar;
+begin
+  Result := 0;
+  if Assigned(invalid) then
+    invalid^ := nil;
+  tail := buf + len;
+  Ptr := buf;
+
+  while Ptr < tail do
+  begin
+    case Ptr^ of
+      '0' .. '9':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('0');
+      'A' .. 'F':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('A') + 10;
+      'a' .. 'f':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('a') + 10;
+      ',':
+        ;
+    else
+      begin
+        if Assigned(invalid) then
+          invalid^ := Ptr;
         Break;
       end;
     end;
 
-    Inc(ptr);
+    Inc(Ptr);
   end;
 end;
 
-function DecimalStrToInt64A(buf: PAnsiChar; len: Integer;
-  invalid: PPAnsiChar): Int64;
+function DecimalToUInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt64;
 var
-  ptr, tail: PAnsiChar;
+  Ptr, tail: PAnsiChar;
   bit: Integer;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
   tail := buf + len;
-  ptr := Buf;
+  Ptr := buf;
 
-  while ptr < tail do
+  while Ptr < tail do
   begin
-    bit := Ord(ptr^) - $30;
+    bit := Ord(Ptr^) - $30;
 
     if (bit >= 0) and (bit <= 9) then
       Result := Result * 10 + bit
-    else begin
-      if Assigned(invalid) then invalid^ := ptr;
+    else
+    begin
+      if Assigned(invalid) then
+        invalid^ := Ptr;
       Break;
     end;
 
-    Inc(ptr);
+    Inc(Ptr);
   end;
 end;
 
@@ -4056,7 +11363,8 @@ var
 begin
   Result := 0;
 
-  if not Assigned(buf) or (len = 0) then Exit;
+  if not Assigned(buf) or (len <= 0) then
+    Exit;
 
   sign := 1;
 
@@ -4072,69 +11380,156 @@ begin
     Dec(len);
   end;
 
-  if len <= 0 then Exit;
+  if len <= 0 then
+  begin
+    if Assigned(invalid) then
+      invalid^ := buf;
+    Exit;
+  end;
 
   if buf[0] = '$' then
-    Result := sign * HexStrToInt64A(buf + 1, len - 1, invalid)
+    Result := sign * Int64(HexToUInt64A(buf + 1, len - 1, invalid))
   else
-    Result := sign * DecimalStrToInt64A(buf, len, invalid);
+    Result := sign * Int64(DecimalToUInt64A(buf, len, invalid));
 end;
 
-function StrToInt64A(const str: RawByteString): Int64;
+function RBStrToInt64(const str: RawByteString): Int64;
 var
   c: PAnsiChar;
 begin
-  Result := BufToInt64A(PAnsiChar(str), Length(str), @c);
+  Result := BufToInt64A(PAnsiChar(str), length(str), @c);
 end;
 
-function HexBufToIntW(buf: PWideChar; len: Integer; invalid: PPWideChar): Integer;
+function RBStrToInt64Def(const str: RawByteString; def: Int64): Int64;
 var
-  ptr, tail: PWideChar;
+  c: PAnsiChar;
+begin
+  Result := BufToInt64A(PAnsiChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function BufToUInt64A(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): UInt64;
+var
+  sign: Int64;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
-  tail := buf + len;
-  ptr := Buf;
 
-  while ptr < tail do
+  if not Assigned(buf) or (len <= 0) then
+    Exit;
+
+  sign := 1;
+
+  if buf[0] = '-' then
   begin
-    case ptr^ of
-      '0'..'9': Result := Result shl 4 + Ord(ptr^) - Ord('0');
-      'A'..'F': Result := Result shl 4 + Ord(ptr^) - Ord('A') + 10;
-      'a'..'f': Result := Result shl 4 + Ord(ptr^) - Ord('a') + 10;
-    else begin
-        if Assigned(invalid) then invalid^ := ptr;
+    sign := -1;
+    Inc(buf);
+    Dec(len);
+  end
+  else if buf[0] = '+' then
+  begin
+    Inc(buf);
+    Dec(len);
+  end;
+
+  if len <= 0 then
+  begin
+    if Assigned(invalid) then
+      invalid^ := buf;
+    Exit;
+  end;
+
+  if sign = 1 then
+  begin
+    if buf[0] = '$' then
+      Result := HexToUInt64A(buf + 1, len - 1, invalid)
+    else
+      Result := DecimalToUInt64A(buf, len, invalid);
+  end
+  else
+  begin
+    if buf[0] = '$' then
+      Result := UInt64(-Int64(HexToUInt64A(buf + 1, len - 1, invalid)))
+    else
+      Result := UInt64(-Int64(DecimalToUInt64A(buf, len, invalid)));
+  end;
+end;
+
+function RBStrToUInt64(const str: RawByteString): UInt64;
+var
+  c: PAnsiChar;
+begin
+  Result := BufToUInt64A(PAnsiChar(str), length(str), @c);
+end;
+
+function RBStrToUInt64Def(const str: RawByteString; def: UInt64): UInt64;
+var
+  c: PAnsiChar;
+begin
+  Result := BufToUInt64A(PAnsiChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function HexBufToUInt32W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt32;
+var
+  Ptr, tail: PWideChar;
+begin
+  Result := 0;
+  if Assigned(invalid) then
+    invalid^ := nil;
+  tail := buf + len;
+  Ptr := buf;
+
+  while Ptr < tail do
+  begin
+    case Ptr^ of
+      '0' .. '9':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('0');
+      'A' .. 'F':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('A') + 10;
+      'a' .. 'f':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('a') + 10;
+    else
+
+      begin
+        if Assigned(invalid) then
+          invalid^ := Ptr;
         Break;
       end;
     end;
 
-    Inc(ptr);
+    Inc(Ptr);
   end;
 end;
 
-function DecimalBufToIntW(buf: PWideChar; len: Integer;
-  invalid: PPWideChar): Integer;
+function DecimalBufToUInt32W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt32;
 var
-  ptr, tail: PWideChar;
+  Ptr, tail: PWideChar;
   bit: Integer;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
   tail := buf + len;
-  ptr := Buf;
+  Ptr := buf;
 
-  while ptr < tail do
+  while Ptr < tail do
   begin
-    bit := Ord(ptr^) - $30;
+    bit := Ord(Ptr^) - $30;
 
     if (bit >= 0) and (bit <= 9) then
-      Result := Result * 10 + bit
-    else begin
-      if Assigned(invalid) then invalid^ := ptr;
+      Result := Result * 10 + UInt32(bit)
+    else
+    begin
+      if Assigned(invalid) then
+        invalid^ := Ptr;
       Break;
     end;
 
-    Inc(ptr);
+    Inc(Ptr);
   end;
 end;
 
@@ -4144,9 +11539,11 @@ var
 begin
   Result := 0;
 
-  if Assigned(invalid) then invalid^ := nil;
-  
-  if not Assigned(buf) or (len = 0) then Exit;
+  if Assigned(invalid) then
+    invalid^ := nil;
+
+  if not Assigned(buf) or (len <= 0) then
+    Exit;
 
   sign := 1;
 
@@ -4162,77 +11559,262 @@ begin
     Dec(len);
   end;
 
-  if len <= 0 then Exit;
+  if len <= 0 then
+  begin
+    if Assigned(invalid) then
+      invalid^ := buf;
+    Exit;
+  end;
 
   if buf[0] = '$' then
-    Result := sign * HexBufToIntW(buf + 1, len - 1, invalid)
+    Result := sign * Int32(HexBufToUInt32W(buf + 1, len - 1, invalid))
   else
-    Result := sign * DecimalBufToIntW(buf, len, invalid);
+    Result := sign * Int32(DecimalBufToUInt32W(buf, len, invalid));
 end;
 
-function UStrToInt(const str: UnicodeString): Integer;
+function UStrToInt(const str: u16string): Integer;
 var
   c: PWideChar;
 begin
-  Result := BufToIntW(PWideChar(str), Length(str), @c);
+  Result := BufToIntW(PWideChar(str), length(str), @c);
 end;
 
 function BStrToInt(const str: WideString): Integer;
 var
   c: PWideChar;
 begin
-  Result := BufToIntW(PWideChar(str), Length(str), @c);
+  Result := BufToIntW(PWideChar(str), length(str), @c);
 end;
 
-
-function HexBufToInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): Int64;
+function dslStrToInt(const str: u16string): Integer;
 var
-  ptr, tail: PWideChar;
+  c: PWideChar;
+begin
+  Result := BufToIntW(PWideChar(str), length(str), @c);
+end;
+
+function dslStrToInt(const str: WideString): Integer;
+var
+  c: PWideChar;
+begin
+  Result := BufToIntW(PWideChar(str), length(str), @c);
+end;
+
+function UStrToIntDef(const str: u16string; def: Integer): Integer;
+var
+  c: PWideChar;
+begin
+  Result := BufToIntW(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function BStrToIntDef(const str: WideString; def: Integer): Integer;
+var
+  c: PWideChar;
+begin
+  Result := BufToIntW(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function dslStrToIntDef(const str: u16string; def: Integer): Integer;
+var
+  c: PWideChar;
+begin
+  Result := BufToIntW(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function dslStrToIntDef(const str: WideString; def: Integer): Integer;
+var
+  c: PWideChar;
+begin
+  Result := BufToIntW(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function BufToUInt32W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt32;
+var
+  sign: Integer;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
-  tail := buf + len;
-  ptr := Buf;
 
-  while ptr < tail do
+  if Assigned(invalid) then
+    invalid^ := nil;
+
+  if not Assigned(buf) or (len <= 0) then
+    Exit;
+
+  sign := 1;
+
+  if buf[0] = '-' then
   begin
-    case ptr^ of
-      '0'..'9': Result := Result shl 4 + Ord(ptr^) - Ord('0');
-      'A'..'F': Result := Result shl 4 + Ord(ptr^) - Ord('A') + 10;
-      'a'..'f': Result := Result shl 4 + Ord(ptr^) - Ord('a') + 10;
-    else begin
-        if Assigned(invalid) then invalid^ := ptr;
+    sign := -1;
+    Inc(buf);
+    Dec(len);
+  end
+  else if buf[0] = '+' then
+  begin
+    Inc(buf);
+    Dec(len);
+  end;
+
+  if len <= 0 then
+  begin
+    if Assigned(invalid) then
+      invalid^ := buf;
+
+    Exit;
+  end;
+
+  if sign = 1 then
+  begin
+    if buf[0] = '$' then
+      Result := HexBufToUInt32W(buf + 1, len - 1, invalid)
+    else
+      Result := DecimalBufToUInt32W(buf, len, invalid);
+  end
+  else
+  begin
+    if buf[0] = '$' then
+      Result := UInt32(-Int32(HexBufToUInt32W(buf + 1, len - 1, invalid)))
+    else
+      Result := UInt32(-Int32(DecimalBufToUInt32W(buf, len, invalid)));
+  end;
+end;
+
+function UStrToUInt32(const str: u16string): UInt32;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt32W(PWideChar(str), length(str), @c);
+end;
+
+function BStrToUInt32(const str: WideString): UInt32;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt32W(PWideChar(str), length(str), @c);
+end;
+
+function dslStrToUInt32(const str: u16string): UInt32;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt32W(PWideChar(str), length(str), @c);
+end;
+
+function dslStrToUInt32(const str: WideString): UInt32;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt32W(PWideChar(str), length(str), @c);
+end;
+
+function UStrToUInt32Def(const str: u16string; def: UInt32): UInt32;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt32W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function BStrToUInt32Def(const str: WideString; def: UInt32): UInt32;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt32W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function dslStrToUInt32Def(const str: u16string; def: UInt32): UInt32;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt32W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function dslStrToUInt32Def(const str: WideString; def: UInt32): UInt32;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt32W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function HexBufToUInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt64;
+var
+  Ptr, tail: PWideChar;
+begin
+  Result := 0;
+  if Assigned(invalid) then
+    invalid^ := nil;
+  tail := buf + len;
+  Ptr := buf;
+
+  while Ptr < tail do
+  begin
+    case Ptr^ of
+      '0' .. '9':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('0');
+      'A' .. 'F':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('A') + 10;
+      'a' .. 'f':
+        Result := Result shl 4 + Ord(Ptr^) - Ord('a') + 10;
+    else
+
+      begin
+        if Assigned(invalid) then
+          invalid^ := Ptr;
         Break;
       end;
     end;
 
-    Inc(ptr);
+    Inc(Ptr);
   end;
 end;
 
-function DecimalBufToInt64W(buf: PWideChar; len: Integer;
-  invalid: PPWideChar): Int64;
+function DecimalBufToUInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt64;
 var
-  ptr, tail: PWideChar;
+  Ptr, tail: PWideChar;
   bit: Integer;
 begin
   Result := 0;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
   tail := buf + len;
-  ptr := Buf;
+  Ptr := buf;
 
-  while ptr < tail do
+  while Ptr < tail do
   begin
-    bit := Ord(ptr^) - $30;
+    bit := Ord(Ptr^) - $30;
 
     if (bit >= 0) and (bit <= 9) then
       Result := Result * 10 + bit
-    else begin
-      if Assigned(invalid) then invalid^ := ptr;
+    else
+    begin
+      if Assigned(invalid) then
+        invalid^ := Ptr;
       Break;
     end;
 
-    Inc(ptr);
+    Inc(Ptr);
   end;
 end;
 
@@ -4242,9 +11824,11 @@ var
 begin
   Result := 0;
 
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
-  if not Assigned(buf) or (len = 0) then Exit;
+  if not Assigned(buf) or (len <= 0) then
+    Exit;
 
   sign := 1;
 
@@ -4260,41 +11844,606 @@ begin
     Dec(len);
   end;
 
-  if len <= 0 then Exit;
+  if len <= 0 then
+  begin
+    if Assigned(invalid) then
+      invalid^ := buf;
+    Exit;
+  end;
 
   if buf[0] = '$' then
-    Result := sign * HexBufToInt64W(buf + 1, len - 1, invalid)
+    Result := sign * Int64(HexBufToUInt64W(buf + 1, len - 1, invalid))
   else
-    Result := sign * DecimalBufToInt64W(buf, len, invalid);
+    Result := sign * Int64(DecimalBufToUInt64W(buf, len, invalid));
 end;
 
-function UStrToInt64(const str: UnicodeString): Int64;
+function UStrToInt64(const str: u16string): Int64;
 var
   c: PWideChar;
 begin
-  Result := BufToInt64W(PWideChar(str), Length(str), @c);
+  Result := BufToInt64W(PWideChar(str), length(str), @c);
 end;
 
 function BStrToInt64(const str: WideString): Int64;
 var
   c: PWideChar;
 begin
-  Result := BufToInt64W(PWideChar(str), Length(str), @c);
+  Result := BufToInt64W(PWideChar(str), length(str), @c);
+end;
+
+function dslStrToInt64(const str: u16string): Int64;
+var
+  c: PWideChar;
+begin
+  Result := BufToInt64W(PWideChar(str), length(str), @c);
+end;
+
+function dslStrToInt64(const str: WideString): Int64;
+var
+  c: PWideChar;
+begin
+  Result := BufToInt64W(PWideChar(str), length(str), @c);
+end;
+
+function BStrToInt64Def(const str: WideString; def: Int64): Int64;
+var
+  c: PWideChar;
+begin
+  Result := BufToInt64W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function UStrToInt64Def(const str: u16string; def: Int64): Int64;
+var
+  c: PWideChar;
+begin
+  Result := BufToInt64W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function dslStrToInt64Def(const str: WideString; def: Int64): Int64;
+var
+  c: PWideChar;
+begin
+  Result := BufToInt64W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function dslStrToInt64Def(const str: u16string; def: Int64): Int64;
+var
+  c: PWideChar;
+begin
+  Result := BufToInt64W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function BufToUInt64W(buf: PWideChar; len: Integer; invalid: PPWideChar): UInt64;
+var
+  sign: Int64;
+begin
+  Result := 0;
+
+  if Assigned(invalid) then
+    invalid^ := nil;
+
+  if not Assigned(buf) or (len <= 0) then
+    Exit;
+
+  sign := 1;
+
+  if buf[0] = '-' then
+  begin
+    sign := -1;
+    Inc(buf);
+    Dec(len);
+  end
+  else if buf[0] = '+' then
+  begin
+    Inc(buf);
+    Dec(len);
+  end;
+
+  if len <= 0 then
+  begin
+    if Assigned(invalid) then
+      invalid^ := buf;
+    Exit;
+  end;
+
+  if sign = 1 then
+  begin
+    if buf[0] = '$' then
+      Result := HexBufToUInt64W(buf + 1, len - 1, invalid)
+    else
+      Result := DecimalBufToUInt64W(buf, len, invalid);
+  end
+  else
+  begin
+    if buf[0] = '$' then
+      Result := UInt64(-Int64(HexBufToUInt64W(buf + 1, len - 1, invalid)))
+    else
+      Result := UInt64(-Int64(DecimalBufToUInt64W(buf, len, invalid)));
+  end
+end;
+
+function UStrToUInt64(const str: u16string): UInt64;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt64W(PWideChar(str), length(str), @c);
+end;
+
+function BStrToUInt64(const str: WideString): UInt64;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt64W(PWideChar(str), length(str), @c);
+end;
+
+function dslStrToUInt64(const str: u16string): UInt64;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt64W(PWideChar(str), length(str), @c);
+end;
+
+function dslStrToUInt64(const str: WideString): UInt64;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt64W(PWideChar(str), length(str), @c);
+end;
+
+function BStrToUInt64Def(const str: WideString; def: UInt64): UInt64;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt64W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function UStrToUInt64Def(const str: u16string; def: UInt64): UInt64;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt64W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function dslStrToUInt64Def(const str: WideString; def: UInt64): UInt64;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt64W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function dslStrToUInt64Def(const str: u16string; def: UInt64): UInt64;
+var
+  c: PWideChar;
+begin
+  Result := BufToUInt64W(PWideChar(str), length(str), @c);
+
+  if Assigned(c) then
+    Result := def;
+end;
+
+function parseFloat(str: PAnsiChar; pErr: PPAnsiChar): Extended;
+const
+  TEN: Extended = 10.0;
+var
+  s: PAnsiChar;
+  nDigit: Int32;
+  nMantissa: Int32;
+  digitValue: UInt32;
+asm
+  // in: eax=str, edx=pErr  out: result=st(0)
+
+  // if P = nil then
+  test    eax, eax
+  jz      @nil
+
+  mov     s, str              // save input str
+  mov     nDigit, 0
+  mov     nMantissa, 0
+
+  // save used registers
+  push    ebx
+  push    esi
+  push    edi
+
+  lea     esi, [eax - 1]       // string pointer
+  xor     ebx, ebx
+  xor     ecx, ecx            // clear sign flag
+  xor     eax, eax            // zero number of decimal places
+  xor     edi, edi            // edi used for exponent
+  fld     TEN                 // load 10 into fpu
+  fldz                        // zero result in fpu
+
+@trim:
+  inc     esi
+  movzx   ebx, byte ptr[esi]  // strip leading spaces
+  cmp     bx, $20             // if bx == #32 then goto @trim
+  je      @trim
+
+  // check + or -
+  sub     bx, '0'
+  cmp     bx, '-' - '0'
+  je      @negative
+  cmp     bx, '+' - '0'
+  je      @integral
+  dec     esi
+  jmp     @integral
+@negative:
+  mov     ch, 1               // set sign flag
+
+// integral part
+@integral:
+  inc     esi
+  movzx   ebx, byte ptr[esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @frac               // non-digit
+  inc     nDigit
+  cmp     nMantissa, 0
+  ja      @calc_mantissa_integral
+  test    ebx, ebx
+  jz      @integral
+@calc_mantissa_integral:
+  mov     digitValue, ebx     // store for fpu use
+  fmul    st(0), st(1)        // multply by 10
+  fiadd   digitValue          // add next digit
+  inc     nMantissa
+  cmp     nMantissa, 15
+  jb      @integral
+
+@integral2:
+  inc     esi
+  movzx   ebx, byte ptr[esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @check_dot               // non-digit
+  inc     nDigit
+  inc     eax
+  jnz     @integral2           // no,get next digit
+
+@frac:
+  cmp     bx, '.' - '0'
+  jne     @exp                // no decimal point
+
+@fracl:
+  inc     esi
+  movzx   ebx, byte ptr[esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @exp                // non-digit
+  inc     nDigit
+  cmp     nMantissa, 0
+  ja      @calc_mantissa_frac
+  test    ebx, ebx
+  jz      @fracl
+@calc_mantissa_frac:
+  mov     digitValue, ebx
+  fmul    st(0), st(1)        // multply by 10
+  fiadd   digitValue          // add next digit
+  dec     eax                 // -(number of decimal places)
+  inc     nMantissa
+  cmp     nMantissa, 15
+  jb      @fracl
+  jmp     @frac2
+
+@check_dot:
+  cmp     bx, '.' - '0'
+  jne     @exp                // no decimal point
+
+@frac2:
+  inc     esi
+  movzx   ebx, byte ptr[esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @exp                // non-digit
+  inc     nDigit
+  jmp     @frac2              // yes, finished (no exponent)
+
+@exp:
+  cmp     nDigit, 0
+  je      @digitNotFound
+  or      bx, $20             // lower case
+  cmp     bx, 'e' - '0'
+  jne     @exit               // not 'e' or 'e'
+  inc     esi
+  movzx   ebx, byte ptr[esi]  // get next char
+  mov     cl, 0               // clear exponent sign flag
+  cmp     bx, '-'
+  je      @negative_exp
+  cmp     bx, '+'
+  je      @expl
+  dec     esi
+  jmp     @expl
+@negative_exp:
+  mov     cl, 1               // set exponent sign flag
+  jmp     @expl
+
+@expl:
+  inc     esi
+  movzx   ebx, byte ptr [esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @endexp               // non-digit
+  // edi := edi * 10
+  lea     edi, [edi+edi*4] // edi = 5 * edi
+  add     edi, edi            // edi = edi * 2
+  add     edi, ebx            // add next digit
+  jmp     @expl               // no, get next digit
+
+@endexp:
+  test    cl, cl              // positive exponent?
+  jz      @exit               // yes, keep exponent value
+  neg     edi                 // no, negate exponent value
+
+@exit:
+  cmp     nDigit, 0
+  jne     @digitFound
+@digitNotFound:
+  mov     esi, s
+  jmp     @setEndPos
+
+@digitFound:
+  add     eax, edi            // exponent value - number of decimal places
+  jz      @checksign          // no call to _pow10 needed
+  push    ecx
+  push    edx
+  call    System.@Pow10       // raise to power of 10
+  pop     edx
+  pop     ecx
+
+@checksign:
+  // check sign flag
+  test  ch, ch
+  jz    @setEndPos
+  fchs
+
+@setEndPos:
+  test    edx, edx
+  jz      @1
+  mov     [edx], esi          // set result code
+@1:
+  ffree   st(1)               // remove ten value from fpu
+  pop     edi                 // restore used registers
+  pop     esi
+  pop     ebx
+  jmp     @ret
+@nil:
+  fldz
+  test    edx, edx
+  jz      @ret
+  mov     [edx], eax          // set result code
+@ret:
+end;
+
+function parseFloat(str: PWideChar; pErr: PPWideChar): Extended;
+const
+  TEN: Extended = 10.0;
+var
+  s: PWideChar;
+  nDigit: Int32;
+  nMantissa: Int32;
+  digitValue: UInt32;
+asm
+  // in: eax=str, edx=pErr  out: result=st(0)
+
+  // if P = nil then
+  test    eax, eax
+  jz      @nil
+
+  mov     s, str              // save input str
+  mov     nDigit, 0
+  mov     nMantissa, 0
+
+  // save used registers
+  push    ebx
+  push    esi
+  push    edi
+
+  lea     esi, [eax - 2]       // string pointer
+  xor     ebx, ebx
+  xor     ecx, ecx            // clear sign flag
+  xor     eax, eax            // zero number of decimal places
+  xor     edi, edi            // edi used for exponent
+  fld     TEN                 // load 10 into fpu
+  fldz                        // zero result in fpu
+
+@trim:
+  add     esi, 2
+  movzx   ebx, word ptr[esi]  // strip leading spaces
+  cmp     bx, $20             // if bx == #32 then goto @trim
+  je      @trim
+
+  // check + or -
+  sub     bx, '0'
+  cmp     bx, '-' - '0'
+  je      @negative
+  cmp     bx, '+' - '0'
+  je      @integral
+  add     esi, -2
+  jmp     @integral
+@negative:
+  mov     ch, 1               // set sign flag
+
+// integral part
+@integral:
+  add     esi, 2
+  movzx   ebx, word ptr[esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @frac               // non-digit
+  inc     nDigit
+  cmp     nMantissa, 0
+  ja      @calc_mantissa_integral
+  test    ebx, ebx
+  jz      @integral
+@calc_mantissa_integral:
+  mov     digitValue, ebx     // store for fpu use
+  fmul    st(0), st(1)        // multply by 10
+  fiadd   digitValue          // add next digit
+  inc     nMantissa
+  cmp     nMantissa, 15
+  jb      @integral
+
+@integral2:
+  add     esi, 2
+  movzx   ebx, word ptr[esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @check_dot               // non-digit
+  inc     nDigit
+  inc     eax
+  jnz     @integral2           // no,get next digit
+
+@frac:
+  cmp     bx, '.' - '0'
+  jne     @exp                // no decimal point
+
+@fracl:
+  add     esi, 2
+  movzx   ebx, word ptr[esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @exp                // non-digit
+  inc     nDigit
+  cmp     nMantissa, 0
+  ja      @calc_mantissa_frac
+  test    ebx, ebx
+  jz      @fracl
+@calc_mantissa_frac:
+  mov     digitValue, ebx
+  fmul    st(0), st(1)        // multply by 10
+  fiadd   digitValue          // add next digit
+  dec     eax                 // -(number of decimal places)
+  inc     nMantissa
+  cmp     nMantissa, 15
+  jb      @fracl
+  jmp     @frac2
+
+@check_dot:
+  cmp     bx, '.' - '0'
+  jne     @exp                // no decimal point
+
+@frac2:
+  add     esi, 2
+  movzx   ebx, word ptr[esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @exp                // non-digit
+  inc     nDigit
+  jmp     @frac2              // yes, finished (no exponent)
+
+@exp:
+  cmp     nDigit, 0
+  je      @digitNotFound
+  or      bx, $20             // lower case
+  cmp     bx, 'e' - '0'
+  jne     @exit               // not 'e' or 'e'
+  add     esi, 2
+  movzx   ebx, word ptr[esi]  // get next char
+  mov     cl, 0               // clear exponent sign flag
+  cmp     bx, '-'
+  je      @negative_exp
+  cmp     bx, '+'
+  je      @expl
+  add     esi, -2
+  jmp     @expl
+@negative_exp:
+  mov     cl, 1               // set exponent sign flag
+  jmp     @expl
+
+@expl:
+  add     esi, 2
+  movzx   ebx, word ptr [esi]  // get next char
+  sub     bx, '0'
+  cmp     bx, 9
+  ja      @endexp               // non-digit
+  // edi := edi * 10
+  lea     edi, [edi+edi*4] // edi = 5 * edi
+  add     edi, edi            // edi = edi * 2
+  add     edi, ebx            // add next digit
+  jmp     @expl               // no, get next digit
+
+@endexp:
+  test    cl, cl              // positive exponent?
+  jz      @exit               // yes, keep exponent value
+  neg     edi                 // no, negate exponent value
+
+@exit:
+  cmp     nDigit, 0
+  jne     @digitFound
+@digitNotFound:
+  mov     esi, s
+  jmp     @setEndPos
+
+@digitFound:
+  add     eax, edi            // exponent value - number of decimal places
+  jz      @checksign          // no call to _pow10 needed
+  push    ecx
+  push    edx
+  call    System.@Pow10       // raise to power of 10
+  pop     edx
+  pop     ecx
+
+@checksign:
+  // check sign flag
+  test  ch, ch
+  jz    @setEndPos
+  fchs
+
+@setEndPos:
+  test    edx, edx
+  jz      @1
+  mov     [edx], esi          // set result code
+@1:
+  ffree   st(1)               // remove ten value from fpu
+  pop     edi                 // restore used registers
+  pop     esi
+  pop     ebx
+  jmp     @ret
+@nil:
+  fldz
+  test    edx, edx
+  jz      @ret
+  mov     [edx], eax          // set result code
+@ret:
 end;
 
 function BufToFloatA(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Double;
 var
-  i, j: Integer;
+  i, j, decs: Integer;
   v, ratio, sign: Double;
   dot: Boolean;
 begin
   Result := 0;
   v := 0;
   ratio := 1;
+  decs := 0;
   dot := False;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
-  if len = 0 then Exit;
+  if len <= 0 then
+    Exit;
 
   if buf[0] = '-' then
   begin
@@ -4306,7 +12455,8 @@ begin
     sign := 1;
     j := 1;
   end
-  else begin
+  else
+  begin
     sign := 1;
     j := 0;
   end;
@@ -4315,28 +12465,45 @@ begin
   begin
     if (buf[i] >= '0') and (buf[i] <= '9') then
     begin
+      Inc(decs);
+
       if dot then
       begin
         v := v + (Ord(buf[i]) - $30) * ratio;
-        ratio := ratio/10;
+        ratio := ratio / 10;
       end
       else
         v := v * 10 + Ord(buf[i]) - $30;
     end
-    else if buf[i] = '.' then begin
+    else if buf[i] = '.' then
+    begin
       if dot then
       begin
-        if Assigned(invalid) then invalid^ := buf + i;
+        if decs = 0 then
+          invalid^ := buf + i - 1
+        else
+          invalid^ := buf + i;
         Break;
       end
-      else begin
+      else
+      begin
         ratio := 0.1;
         dot := True;
+        decs := 0;
       end;
     end
-    else if buf[i] = ',' then Continue
-    else begin
-      if Assigned(invalid) then invalid^ := buf + i;
+    else if buf[i] = ',' then
+      Continue
+    else
+    begin
+      if Assigned(invalid) then
+      begin
+        if (decs = 0) and (i <> j) then
+          invalid^ := buf + i - 1
+        else
+          invalid^ := buf + i;
+      end;
+
       Break;
     end;
   end;
@@ -4344,9 +12511,9 @@ begin
   Result := v * sign;
 end;
 
-function StrToFloatA(const str: RawByteString): Double;
+function RBStrToFloat(const str: RawByteString): Double;
 begin
-  Result := BufToFloatA(PAnsiChar(str), Length(str), nil);
+  Result := parseFloat(PAnsiChar(Pointer(str)));
 end;
 
 function BufToFloatA2(buf: PAnsiChar; len: Integer; invalid: PPAnsiChar): Double;
@@ -4360,9 +12527,11 @@ begin
   v := 0;
   decs := 0;
   dot := False;
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
-  if len = 0 then Exit;
+  if len <= 0 then
+    Exit;
 
   if buf[0] = '-' then
   begin
@@ -4374,7 +12543,8 @@ begin
     sign := 1;
     j := 1;
   end
-  else begin
+  else
+  begin
     sign := 1;
     j := 0;
   end;
@@ -4387,19 +12557,36 @@ begin
 
       Inc(decs);
     end
-    else if buf[i] = '.' then begin
+    else if buf[i] = '.' then
+    begin
       if dot then
       begin
-        if Assigned(invalid) then invalid^ := buf + i;
+        if Assigned(invalid) then
+        begin
+          if decs = 0 then
+            invalid^ := buf + i - 1
+          else
+            invalid^ := buf + i;
+        end;
+
         Break;
       end
-      else begin
+      else
+      begin
         dot := True;
         decs := 0;
       end;
     end
-    else begin
-      if Assigned(invalid) then invalid^ := buf + i;
+    else
+    begin
+      if Assigned(invalid) then
+      begin
+        if (decs = 0) and (i <> j) then
+          invalid^ := buf + i - 1
+        else
+          invalid^ := buf + i;
+      end;
+
       Break;
     end;
   end;
@@ -4411,26 +12598,28 @@ begin
       Result := Result / 10;
 end;
 
-function StrToFloatA2(const str: RawByteString): Double;
+function RBStrToFloat2(const str: RawByteString): Double;
 begin
-  Result := BufToFloatA(PAnsiChar(str), Length(str), nil);
+  Result := parseFloat(PAnsiChar(Pointer(str)));
 end;
 
 function BufToFloatW(buf: PWideChar; len: Integer; invalid: PPWideChar): Double;
 var
-  i, j: Integer;
+  i, j, decs: Integer;
   v, ratio, sign: Double;
   dot: Boolean;
 begin
   Result := 0;
   v := 0;
+  decs := 0;
   ratio := 1;
   dot := False;
 
-  if Assigned(invalid) then invalid^ := nil;
+  if Assigned(invalid) then
+    invalid^ := nil;
 
-
-  if len = 0 then Exit;
+  if len <= 0 then
+    Exit;
 
   if buf[0] = '-' then
   begin
@@ -4442,7 +12631,8 @@ begin
     sign := 1;
     j := 1;
   end
-  else begin
+  else
+  begin
     sign := 1;
     j := 0;
   end;
@@ -4451,27 +12641,47 @@ begin
   begin
     if (buf[i] >= '0') and (buf[i] <= '9') then
     begin
+      Inc(decs);
+
       if dot then
       begin
         v := v + (Ord(buf[i]) - $30) * ratio;
-        ratio := ratio/10;
+        ratio := ratio / 10;
       end
       else
         v := v * 10 + Ord(buf[i]) - $30;
     end
-    else if buf[i] = '.' then begin
+    else if buf[i] = '.' then
+    begin
       if dot then
       begin
-        if Assigned(invalid) then invalid^ := buf + i;
+        if Assigned(invalid) then
+        begin
+          if decs = 0 then
+            invalid^ := buf + i - 1
+          else
+            invalid^ := buf + i;
+        end;
+
         Break;
       end
-      else begin
+      else
+      begin
         ratio := 0.1;
+        decs := 0;
         dot := True;
       end;
     end
-    else begin
-      if Assigned(invalid) then invalid^ := buf + i;
+    else
+    begin
+      if Assigned(invalid) then
+      begin
+        if (decs = 0) and (i <> j) then
+          invalid^ := buf + i - 1
+        else
+          invalid^ := buf + i;
+      end;
+
       Break;
     end;
   end;
@@ -4479,32 +12689,220 @@ begin
   Result := v * sign;
 end;
 
-function UStrToFloat(const str: UnicodeString): Double;
+function UStrToFloat(const str: u16string): Double;
 begin
-  Result := BufToFloatW(PWideChar(str), Length(str), nil);
+  Result := parseFloat(PWideChar(Pointer(str)));
 end;
 
 function BStrToFloat(const str: WideString): Double;
 begin
-  Result := BufToFloatW(PWideChar(str), Length(str), nil);
+  Result := parseFloat(PWideChar(Pointer(str)));
 end;
 
-function AnsiFormat(const fmt: AnsiString; const args: array of const): AnsiString;
+function FloatToUStr(value: Extended): u16string;
 begin
-  {$IFDEF UNICODE}
-  Result := AnsiStrings.Format(fmt, args);
-  {$ELSE}
-  Result := Format(fmt, args);
-  {$ENDIF}
+  Result := FloatToStr(value);
 end;
 
-function UStrFormat(const fmt: UnicodeString; const args: array of const): UnicodeString;
+function FloatToUStr(value: Extended; const FormatSettings: TFormatSettings): u16string;
 begin
-  {$IFDEF UNICODE}
-  Result := Format(fmt, args);
-  {$ELSE}
-  Result := WideFormat(fmt, args);
-  {$ENDIF}
+  Result := FloatToStr(value, FormatSettings);
+end;
+
+function FloatToRBStr(value: Extended): RawByteString;
+var
+  Buffer: array [0 .. 63] of AnsiChar;
+begin
+{$IF CompilerVersion > 22}
+  SetString(Result, Buffer,  AnsiStrings.FloatToText(Buffer, value, fvExtended, ffGeneral, 15, 0));
+{$ELSE}
+  SetString(Result, Buffer, FloatToText(Buffer, value, fvExtended, ffGeneral, 15, 0));
+{$IFEND}
+end;
+
+function FloatToRBStr(value: Extended; const FormatSettings: TFormatSettings): RawByteString;
+var
+  Buffer: array [0 .. 63] of AnsiChar;
+begin
+{$IF CompilerVersion > 22}
+  SetString(Result, Buffer,  AnsiStrings.FloatToText(Buffer, value, fvExtended,
+    ffGeneral, 15, 0, FormatSettings));
+{$ELSE}
+  SetString(Result, Buffer,  FloatToText(Buffer, value, fvExtended,
+    ffGeneral, 15, 0, FormatSettings));
+{$IFEND}
+end;
+
+procedure ConvertError(ResString: PResStringRec); local;
+begin
+  raise EConvertError.CreateRes(ResString);
+end;
+
+function FormatFloat_mb(const Format: RawByteString; Value: Extended): RawByteString;
+var
+  Buffer: array[0..255] of AnsiChar;
+begin
+  if Length(Format) > Length(Buffer) - 32 then
+    ConvertError(PResStringRec(@SFormatTooLong));
+  SetString(Result, Buffer, FloatToTextFmt(Buffer, Value, fvExtended,
+    PAnsiChar(Format)));
+end;
+
+function FormatFloat_mb(const Format: RawByteString; Value: Extended;
+  const FormatSettings: TFormatSettings): RawByteString;
+var
+  Buffer: array[0..255] of AnsiChar;
+begin
+  if Length(Format) > Length(Buffer) - 32 then
+    ConvertError(PResStringRec(@SFormatTooLong));
+  SetString(Result, Buffer, FloatToTextFmt(Buffer, Value, fvExtended,
+    PAnsiChar(Format), FormatSettings));
+end;
+
+{$ENDREGION 'string <=> number implementation'}
+
+{$REGION 'Variant utils'}
+
+function TryVarToStr(const v: Variant; var s: string): Boolean;
+begin
+  try
+    s := VarToStr(v);
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+function VarToBool(const v: Variant; var bv: Boolean): Boolean;
+begin
+  try
+    bv := v;
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+function VarToBoolDef(const v: Variant; def: Boolean): Boolean;
+begin
+  try
+    Result := v;
+  except
+    Result := def;
+  end;
+end;
+
+function VarToInt(const v: Variant; var bv: Integer): Boolean;
+begin
+  try
+    bv := v;
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+function VarToIntDef(const v: Variant; def: Integer): Integer;
+begin
+  try
+    Result := v;
+  except
+    Result := def;
+  end;
+end;
+
+function VarToInt64(const v: Variant; var bv: Int64): Boolean;
+begin
+  try
+    bv := v;
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+function VarToInt64Def(const v: Variant; def: Int64): Int64;
+begin
+  try
+    Result := v;
+  except
+    Result := def;
+  end;
+end;
+
+function VarToFloat(const v: Variant; var bv: Double): Boolean;
+begin
+  try
+    bv := v;
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+function VarToFloatDef(const v: Variant; def: Double): Double;
+begin
+  try
+    Result := v;
+  except
+    Result := def;
+  end;
+end;
+
+procedure SetNull(var Value: Variant);
+begin
+  VarClear(Value);
+  TVarData(Value).VType := varNull;
+end;
+
+{$ENDREGION}
+
+function WCharInSet(c: WideChar; cs: TAnsiCharSet): Boolean;
+begin
+  Result := (c < #$0100) and (AnsiChar(c) in cs);
+end;
+
+function WCharInSetFast(c: WideChar; cs: TAnsiCharSet): Boolean;
+begin
+  Result := AnsiChar(c) in cs;
+end;
+
+function ByteInSet(c: AnsiChar; cs: TAnsiCharSet): Boolean;
+begin
+  Result := c in cs;
+end;
+
+function GotoNextNotSpace(p: PWideChar): PWideChar;
+begin
+  if (p^ > #0) and (p^ <= #32) then
+    repeat
+      Inc(p);
+    until (p^ <= #0) or (p^ > #32);
+    Result := p;
+end;
+
+function GotoNextNotSpace(p: PAnsiChar): PAnsiChar;
+begin
+  if (p^ > #0) and (p^ <= #32) then
+    repeat
+      Inc(p);
+    until (p^ <= #0) or (p^ > #32);
+    Result := p;
+end;
+
+function IsSpace(ch: WideChar): Boolean;
+begin
+  Result := (ch > #0) and (ch <= #32);
+end;
+
+function IsCJK(ch: WideChar): Boolean;
+begin
+  Result := (ch > #$4E00) and (ch <= #$9FFF);
+end;
+
+function IsSimplifiedChineseCharacter(ch: WideChar): Boolean;
+begin
+  Result := (ch > #$4E00) and (ch <= #$9FFF);
 end;
 
 function StrScanA(s: PAnsiChar; len: Integer; c: AnsiChar): PAnsiChar;
@@ -4525,25 +12923,28 @@ end;
 
 function StrScanA(s: PAnsiChar; c: AnsiChar): PAnsiChar;
 begin
-  while (s^ <> #0) and (s^ <> c) do Inc(s);
+  while (s^ <> #0) and (s^ <> c) do
+    Inc(s);
 
-  if s^ = #0 then Result := nil
-  else Result := s;
+  if s^ = #0 then
+    Result := nil
+  else
+    Result := s;
 end;
 
-function StrScanA(const s: RawByteString; c: AnsiChar; BeginIndex: Integer = 1;
-  EndIndex: Integer = 0): Integer; overload;
+function RBStrScan(const s: RawByteString; c: AnsiChar; first, last: Integer): Integer;
 var
   i: Integer;
 begin
-  if BeginIndex <= 0 then BeginIndex := 1;
+  if first <= 0 then
+    first := 1;
 
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(s))) then
-    EndIndex := Length(s);
+  if (last <= 0) or (last > length(s)) then
+    last := length(s) + 1;
 
   Result := 0;
-  
-  for i := BeginIndex to EndIndex do
+
+  for i := first to last - 1 do
   begin
     if s[i] = c then
     begin
@@ -4553,7 +12954,52 @@ begin
   end;
 end;
 
-function StrPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar; overload;
+function SeekAnsiChar(s: PAnsiChar; len: Integer; what: AnsiChar): PAnsiChar;
+var
+  i: Integer;
+begin
+  Result := nil;
+
+  for i := 0 to len - 1 do
+  begin
+    if s[i] = what then
+    begin
+      Result := s + i;
+      Break;
+    end;
+  end;
+end;
+
+function SeekAnsiChars(s: PAnsiChar; len: Integer; const whats: array of AnsiChar): PAnsiChar;
+var
+  i, j: Integer;
+  found: Boolean;
+  c: AnsiChar;
+begin
+  Result := nil;
+
+  for i := 0 to len - 1 do
+  begin
+    c := s[i];
+    found := False;
+
+    for j := Low(whats) to High(whats) do
+      if whats[j] = c then
+      begin
+        found := True;
+        Break;
+      end;
+
+    if found then
+    begin
+      Result := s + i;
+      Break;
+    end;
+  end;
+end;
+
+{$IFDEF WIN32}
+function StrPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar;
 asm
       test  eax,eax
       je    @noWork
@@ -4726,136 +13172,50 @@ asm
 
 @noWork:
 end;
-
-function StrPosA(substr: PAnsiChar; str: PAnsiChar): PAnsiChar; overload;
-begin
-  Result := StrPosA(substr, StrLen(substr), str, StrLen(str));
-end;
-
-function StrPosA(const substr, str: RawByteString; StartIndex: Integer; EndIndex: Integer): Integer;
+{$ELSE}
 var
-  ptr: PAnsiChar;
-begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
-
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
-
-  if EndIndex < StartIndex then
-    Result := 0
-  else begin
-    ptr := StrPosA(PAnsiChar(substr), Length(substr),
-      PAnsiChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
-
-    if ptr = nil then
-      Result := 0
-    else
-      Result := ptr - PAnsiChar(str) + 1;
-  end;
-end;
-
-function StrScanW(s: PWideChar; len: Integer; c: WideChar): PWideChar;
-var
-  i: Integer;
-begin
-  Result := nil;
-
-  for i := 0 to len - 1 do
-  begin
-    if s[i] = c then
-    begin
-      Result := s + i;
-      Break;
-    end;
-  end;
-end;
-
-function StrScanW(s: PWideChar; c: WideChar): PWideChar;
-begin
-  while (s^ <> #0) and (s^ <> c) do Inc(s);
-
-  if s^ = #0 then Result := nil
-  else Result := s;
-end;
-
-function UStrScan(const s: UnicodeString; c: WideChar; BeginIndex, EndIndex: Integer): Integer;
-var
-  i: Integer;
-begin
-  if BeginIndex <= 0 then BeginIndex := 1;
-
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(s))) then
-    EndIndex := Length(s);
-
-  Result := 0;
-  
-  for i := BeginIndex to EndIndex do
-  begin
-    if s[i] = c then
-    begin
-      Result := i;
-      Break;
-    end;
-  end;
-end;
-
-function BStrScan(const s: WideString; c: WideChar): Integer;
-var
-  p: PWideChar;
-begin
-  p := StrScanW(PWideChar(s), Length(s), c);
-
-  if p = nil then Result := 0
-  else Result := p - PWideChar(s) + 1;
-end;
-
-function StrScan(const s: string; c: Char): Integer;
-var
-  i: Integer;
-begin 
-  Result := 0;
-  
-  for i := 1 to Length(s) do 
-    if s[i] = c then 
-    begin
-      Result := i;
-      Break; 
-    end;
-end;
-
-function StrPosW(substr, str: PWideChar): PWideChar; overload;
-begin
-  Result := StrPosW(substr, StrLenW(substr), str, StrLenW(str));
-end;
-
-function StrPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar;
-var
-  i, k, MR: Integer;
+  i, k, mr: Integer;
   match: Boolean;
+  w, w1, w2: Byte;
 begin
   Result := nil;
-  if (substr = nil) or (str = nil) or (sublen > len) or (sublen = 0) then
+
+  if (substr = nil) or (str = nil) or (sublen > len) or (sublen <= 0) then
+    Exit;
+
+  if substr = str then
   begin
+    Result := str;
     Exit;
   end;
 
-  MR := len - sublen;
+  w := PByte(substr)^;
+
+  mr := len - sublen;
 
   i := 0;
 
   while True do
   begin
-    while (i <= MR) and (str[i] <> substr[0]) do Inc(i);
+    while i <= mr do
+    begin
+      w1 := Byte(str[i]);
+      if w1 = w then
+        Break;
+      Inc(i);
+    end;
 
-    if i > MR then Exit;
+    if i > mr then
+      Exit;
 
     match := True;
 
     for k := 1 to sublen - 1 do
     begin
-      if substr[k] <> str[i + k] then
+      w1 := Byte(str[i + k]);
+      w2 := Byte(substr[k]);
+
+      if w1 <> w2 then
       begin
         match := False;
         Break;
@@ -4871,84 +13231,130 @@ begin
     Inc(i);
   end;
 end;
+{$ENDIF}
 
-function UStrPos(const substr, str: UnicodeString; StartIndex, EndIndex: Integer): Integer;
-var
-  ptr: PWideChar;
+function StrPosA(substr: TAnsiCharSection; str: TAnsiCharSection): PAnsiChar;
 begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
+  Result := StrPosA(substr._begin, substr._end - substr._begin, str._begin, str._end - str._begin);
+end;
 
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
+{$IFDEF WIN32}
+function SysUtils_StrPosA(str, substr: PAnsiChar): PAnsiChar; assembler;
+{ copy from SysUtils }
+asm
+  PUSH    EDI
+  PUSH    ESI
+  PUSH    EBX
+  OR      EAX,EAX
+  JE      @@2
+  OR      EDX,EDX
+  JE      @@2
+  MOV     EBX,EAX
+  MOV     EDI,EDX
+  XOR     AL,AL
+  MOV     ECX,0FFFFFFFFH
+  REPNE   SCASB
+  NOT     ECX
+  DEC     ECX
+  JE      @@2
+  MOV     ESI,ECX
+  MOV     EDI,EBX
+  MOV     ECX,0FFFFFFFFH
+  REPNE   SCASB
+  NOT     ECX
+  SUB     ECX,ESI
+  JBE     @@2
+  MOV     EDI,EBX
+  LEA     EBX,[ESI-1]
+@@1:    MOV     ESI,EDX
+  LODSB
+  REPNE   SCASB
+  JNE     @@2
+  MOV     EAX,ECX
+  PUSH    EDI
+  MOV     ECX,EBX
+  REPE    CMPSB
+  POP     EDI
+  MOV     ECX,EAX
+  JNE     @@1
+  LEA     EAX,[EDI-1]
+  JMP     @@3
+@@2:    XOR     EAX,EAX
+@@3:    POP     EBX
+  POP     ESI
+  POP     EDI
+end;
 
-  if EndIndex < StartIndex then
+function StrPosA(substr, str: PAnsiChar): PAnsiChar;
+begin
+  Result := SysUtils_StrPosA(str, substr);
+end;
+{$ELSE}
+function StrPosA(substr, str: PAnsiChar): PAnsiChar;
+begin
+  Result := StrPosA(substr, SysUtils.StrLen(substr), str, SysUtils.StrLen(str));
+end;
+{$ENDIF}
+
+function RBStrPos(const substr, str: RawByteString; first: Integer; last: Integer): Integer;
+var
+  Ptr: PAnsiChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last - first < length(substr) then
     Result := 0
-  else begin
-    ptr := StrPosW(PWideChar(substr), Length(substr),
-      PWideChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
+  else if (Pointer(substr) = Pointer(str)) and (first = 1) then
+    Result := 1
+  else
+  begin
+    Ptr := StrPosA(PAnsiChar(substr), length(substr), PAnsiChar(str) + (first - 1), last - first);
 
-    if ptr = nil then
+    if Ptr = nil then
       Result := 0
     else
-      Result := (PAnsiChar(Pointer(ptr)) - PAnsiChar(Pointer(str))) shr 1 + 1;
+      Result := Ptr - PAnsiChar(str) + 1;
   end;
 end;
 
-function BStrPos(const substr, str: WideString; StartIndex: Integer = 1; EndIndex: Integer = 0): Integer;
+function StrIPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar;
 var
-  ptr: PWideChar;
-begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
-
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
-
-  if EndIndex < StartIndex then
-    Result := 0
-  else begin
-    ptr := StrPosW(PWideChar(substr), Length(substr),
-      PWideChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
-
-    if ptr = nil then
-      Result := 0
-    else
-      Result := (PAnsiChar(Pointer(ptr)) - PAnsiChar(Pointer(str))) shr 1 + 1;
-  end;
-end;
-
-function StrIPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar; overload;
-var
-  i, k, MR: Integer;
+  i, k, mr: Integer;
   match: Boolean;
-  w, w1, w2: Word;
+  w, w1, w2: Byte;
 begin
   Result := nil;
-  if (substr = nil) or (str = nil) or (sublen > len) or (sublen = 0) then
+
+  if (substr = nil) or (str = nil) or (sublen > len) or (sublen <= 0) then
+    Exit;
+
+  if substr = str then
   begin
+    Result := str;
     Exit;
   end;
 
-  if (substr[0] >= 'A') and (substr[0] <= 'Z') then
-    w := Ord(substr[0]) + 32
+  if (substr^ >= 'A') and (substr^ <= 'Z') then
+    w := PByte(substr)^ + 32
   else
-    w := Ord(substr[0]);
+    w := PByte(substr)^;
 
-  MR := len - sublen;
+  mr := len - sublen;
 
   i := 0;
 
   while True do
   begin
-    while i <= MR do
+    while i <= mr do
     begin
       if (str[i] >= 'A') and (str[i] <= 'Z') then
-        w1 := Ord(str[i]) + 32
+        w1 := Byte(str[i]) + 32
       else
-        w1 := Ord(str[i]);
+        w1 := Byte(str[i]);
 
       if w1 = w then
         Break;
@@ -4956,21 +13362,22 @@ begin
       Inc(i);
     end;
 
-    if i > MR then Exit;
+    if i > mr then
+      Exit;
 
     match := True;
 
     for k := 1 to sublen - 1 do
     begin
       if (str[i + k] >= 'A') and (str[i + k] <= 'Z') then
-        w1 := Ord(str[i + k]) + 32
+        w1 := Byte(str[i + k]) + 32
       else
-        w1 := Ord(str[i + k]);
+        w1 := Byte(str[i + k]);
 
       if (substr[k] >= 'A') and (substr[k] <= 'Z') then
-        w2 := Ord(substr[k]) + 32
+        w2 := Byte(substr[k]) + 32
       else
-        w2 := Ord(substr[k]);
+        w2 := Byte(substr[k]);
 
       if w1 <> w2 then
       begin
@@ -4989,63 +13396,47 @@ begin
   end;
 end;
 
-function UStrIPos(const substr, str: UnicodeString; StartIndex, EndIndex: Integer): Integer;
-var
-  ptr: PWideChar;
+function StrIPosA(substr, str: PAnsiChar): PAnsiChar;
 begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
+  Result := StrIPosA(substr, StrLenA(substr), str, StrLenA(str));
+end;
 
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
+function RBStrIPos(const substr, str: RawByteString; first: Integer = 1; last: Integer = 0): Integer;
+var
+  Ptr: PAnsiChar;
+begin
+  if first <= 0 then
+    first := 1;
 
-  if EndIndex < StartIndex then
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
     Result := 0
-  else begin
-    ptr := StrIPosW(PWideChar(substr), Length(substr),
-      PWideChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
+  else
+  begin
+    Ptr := StrIPosA(PAnsiChar(substr), length(substr), PAnsiChar(str) + (first - 1), last - first);
 
-    if ptr = nil then
+    if Ptr = nil then
       Result := 0
     else
-      Result := (PAnsiChar(Pointer(ptr)) - PAnsiChar(Pointer(str))) shr 1 + 1;
+      Result := Ptr - PAnsiChar(str) + 1;
   end;
 end;
 
-function BStrIPos(const substr, str: WideString; StartIndex, EndIndex: Integer): Integer;
-var
-  ptr: PWideChar;
-begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
-
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
-
-  if EndIndex < StartIndex then
-    Result := 0
-  else begin
-    ptr := StrIPosW(PWideChar(substr), Length(substr),
-      PWideChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
-
-    if ptr = nil then
-      Result := 0
-    else
-      Result := (PAnsiChar(Pointer(ptr)) - PAnsiChar(Pointer(str))) shr 1 + 1;
-  end;
-end;
-
-function StrRPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar;
+function StrRPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar;
 var
   i, k, ML: Integer;
   match: Boolean;
 begin
   Result := nil;
 
-  if (substr = nil) or (str = nil) or (sublen > len) or (sublen = 0) then
+  if (substr = nil) or (str = nil) or (sublen > len) or (sublen <= 0) then
+    Exit;
+
+  if substr + sublen = str + len then
   begin
+    Result := substr;
     Exit;
   end;
 
@@ -5055,9 +13446,11 @@ begin
 
   while True do
   begin
-    while (i >= ML) and (str[i] <> substr[ML]) do Dec(i);
+    while (i >= ML) and (str[i] <> substr[ML]) do
+      Dec(i);
 
-    if i < ML then Exit;
+    if i < ML then
+      Exit;
 
     match := True;
 
@@ -5080,55 +13473,35 @@ begin
   end;
 end;
 
-function UStrRPos(const substr, str: UnicodeString; StartIndex, EndIndex: Integer): Integer;
-var
-  ptr: PWideChar;
+function StrRPosA(substr, str: PAnsiChar): PAnsiChar;
 begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
+  Result := StrRPosA(substr, StrLenA(substr), str, StrLenA(str));
+end;
 
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
+function RBStrRPos(const substr, str: RawByteString; first: Integer = 1; last: Integer = 0): Integer;
+var
+  Ptr: PAnsiChar;
+begin
+  if first <= 0 then
+    first := 1;
 
-  if EndIndex < StartIndex then
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
     Result := 0
-  else begin
-    ptr := StrRPosW(PWideChar(substr), Length(substr),
-      PWideChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
+  else
+  begin
+    Ptr := StrRPosA(PAnsiChar(substr), length(substr), PAnsiChar(str) + (first - 1), last - first);
 
-    if ptr = nil then
+    if Ptr = nil then
       Result := 0
     else
-      Result := (PAnsiChar(Pointer(ptr)) - PAnsiChar(Pointer(str))) shr 1 + 1;
+      Result := Ptr - PAnsiChar(str) + 1;
   end;
 end;
 
-function BStrRPos(const substr, str: WideString; StartIndex, EndIndex: Integer): Integer;
-var
-  ptr: PWideChar;
-begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
-
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
-
-  if EndIndex < StartIndex then
-    Result := 0
-  else begin
-    ptr := StrRPosW(PWideChar(substr), Length(substr),
-      PWideChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
-
-    if ptr = nil then
-      Result := 0
-    else
-      Result := (PAnsiChar(Pointer(ptr)) - PAnsiChar(Pointer(str))) shr 1 + 1;
-  end;
-end;
-
-function StrRIPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar;
+function StrRIPosA(substr: PAnsiChar; sublen: Integer; str: PAnsiChar; len: Integer): PAnsiChar;
 var
   i, j, k, ML: Integer;
   match: Boolean;
@@ -5137,7 +13510,11 @@ begin
   Result := nil;
 
   if (substr = nil) or (str = nil) or (sublen > len) or (sublen <= 0) then
+    Exit;
+
+  if substr + sublen = str + len then
   begin
+    Result := substr;
     Exit;
   end;
 
@@ -5165,7 +13542,8 @@ begin
       Dec(i);
     end;
 
-    if i < ML then Exit;
+    if i < ML then
+      Exit;
 
     match := True;
 
@@ -5199,136 +13577,976 @@ begin
   end;
 end;
 
-function UStrRIPos(const substr, str: UnicodeString; StartIndex, EndIndex: Integer): Integer;
-var
-  ptr: PWideChar;
+function StrRIPosA(substr, str: PAnsiChar): PAnsiChar;
 begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
+  Result := StrRIPosA(substr, StrLenA(substr), str, StrLenA(str));
+end;
 
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
+function RBStrRIPos(const substr, str: RawByteString; first, last: Integer): Integer;
+var
+  Ptr: PAnsiChar;
+begin
+  if first <= 0 then
+    first := 1;
 
-  if EndIndex < StartIndex then
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
     Result := 0
-  else begin
-    ptr := StrIPosW(PWideChar(substr), Length(substr),
-      PWideChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
+  else
+  begin
+    Ptr := StrRIPosA(PAnsiChar(substr), length(substr), PAnsiChar(str) + (first - 1), last - first);
 
-    if ptr = nil then
+    if Ptr = nil then
       Result := 0
     else
-      Result := (PAnsiChar(Pointer(ptr)) - PAnsiChar(Pointer(str))) shr 1 + 1;
+      Result := Ptr - PAnsiChar(str) + 1;
   end;
 end;
 
-function BStrRIPos(const substr, str: WideString; StartIndex, EndIndex: Integer): Integer;
-var
-  ptr: PWideChar;
-begin
-  if StartIndex <= 0 then
-    StartIndex := 1;
-
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(str))) then
-    EndIndex := Length(str);
-
-  if EndIndex < StartIndex then
-    Result := 0
-  else begin
-    ptr := StrIPosW(PWideChar(substr), Length(substr),
-      PWideChar(str) + (StartIndex - 1),
-      EndIndex + 1 - StartIndex);
-
-    if ptr = nil then
-      Result := 0
-    else
-      Result := (PAnsiChar(Pointer(ptr)) - PAnsiChar(Pointer(str))) shr 1 + 1;
-  end;
-end;
-
-function StrReplaceA(const S, OldPattern, NewPattern: RawByteString; Flags: TReplaceFlags): RawByteString;
-begin
-  Result := StringReplace(S, OldPattern, NewPattern, Flags);
-end;
-
-function UStrReplace(const S, OldPattern, NewPattern: UnicodeString; Flags: TReplaceFlags): UnicodeString;
-begin
-  Result := StringReplace(S, OldPattern, NewPattern, Flags);
-end;
-
-function BStrReplace(const S, OldPattern, NewPattern: WideString; Flags: TReplaceFlags): WideString;
-begin
-  Result := StringReplace(S, OldPattern, NewPattern, Flags);
-end;
-
-function StrCompareW(const S1: PWideChar; L1: Integer; S2: PWideChar; L2: Integer; CaseSensitive: Boolean): Integer;
-var
-  CmpFlags: DWORD;
-begin
-  if CaseSensitive then CmpFlags := 0
-  else CmpFlags := NORM_IGNORECASE;
-
-  Result := CompareStringW(LOCALE_USER_DEFAULT, CmpFlags, S1, L1, S2, L2) - 2;
-end;
-
-function StrCompareW(S1, S2: PWideChar; CaseSensitive: Boolean = True): Integer;
-begin
-  Result := StrCompareW(S1, StrLenW(S1), S2, StrLenW(S2), CaseSensitive);
-end;
-
-function UStrCompare(S1, S2: UnicodeString; CaseSensitive: Boolean = True): Integer;
-begin 
-  Result := StrCompareW(PWideChar(S1), Length(S1), PWideChar(S2), Length(S2), CaseSensitive);
-end;
-
-function BStrCompare(S1, S2: WideString; CaseSensitive: Boolean = True): Integer;
-begin
-  Result := StrCompareW(PWideChar(S1), Length(S1), PWideChar(S2), Length(S2), CaseSensitive);
-end;
-
-function StrCompareA(str1: PAnsiChar; len1: Integer; str2: PAnsiChar; len2: Integer; CaseSensitive: Boolean): Integer;
+function StrScanW(s: PWideChar; len: Integer; c: WideChar): PWideChar;
 var
   i: Integer;
-  ch1, ch2: AnsiChar;
 begin
-  Result := len1 - len2;
-  if Result = 0 then
+  Result := nil;
+
+  for i := 0 to len - 1 do
   begin
-    for i := 0 to len1 - 1 do
+    if s[i] = c then
     begin
-      ch1 := str1[i];
-      ch2 := str2[i];
-      if ch1 = ch2 then Continue;
-      if not CaseSensitive and ((ch1 in ['A'..'Z']) or (ch1 in ['a'..'z'])) and
-        ((ch2 in ['A'..'Z']) or (ch2 in ['a'..'z'])) then
-      begin
-        ch1 := AnsiChar(PByte(str1 + i)^ or 32);
-        ch2 := AnsiChar(PByte(str2 + i)^ or 32);
-      end;
-      if ch1 <> ch2 then
-      begin
-        Result := Ord(ch1) - Ord(ch2);
-        Break;
-      end;
+      Result := s + i;
+      Break;
     end;
   end;
 end;
 
-function StrCompareA(const Str1, Str2: RawByteString; CaseSensitive: Boolean): Integer;
+function StrScanW(s: PWideChar; c: WideChar): PWideChar;
 begin
-  Result := StrCompareA(PAnsiChar(str1), Length(str1),
-    PAnsiChar(Str2), Length(str2), CaseSensitive);
+  while (s^ <> #0) and (s^ <> c) do
+    Inc(s);
+
+  if s^ = #0 then
+    Result := nil
+  else
+    Result := s;
 end;
 
-function UStrCatCStr(const s1: array of UnicodeString; s2: PWideChar): UnicodeString;
+function UStrScan(const s: u16string; c: WideChar; first, last: Integer): Integer;
+var
+  i: Integer;
+begin
+  Result := 0;
+
+  if first <= 0 then
+    Exit;
+
+  if (last <= 0) or (last > length(s)) then
+    last := length(s) + 1;
+
+  for i := first to last - 1 do
+  begin
+    if s[i] = c then
+    begin
+      Result := i;
+      Break;
+    end;
+  end;
+end;
+
+function BStrScan(const s: WideString; c: WideChar; first, last: Integer): Integer;
+var
+  i: Integer;
+begin
+  Result := 0;
+
+  if first <= 0 then
+    Exit;
+
+  if (last <= 0) or (last > length(s)) then
+    last := length(s) + 1;
+
+  for i := first to last - 1 do
+  begin
+    if s[i] = c then
+    begin
+      Result := i;
+      Break;
+    end;
+  end;
+end;
+
+function StrScan(const s: string; c: Char): Integer;
+var
+  i: Integer;
+begin
+  Result := 0;
+
+  for i := 1 to length(s) do
+    if s[i] = c then
+    begin
+      Result := i;
+      Break;
+    end;
+end;
+
+function SeekWideChar(s: PWideChar; len: Integer; what: WideChar): PWideChar;
+var
+  i: Integer;
+begin
+  Result := nil;
+
+  for i := 0 to len - 1 do
+  begin
+    if s[i] = what then
+    begin
+      Result := s + i;
+      Break;
+    end;
+  end;
+end;
+
+function SeekWideChars(s: PWideChar; len: Integer; const whats: array of WideChar): PWideChar;
+var
+  i, j: Integer;
+  found: Boolean;
+  c: WideChar;
+begin
+  Result := nil;
+
+  for i := 0 to len - 1 do
+  begin
+    c := s[i];
+    found := False;
+
+    for j := Low(whats) to High(whats) do
+      if whats[j] = c then
+      begin
+        found := True;
+        Break;
+      end;
+
+    if found then
+    begin
+      Result := s + i;
+      Break;
+    end;
+  end;
+end;
+
+{$region 'pattern search impl'}
+
+{$IFDEF WIN32}
+
+function SysUtils_StrPosW(str, substr: PWideChar): PWideChar; assembler;
+{ copy from SysUtils }
+asm
+  PUSH    EDI
+  PUSH    ESI
+  PUSH    EBX
+  OR      EAX,EAX
+  JE      @@2
+  OR      EDX,EDX
+  JE      @@2
+  MOV     EBX,EAX
+  MOV     EDI,EDX
+  XOR     AX,AX
+  MOV     ECX,0FFFFFFFFH
+  REPNE   SCASW
+  NOT     ECX
+  DEC     ECX
+  JE      @@2
+  MOV     ESI,ECX
+  MOV     EDI,EBX
+  MOV     ECX,0FFFFFFFFH
+  REPNE   SCASW
+  NOT     ECX
+  SUB     ECX,ESI
+  JBE     @@2
+  MOV     EDI,EBX
+  LEA     EBX,[ESI-1]
+@@1:    MOV     ESI,EDX
+  LODSW
+  REPNE   SCASW
+  JNE     @@2
+  MOV     EAX,ECX
+  PUSH    EDI
+  MOV     ECX,EBX
+  REPE    CMPSW
+  POP     EDI
+  MOV     ECX,EAX
+  JNE     @@1
+  LEA     EAX,[EDI-2]
+  JMP     @@3
+@@2:    XOR     EAX,EAX
+@@3:    POP     EBX
+  POP     ESI
+  POP     EDI
+end;
+
+function StrPosW(substr, str: PWideChar): PWideChar;
+begin
+  Result := SysUtils_StrPosW(str, substr);
+end;
+{$ELSE}
+
+function StrPosW(substr, str: PWideChar): PWideChar;
+begin
+  Result := StrPosW(substr, SysUtils.StrLen(substr), str, SysUtils.StrLen(str));
+end;
+{$ENDIF}
+
+function StrPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar;
+var
+  i, k, mr: Integer;
+  match: Boolean;
+begin
+  Result := nil;
+
+  if (substr = nil) or (str = nil) or (sublen > len) or (sublen <= 0) then
+    Exit;
+
+  if substr = str then
+  begin
+    Result := str;
+    Exit;
+  end;
+
+  mr := len - sublen;
+
+  i := 0;
+
+  while True do
+  begin
+    while (i <= mr) and (str[i] <> substr[0]) do
+      Inc(i);
+
+    if i > mr then
+      Exit;
+
+    match := True;
+
+    for k := 1 to sublen - 1 do
+    begin
+      if substr[k] <> str[i + k] then
+      begin
+        match := False;
+        Break;
+      end;
+    end;
+
+    if match then
+    begin
+      Result := str + i;
+      Break;
+    end;
+
+    Inc(i);
+  end;
+end;
+
+function UStrPos(const substr, str: u16string; first, last: Integer): Integer;
+var
+  Ptr: PWideChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > length(str)) then
+    last := length(str) + 1;
+
+  if last <= first then
+    Result := 0
+  else
+  begin
+    Ptr := StrPosW(PWideChar(substr), length(substr), PWideChar(str) + (first - 1), last - first);
+
+    if Ptr = nil then
+      Result := 0
+    else
+      Result := Ptr - PWideChar(str) + 1;
+  end;
+end;
+
+function BStrPos(const substr, str: WideString; first: Integer = 1; last: Integer = 0): Integer;
+var
+  Ptr: PWideChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > length(str)) then
+    last := length(str) + 1;
+
+  if last <= first then
+    Result := 0
+  else
+  begin
+    Ptr := StrPosW(PWideChar(substr), length(substr), PWideChar(str) + (first - 1), last - first);
+
+    if Ptr = nil then
+      Result := 0
+    else
+      Result := Ptr - PWideChar(str) + 1;
+  end;
+end;
+
+function StrIPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar; overload;
+var
+  i, k, mr: Integer;
+  match: Boolean;
+  w, w1, w2: Word;
+begin
+  Result := nil;
+
+  if (substr = nil) or (str = nil) or (sublen > len) or (sublen <= 0) then
+    Exit;
+
+  if substr = str then
+  begin
+    Result := str;
+    Exit;
+  end;
+
+  if (substr[0] >= 'A') and (substr[0] <= 'Z') then
+    w := Ord(substr[0]) + 32
+  else
+    w := Ord(substr[0]);
+
+  mr := len - sublen;
+
+  i := 0;
+
+  while True do
+  begin
+    while i <= mr do
+    begin
+      if (str[i] >= 'A') and (str[i] <= 'Z') then
+        w1 := Ord(str[i]) + 32
+      else
+        w1 := Ord(str[i]);
+
+      if w1 = w then
+        Break;
+
+      Inc(i);
+    end;
+
+    if i > mr then
+      Exit;
+
+    match := True;
+
+    for k := 1 to sublen - 1 do
+    begin
+      if (str[i + k] >= 'A') and (str[i + k] <= 'Z') then
+        w1 := Ord(str[i + k]) + 32
+      else
+        w1 := Ord(str[i + k]);
+
+      if (substr[k] >= 'A') and (substr[k] <= 'Z') then
+        w2 := Ord(substr[k]) + 32
+      else
+        w2 := Ord(substr[k]);
+
+      if w1 <> w2 then
+      begin
+        match := False;
+        Break;
+      end;
+    end;
+
+    if match then
+    begin
+      Result := str + i;
+      Break;
+    end;
+
+    Inc(i);
+  end;
+end;
+
+function StrIPosW(substr: u16string; str: PWideChar; len: Integer): PWideChar;
+begin
+  Result := StrIPosW(PWideChar(substr), length(substr), str, len);
+end;
+
+function StrIPosW(substr, str: PWideChar): PWideChar;
+begin
+  Result := StrIPosW(substr, StrLenW(substr), str, StrLenW(str));
+end;
+
+function UStrIPos(const substr, str: u16string; first, last: Integer): Integer;
+var
+  Ptr: PWideChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
+    Result := 0
+  else
+  begin
+    Ptr := StrIPosW(PWideChar(substr), length(substr), PWideChar(str) + (first - 1), last - first);
+
+    if Ptr = nil then
+      Result := 0
+    else
+      Result := Ptr - PWideChar(str) + 1;
+  end;
+end;
+
+function BStrIPos(const substr, str: WideString; first, last: Integer): Integer;
+var
+  Ptr: PWideChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
+    Result := 0
+  else
+  begin
+    Ptr := StrIPosW(PWideChar(substr), length(substr), PWideChar(str) + (first - 1), last - first);
+
+    if Ptr = nil then
+      Result := 0
+    else
+      Result := Ptr - PWideChar(str) + 1;
+  end;
+end;
+
+function StrRPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar;
+var
+  i, k, ML: Integer;
+  match: Boolean;
+begin
+  Result := nil;
+
+  if (substr = nil) or (str = nil) or (sublen > len) or (sublen <= 0) then
+    Exit;
+
+  if substr + sublen = str + len then
+  begin
+    Result := substr;
+    Exit;
+  end;
+
+  ML := sublen - 1;
+
+  i := len - 1;
+
+  while True do
+  begin
+    while (i >= ML) and (str[i] <> substr[ML]) do
+      Dec(i);
+
+    if i < ML then
+      Exit;
+
+    match := True;
+
+    for k := sublen - 2 downto 0 do
+    begin
+      if substr[k] <> str[i - (sublen - 1 - k)] then
+      begin
+        match := False;
+        Break;
+      end;
+    end;
+
+    if match then
+    begin
+      Result := str + (i - (sublen - 1));
+      Break;
+    end;
+
+    Dec(i);
+  end;
+end;
+
+function StrRPosW(substr, str: PWideChar): PWideChar;
+begin
+  Result := StrRPosW(substr, StrLenW(substr), str, StrLenW(str));
+end;
+
+function UStrRPos(const substr, str: u16string; first, last: Integer): Integer;
+var
+  Ptr: PWideChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
+    Result := 0
+  else
+  begin
+    Ptr := StrRPosW(PWideChar(substr), length(substr), PWideChar(str) + (first - 1), last - first);
+
+    if Ptr = nil then
+      Result := 0
+    else
+      Result := Ptr - PWideChar(str) + 1;
+  end;
+end;
+
+function BStrRPos(const substr, str: WideString; first, last: Integer): Integer;
+var
+  Ptr: PWideChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
+    Result := 0
+  else
+  begin
+    Ptr := StrRPosW(PWideChar(substr), length(substr), PWideChar(str) + (first - 1), last - first);
+
+    if Ptr = nil then
+      Result := 0
+    else
+      Result := Ptr - PWideChar(str) + 1;
+  end;
+end;
+
+function StrRIPosW(substr: PWideChar; sublen: Integer; str: PWideChar; len: Integer): PWideChar;
+var
+  i, j, k, ML: Integer;
+  match: Boolean;
+  w, w1, w2: Word;
+begin
+  Result := nil;
+
+  if (substr = nil) or (str = nil) or (sublen > len) or (sublen <= 0) then
+    Exit;
+
+  if substr + sublen = str + len then
+  begin
+    Result := substr;
+    Exit;
+  end;
+
+  ML := sublen - 1;
+
+  if (substr[ML] >= 'A') and (substr[ML] <= 'Z') then
+    w := Ord(substr[ML]) + 32
+  else
+    w := Ord(substr[ML]);
+
+  i := len - 1;
+
+  while True do
+  begin
+    while i >= ML do
+    begin
+      if (str[i] >= 'A') and (str[i] <= 'Z') then
+        w1 := Ord(str[i]) + 32
+      else
+        w1 := Ord(str[i]);
+
+      if w1 = w then
+        Break;
+
+      Dec(i);
+    end;
+
+    if i < ML then
+      Exit;
+
+    match := True;
+
+    for k := sublen - 2 downto 0 do
+    begin
+      j := i - (sublen - 1 - k);
+      if (str[j] >= 'A') and (str[j] <= 'Z') then
+        w1 := Ord(str[j]) + 32
+      else
+        w1 := Ord(str[j]);
+
+      if (substr[k] >= 'A') and (substr[k] <= 'Z') then
+        w2 := Ord(substr[k]) + 32
+      else
+        w2 := Ord(substr[k]);
+
+      if w1 <> w2 then
+      begin
+        match := False;
+        Break;
+      end;
+    end;
+
+    if match then
+    begin
+      Result := str + (i - (sublen - 1));
+      Break;
+    end;
+
+    Dec(i);
+  end;
+end;
+
+function StrRIPosW(substr, str: PWideChar): PWideChar;
+begin
+  Result := StrRIPosW(substr, StrLenW(substr), str, StrLenW(str));
+end;
+
+function UStrRIPos(const substr, str: u16string; first, last: Integer): Integer;
+var
+  Ptr: PWideChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
+    Result := 0
+  else
+  begin
+    Ptr := StrRIPosW(PWideChar(substr), length(substr), PWideChar(str) + (first - 1), last - first);
+
+    if Ptr = nil then
+      Result := 0
+    else
+      Result := Ptr - PWideChar(str) + 1;
+  end;
+end;
+
+function BStrRIPos(const substr, str: WideString; first, last: Integer): Integer;
+var
+  Ptr: PWideChar;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > Integer(length(str))) then
+    last := length(str) + 1;
+
+  if last <= first then
+    Result := 0
+  else
+  begin
+    Ptr := StrRIPosW(PWideChar(substr), length(substr), PWideChar(str) + (first - 1), last - first);
+
+    if Ptr = nil then
+      Result := 0
+    else
+      Result := Ptr - PWideChar(str) + 1;
+  end;
+end;
+
+function RBStrReplace(const s, OldPattern, NewPattern: RawByteString; flags: TReplaceFlags): RawByteString;
+var
+  offset, p, L: Integer;
+begin
+  Result := '';
+  p := 1;
+  L := length(s);
+
+  while p <= L do
+  begin
+    if rfIgnoreCase in flags then
+      offset := RBStrIPos(OldPattern, s, p)
+    else
+      offset := RBStrPos(OldPattern, s, p);
+
+    if offset <= 0 then
+    begin
+      if Result = '' then
+        Result := s
+      else
+        Result := Result + Copy(s, p, L + 1 - p);
+      Break;
+    end;
+
+    Result := Result + Copy(s, p, offset - p) + NewPattern;
+    p := offset + length(OldPattern);
+
+    if not(rfReplaceAll in flags) then
+    begin
+      Result := Result + Copy(s, p, offset - p);
+      Break;
+    end;
+  end;
+end;
+
+function UStrReplace(const s, OldPattern, NewPattern: u16string; flags: TReplaceFlags): u16string;
+var
+  offset, p, L: Integer;
+begin
+  Result := '';
+  p := 1;
+  L := length(s);
+
+  while p <= L do
+  begin
+    if rfIgnoreCase in flags then
+      offset := UStrIPos(OldPattern, s, p)
+    else
+      offset := UStrPos(OldPattern, s, p);
+
+    if offset <= 0 then
+    begin
+      if Result = '' then
+        Result := s
+      else
+        Result := Result + Copy(s, p, L + 1 - p);
+
+      Break;
+    end;
+
+    Result := Result + Copy(s, p, offset - p) + NewPattern;
+    p := offset + length(OldPattern);
+
+    if not(rfReplaceAll in flags) then
+    begin
+      Result := Result + Copy(s, p, L + 1 - p);
+      Break;
+    end;
+  end;
+end;
+
+function BStrReplace(const s, OldPattern, NewPattern: WideString; flags: TReplaceFlags): WideString;
+var
+  offset, p, L: Integer;
+begin
+  Result := '';
+  p := 1;
+  L := length(s);
+
+  while p <= L do
+  begin
+    if rfIgnoreCase in flags then
+      offset := BStrIPos(OldPattern, s, p)
+    else
+      offset := BStrPos(OldPattern, s, p);
+
+    if offset <= 0 then
+    begin
+      Result := Result + Copy(s, p, L + 1 - p);
+      Break;
+    end;
+
+    Result := Result + Copy(s, p, offset - p) + NewPattern;
+    p := offset + length(OldPattern);
+
+    if not(rfReplaceAll in flags) then
+    begin
+      Result := Result + Copy(s, p, offset - p);
+      Break;
+    end;
+  end;
+end;
+
+function StrReplace(const s, OldPattern, NewPattern: WideString; flags: TReplaceFlags): WideString;
+begin
+  Result := BStrReplace(s, OldPattern, NewPattern, flags);
+end;
+
+function StrReplace(const s, OldPattern, NewPattern: u16string; flags: TReplaceFlags): u16string;
+begin
+  Result := UStrReplace(s, OldPattern, NewPattern, flags);
+end;
+
+function StrReplace(const s, OldPattern, NewPattern: RawByteString; flags: TReplaceFlags): RawByteString;
+begin
+  Result := RBStrReplace(s, OldPattern, NewPattern, flags);
+end;
+
+function WordsCompare(s1, s2: PWideChar): Integer;
+var
+  diff: Integer;
+begin
+  Result := 0;
+
+  while s1^ <> #0 do
+  begin
+    diff := Integer(PWord(s1)^) - Integer(PWord(s2)^);
+
+    if diff <> 0 then
+    begin
+      Result := diff;
+      Break;
+    end;
+
+    Inc(s1);
+    Inc(s2);
+  end;
+
+  if s2^ <> #0 then
+    Result := -1;
+end;
+
+function WordsICompare(s1, s2: PWideChar): Integer;
+var
+  diff: Integer;
+  c1, c2: WideChar;
+begin
+  Result := 0;
+
+  while s1^ <> #0 do
+  begin
+    c1 := s1^;
+    c2 := s2^;
+
+    if (c1 >= 'A') and (c1 <= 'Z') then
+      Inc(Word(c1), 32);
+
+    if (c2 >= 'A') and (c2 <= 'Z') then
+      Inc(Word(c2), 32);
+
+    diff := Ord(c1) - Ord(c2);
+
+    if diff <> 0 then
+    begin
+      Result := diff;
+      Break;
+    end;
+
+    Inc(s1);
+    Inc(s2);
+  end;
+
+  if s2^ <> #0 then
+    Result := -1;
+end;
+
+function StrCompareW(const s1: PWideChar; L1: Integer; s2: PWideChar; L2: Integer; CaseSensitive: Boolean): Integer;
+var
+  CmpFlags: DWORD;
+begin
+  if CaseSensitive then
+    CmpFlags := 0
+  else
+    CmpFlags := NORM_IGNORECASE;
+
+  Result := CompareStringW(LOCALE_USER_DEFAULT, CmpFlags, s1, L1, s2, L2) - 2;
+end;
+
+function StrCompareW(s1, s2: PWideChar; CaseSensitive: Boolean = True): Integer;
+var
+  CmpFlags: DWORD;
+begin
+  if CaseSensitive then
+    CmpFlags := 0
+  else
+    CmpFlags := NORM_IGNORECASE;
+
+  Result := CompareStringW(LOCALE_USER_DEFAULT, CmpFlags, s1, -1, s2, -1) - 2;
+end;
+
+function UStrCompare(const s1, s2: u16string; CaseSensitive: Boolean = True): Integer;
+begin
+  Result := StrCompareW(PWideChar(s1), length(s1), PWideChar(s2), length(s2), CaseSensitive);
+end;
+
+function BStrCompare(const s1, s2: WideString; CaseSensitive: Boolean = True): Integer;
+begin
+  Result := StrCompareW(PWideChar(s1), length(s1), PWideChar(s2), length(s2), CaseSensitive);
+end;
+
+function StrCompare(const s1, s2: u16string; CaseSensitive: Boolean): Integer;
+begin
+  Result := StrCompareW(PWideChar(s1), length(s1), PWideChar(s2), length(s2), CaseSensitive);
+end;
+
+function StrCompare(const s1: u16string; s2: PWideChar; s2len: Integer;
+  CaseSensitive: Boolean = True): Integer;
+begin
+  Result := StrCompareW(PWideChar(s1), length(s1), s2, s2len, CaseSensitive);
+end;
+
+function StrCompare(const s1, s2: WideString; CaseSensitive: Boolean): Integer;
+begin
+  Result := StrCompareW(PWideChar(s1), length(s1), PWideChar(s2), length(s2), CaseSensitive);
+end;
+
+function StrCompareA(str1: PAnsiChar; len1: Integer; str2: PAnsiChar; len2: Integer; CaseSensitive: Boolean): Integer;
+var
+  CmpFlags: DWORD;
+begin
+  if CaseSensitive then
+    CmpFlags := 0
+  else
+    CmpFlags := NORM_IGNORECASE;
+
+  Result := CompareStringA(LOCALE_USER_DEFAULT, CmpFlags, str1, len1, str2, len2) - 2;
+end;
+
+{
+  function StrCompareA(str1: PAnsiChar; len1: Integer; str2: PAnsiChar; len2: Integer; CaseSensitive: Boolean): Integer;
+  var
+  i: Integer;
+  ch1, ch2: AnsiChar;
+  begin
+  Result := len1 - len2;
+  if Result = 0 then
+  begin
+  for i := 0 to len1 - 1 do
+  begin
+  ch1 := str1[i];
+  ch2 := str2[i];
+  if ch1 = ch2 then Continue;
+  if not CaseSensitive and ((ch1 in ['A'..'Z']) or (ch1 in ['a'..'z'])) and
+  ((ch2 in ['A'..'Z']) or (ch2 in ['a'..'z'])) then
+  begin
+  ch1 := AnsiChar(PByte(str1 + i)^ or 32);
+  ch2 := AnsiChar(PByte(str2 + i)^ or 32);
+  end;
+  if ch1 <> ch2 then
+  begin
+  Result := Ord(ch1) - Ord(ch2);
+  Break;
+  end;
+  end;
+  end;
+  end;
+  }
+
+function StrCompareA(const str1, str2: PAnsiChar; CaseSensitive: Boolean): Integer; overload;
+var
+  CmpFlags: DWORD;
+begin
+  if CaseSensitive then
+    CmpFlags := 0
+  else
+    CmpFlags := NORM_IGNORECASE;
+
+  Result := CompareStringA(LOCALE_USER_DEFAULT, CmpFlags, str1, -1, str2, -1) - 2;
+end;
+
+function RBStrCompare(const str1, str2: RawByteString; CaseSensitive: Boolean): Integer;
+begin
+  Result := StrCompareA(PAnsiChar(str1), length(str1), PAnsiChar(str2), length(str2), CaseSensitive);
+end;
+
+function StrCompare(const str1, str2: RawByteString; CaseSensitive: Boolean): Integer;
+begin
+  Result := StrCompareA(PAnsiChar(str1), length(str1), PAnsiChar(str2), length(str2), CaseSensitive);
+end;
+
+function UStrCatCStr(const s1: array of u16string; s2: PWideChar): u16string;
 var
   i, L1, L2: Integer;
 begin
   L1 := 0;
 
   for i := Low(s1) to High(s1) do
-    Inc(L1, Length(s1[i]));
+    Inc(L1, length(s1[i]));
 
   L2 := StrLenW(s2);
 
@@ -5338,133 +14556,251 @@ begin
 
   for i := Low(s1) to High(s1) do
   begin
-    Move(Pointer(s1[i])^, PWideChar(Result)[L1], Length(s1[i]) * 2);
-    Inc(L1, Length(s1[i]));
+    Move(Pointer(s1[i])^, PWideChar(Result)[L1], length(s1[i]) * 2);
+    Inc(L1, length(s1[i]));
   end;
 
   Move(s2^, PWideChar(Result)[L1], L2 * 2);
 end;
 
-function GetSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
-  start, limit: Integer): Boolean; overload;
+function GetSectionBetweenA(s: PAnsiChar; len: Integer; const prefix, suffix: RawByteString;
+  out SectionBegin, SectionEnd: PAnsiChar; flags: TStringSearchFlags): Boolean;
+begin
+  Result := False;
+
+  if Assigned(s) and (len > 0) then
+  begin
+    if ssfReverse in flags then
+    begin
+      if suffix = '' then
+        SectionEnd := s + len
+      else if ssfCaseSensitive in flags then
+        SectionEnd := StrRPosA(PAnsiChar(suffix), length(suffix), s, len)
+      else
+        SectionEnd := StrRIPosA(PAnsiChar(suffix), length(suffix), s, len);
+
+      if Assigned(SectionEnd) then
+      begin
+        if prefix = '' then
+          SectionBegin := s
+        else if ssfCaseSensitive in flags then
+          SectionBegin := StrRPosA(PAnsiChar(prefix), length(prefix), s, SectionEnd - s)
+        else
+          SectionBegin := StrRIPosA(PAnsiChar(prefix), length(prefix), s, SectionEnd - s);
+
+        if Assigned(SectionBegin) then
+        begin
+          if not(ssfIncludePrefix in flags) then
+            Inc(SectionBegin, length(prefix));
+
+          if ssfIncludeSuffix in flags then
+            Inc(SectionEnd, length(suffix));
+
+          Result := True;
+        end;
+      end;
+    end
+    else
+    begin
+      if prefix = '' then
+        SectionBegin := s
+      else if ssfCaseSensitive in flags then
+        SectionBegin := StrPosA(PAnsiChar(prefix), length(prefix), s, len)
+      else
+        SectionBegin := StrIPosA(PAnsiChar(prefix), length(prefix), s, len);
+
+      if Assigned(SectionBegin) then
+      begin
+        Inc(SectionBegin, length(prefix));
+
+        if suffix = '' then
+          SectionEnd := s + len
+        else if ssfCaseSensitive in flags then
+          SectionEnd := StrPosA(PAnsiChar(suffix), length(suffix), SectionBegin, s + len - SectionBegin)
+        else
+          SectionEnd := StrIPosA(PAnsiChar(suffix), length(suffix), SectionBegin, s + len - SectionBegin);
+
+        if Assigned(SectionEnd) then
+        begin
+          if ssfIncludePrefix in flags then
+            Dec(SectionBegin, length(prefix));
+
+          if ssfIncludeSuffix in flags then
+            Inc(SectionEnd, length(suffix));
+
+          Result := True;
+        end;
+      end;
+    end;
+  end;
+end;
+
+function RBStrGetSectionBetween(const src, prefix, suffix: RawByteString; out P1, P2: Integer; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
+var
+  s, SectionBegin, SectionEnd: PAnsiChar;
 begin
   Result := False;
 
   if src <> '' then
   begin
-    if limit <= 0 then
-      limit := Length(src);
+    s := PAnsiChar(src);
 
-    if prefix = '' then P1 := start
-    else P1 := StrPosA(prefix, src, start, limit);
+    if last <= 0 then
+      last := length(src) + 1;
 
-    if P1 > 0 then
+    Result := GetSectionBetweenA(s + first - 1, last - first, prefix, suffix, SectionBegin, SectionEnd, flags);
+
+    if Result then
     begin
-      Inc(P1, Length(prefix));
-
-      if suffix = '' then P2 := limit
-      else P2 := StrPosA(suffix, src, P1, limit);
-
-      Result := P2 > 0;
+      P1 := SectionBegin + 1 - s;
+      P2 := SectionEnd + 1 - s;
     end;
   end;
 end;
 
-function GetTrimedSectionBetweenA(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
-  start, limit: Integer): Boolean; overload;
+function RBStrGetTrimedSectionBetween(const src, prefix, suffix: RawByteString; out P1, P2: Integer;
+  first, last: Integer; flags: TStringSearchFlags): Boolean;
+var
+  tmp: Integer;
 begin
-  Result := GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit);
+  Result := RBStrGetSectionBetween(src, prefix, suffix, P1, P2, first, last, flags);
 
   if Result then
   begin
-    while (P1 < P2) and (src[P1] <= #32) do Inc(P1);
-    while (P2 > P1) and (src[P2] <= #32) do Dec(P2);
+    while (P1 < P2) and (src[P1] <= #32) do
+      Inc(P1);
+
+    tmp := P2 - 1;
+
+    while (tmp >= P1) and (src[tmp] <= #32) do
+      Dec(tmp);
+
+    P2 := tmp + 1;
   end;
 end;
 
-function GetSubstrBetweenA(const src, prefix, suffix: RawByteString; start, limit: Integer): RawByteString;
+function RBStrGetSubstrBetween(const src, prefix, suffix: RawByteString; first, last: Integer;
+  flags: TStringSearchFlags): RawByteString;
 var
   P1, P2: Integer;
 begin
-  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if RBStrGetSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
     Result := Copy(src, P1, P2 - P1)
   else
     Result := '';
 end;
 
-function GetTrimedSubstrBetweenA(const src, prefix, suffix: RawByteString; start, limit: Integer): RawByteString; overload;
+function RBStrGetTrimedSubstrBetween(const src, prefix, suffix: RawByteString; first, last: Integer;
+  flags: TStringSearchFlags): RawByteString;
 var
   P1, P2: Integer;
 begin
-  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
-    Result := TrimCopyA(src, P1, P2 - P1)
+  if RBStrGetSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
+    Result := RBStrTrimCopy(src, P1, P2 - P1)
   else
     Result := '';
 end;
 
-function TryGetInt64BetweenA(const src, prefix, suffix: RawByteString; out value: Int64;
-  start: Integer; limit: Integer): Boolean;
+function RBStrTryGetInt64Between(const src, prefix, suffix: RawByteString; out value: Int64; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
 var
   P1, P2: Integer;
   c: PAnsiChar;
 begin
   Result := False;
 
-  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if RBStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
     value := BufToInt64A(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then value := 0
-    else Result := True;
+    if Assigned(c) then
+      value := 0
+    else
+      Result := True;
   end;
 end;
 
-function GetInt64BetweenA(const src, prefix, suffix: RawByteString; start, limit: Integer): Int64;
+function RBStrGetInt64Between(const src, prefix, suffix: RawByteString; first, last: Integer;
+  flags: TStringSearchFlags): Int64;
 var
   P1, P2: Integer;
   c: PAnsiChar;
 begin
-  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if RBStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
     Result := BufToInt64A(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then Result := 0
+    if Assigned(c) then
+      Result := 0
   end
-  else Result := 0;
+  else
+    Result := 0;
 end;
 
-function TryGetIntegerBetweenA(const src, prefix, suffix: RawByteString; out value: Integer; start: Integer; limit: Integer): Boolean;
+function RBStrTryGetIntegerBetween(const src, prefix, suffix: RawByteString; out value: Integer; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
 var
   P1, P2: Integer;
   c: PAnsiChar;
 begin
   Result := False;
 
-  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if RBStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
     value := BufToIntA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then value := 0
-    else Result := True;
+    if Assigned(c) then
+      value := 0
+    else
+      Result := True;
   end;
 end;
 
-function GetIntegerBetweenA(const src, prefix, suffix: RawByteString; start, limit: Integer): Integer;
+function RBStrGetIntegerBetween(const src, prefix, suffix: RawByteString; first, last: Integer;
+  flags: TStringSearchFlags): Integer;
 var
   P1, P2: Integer;
   c: PAnsiChar;
 begin
-  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if RBStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
     Result := BufToIntA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then Result := 0
+    if Assigned(c) then
+      Result := 0
   end
-  else Result := 0;
+  else
+    Result := 0;
 end;
 
-function TryGetFloatBetweenA(const src, prefix, suffix: RawByteString; out value: Double;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function RBStrGetBoolBetween(const src, prefix, suffix: RawByteString; def: Boolean; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+begin
+  if RBStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
+    Result := StrToBoolA(PAnsiChar(src) + P1 - 1, P2 - P1, def)
+  else
+    Result := def;
+end;
+
+function RBStrTryGetBoolBetween(const src, prefix, suffix: RawByteString; out value: Boolean; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+begin
+  Result := False;
+
+  if RBStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
+  begin
+    value := StrToBoolA(PAnsiChar(src) + P1 - 1, P2 - P1, False);
+    Result := True;
+  end;
+end;
+
+function RBStrTryGetFloatBetween(const src, prefix, suffix: RawByteString; out value: Double; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
 var
   P1, P2: Integer;
   c: PAnsiChar;
@@ -5472,10 +14808,11 @@ begin
   Result := False;
 
   value := 0;
-  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+
+  if RBStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
     try
-      value := BufToFloatA(PAnsiChar(src) +  P1 - 1, P2 - P1, @c);
+      value := BufToFloatA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
 
       if not Assigned(c) then
         Result := True;
@@ -5485,179 +14822,301 @@ begin
   end;
 end;
 
-function GetFloatBetweenA(const src, prefix, suffix: RawByteString;
-  start: Integer = 1; limit: Integer = 0): Double;
+function RBStrGetFloatBetween(const src, prefix, suffix: RawByteString; first, last: Integer;
+  flags: TStringSearchFlags): Double;
 var
   P1, P2: Integer;
   c: PAnsiChar;
 begin
-  if GetTrimedSectionBetweenA(src, prefix, suffix, P1, P2, start, limit) then
+  if RBStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
-    Result := BufToFloatA(PAnsiChar(src) +  P1 - 1, P2 - P1, @c);
+    Result := BufToFloatA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then Result := 0;
+    if Assigned(c) then
+      Result := 0;
   end
-  else Result := 0;
+  else
+    Result := 0;
 end;
 
-function GetSectionBetweenW(const src, prefix, suffix: UnicodeString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function GetSectionBetweenW(s: PWideChar; len: Integer; const prefix, suffix: u16string;
+  out SectionBegin, SectionEnd: PWideChar; flags: TStringSearchFlags): Boolean;
+begin
+  Result := False;
+
+  if Assigned(s) and (len > 0) then
+  begin
+    if ssfReverse in flags then
+    begin
+      if suffix = '' then
+        SectionEnd := s + len
+      else if ssfCaseSensitive in flags then
+        SectionEnd := StrRPosW(PWideChar(suffix), length(suffix), s, len)
+      else
+        SectionEnd := StrRIPosW(PWideChar(suffix), length(suffix), s, len);
+
+      if Assigned(SectionEnd) then
+      begin
+        if prefix = '' then
+          SectionBegin := s
+        else if ssfCaseSensitive in flags then
+          SectionBegin := StrRPosW(PWideChar(prefix), length(prefix), s, SectionEnd - s)
+        else
+          SectionBegin := StrRIPosW(PWideChar(prefix), length(prefix), s, SectionEnd - s);
+
+        if Assigned(SectionBegin) then
+        begin
+          if not(ssfIncludePrefix in flags) then
+            Inc(SectionBegin, length(prefix));
+
+          if ssfIncludeSuffix in flags then
+            Inc(SectionEnd, length(suffix));
+
+          Result := True;
+        end;
+      end;
+    end
+    else
+    begin
+      if prefix = '' then
+        SectionBegin := s
+      else if ssfCaseSensitive in flags then
+        SectionBegin := StrPosW(PWideChar(prefix), length(prefix), s, len)
+      else
+        SectionBegin := StrIPosW(PWideChar(prefix), length(prefix), s, len);
+
+      if Assigned(SectionBegin) then
+      begin
+        Inc(SectionBegin, length(prefix));
+
+        if suffix = '' then
+          SectionEnd := s + len
+        else if ssfCaseSensitive in flags then
+          SectionEnd := StrPosW(PWideChar(suffix), length(suffix), SectionBegin, s + len - SectionBegin)
+        else
+          SectionEnd := StrIPosW(PWideChar(suffix), length(suffix), SectionBegin, s + len - SectionBegin);
+
+        if Assigned(SectionEnd) then
+        begin
+          if ssfIncludePrefix in flags then
+            Dec(SectionBegin, length(prefix));
+
+          if ssfIncludeSuffix in flags then
+            Inc(SectionEnd, length(suffix));
+
+          Result := True;
+        end;
+      end;
+    end;
+  end;
+end;
+
+function UStrGetSectionBetween(const src, prefix, suffix: u16string; out P1, P2: Integer; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
+var
+  s, SectionBegin, SectionEnd: PWideChar;
 begin
   Result := False;
 
   if src <> '' then
   begin
-    if limit <= 0 then
-      limit := Length(src);
+    s := PWideChar(src);
 
-    if prefix = '' then P1 := start
-    else P1 := UStrPos(prefix, src, start, limit);
+    if last <= 0 then
+      last := length(src) + 1;
 
-    if P1 > 0 then
+    Result := GetSectionBetweenW(s + first - 1, last - first, prefix, suffix, SectionBegin, SectionEnd, flags);
+
+    if Result then
     begin
-      Inc(P1, Length(prefix));
-
-      if suffix = '' then P2 := limit
-      else P2 := UStrPos(suffix, src, P1, limit);
-
-      Result := P2 > 0;
+      P1 := SectionBegin + 1 - s;
+      P2 := SectionEnd + 1 - s;
     end;
   end;
 end;
 
-function GetTrimedSectionBetweenW(const src, prefix, suffix: UnicodeString; out P1, P2: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean; overload;
+function UStrGetTrimedSectionBetween(const src, prefix, suffix: u16string; out P1, P2: Integer;
+  first, last: Integer; flags: TStringSearchFlags): Boolean;
+var
+  tmp: Integer;
 begin
-  Result := GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit);
+  Result := UStrGetSectionBetween(src, prefix, suffix, P1, P2, first, last, flags);
 
   if Result then
   begin
-    while (P1 < P2) and (src[P1] <= #32) do Inc(P1);
-    while (P2 > P1) and (src[P2] <= #32) do Dec(P2);
+    while (P1 < P2) and (src[P1] <= #32) do
+      Inc(P1);
+
+    tmp := P2 - 1;
+
+    while (tmp >= P1) and (src[tmp] <= #32) do
+      Dec(tmp);
+
+    P2 := tmp + 1;
   end;
 end;
 
-function GetSubstrBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): UnicodeString;
+function UStrGetSubstrBetween(const src, prefix, suffix: u16string; first, last: Integer;
+  flags: TStringSearchFlags): u16string;
 var
   P1, P2: Integer;
 begin
-  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if UStrGetSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
     Result := Copy(src, P1, P2 - P1)
   else
     Result := '';
 end;
 
-function GetTrimedSubstrBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): UnicodeString;
+function UStrGetTrimedSubstrBetween(const src, prefix, suffix: u16string; first, last: Integer;
+  flags: TStringSearchFlags): u16string;
 var
   P1, P2: Integer;
 begin
-  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
-    Result := TrimCopyU(src, P1, P2 - P1)
+  if UStrGetSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
+    Result := UStrTrimCopy(src, P1, P2 - P1)
   else
     Result := '';
 end;
 
-function TryGetInt64BetweenW(const src, prefix, suffix: UnicodeString; out value: Int64;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function UStrTryGetInt64Between(const src, prefix, suffix: u16string; out value: Int64; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
 var
   P1, P2: Integer;
   c: PWideChar;
 begin
   Result := False;
 
-  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if UStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
-    c:= nil;
+    c := nil;
     value := BufToInt64W(PWideChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then value := 0
-    else Result := True;
+    if Assigned(c) then
+      value := 0
+    else
+      Result := True;
   end;
 end;
 
-function GetInt64BetweenW(const src, prefix, suffix: UnicodeString; start: Integer = 1; limit: Integer = 0): Int64;
+function UStrGetInt64Between(const src, prefix, suffix: u16string; first, last: Integer;
+  flags: TStringSearchFlags): Int64;
 var
   P1, P2: Integer;
   c: PWideChar;
 begin
-  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if UStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
-    c:= nil;
-    
+    c := nil;
+
     Result := BufToInt64W(PWideChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then Result := 0;
+    if Assigned(c) then
+      Result := 0;
   end
-  else Result := 0;
+  else
+    Result := 0;
 end;
 
-function TryGetIntegerBetweenW(const src, prefix, suffix: UnicodeString; out value: Integer;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function UStrTryGetIntegerBetween(const src, prefix, suffix: u16string; out value: Integer; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
 var
   P1, P2: Integer;
   c: PWideChar;
 begin
   Result := False;
 
-  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if UStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
-    c:= nil;
+    c := nil;
     value := BufToIntW(PWideChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then value := 0
-    else Result := True;
+    if Assigned(c) then
+      value := 0
+    else
+      Result := True;
   end;
 end;
 
-function GetIntegerBetweenW(const src, prefix, suffix: UnicodeString; start: Integer = 1; limit: Integer = 0): Integer; overload;
+function UStrGetIntegerBetween(const src, prefix, suffix: u16string; first, last: Integer;
+  flags: TStringSearchFlags): Integer;
 var
   P1, P2: Integer;
   c: PWideChar;
 begin
-  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if UStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
-    c:= nil;
-    
+    c := nil;
+
     Result := BufToIntW(PWideChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then Result := 0;
+    if Assigned(c) then
+      Result := 0;
   end
-  else Result := 0;
+  else
+    Result := 0;
 end;
 
-function TryGetFloatBetweenW(const src, prefix, suffix: UnicodeString; out value: Double;
-  start: Integer = 1; limit: Integer = 0): Boolean;
+function UStrGetBoolBetween(const src, prefix, suffix: u16string; def: Boolean; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
 var
   P1, P2: Integer;
 begin
+  if UStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
+    Result := StrToBoolW(PWideChar(src) + P1 - 1, P2 - P1, def)
+  else
+    Result := def;
+end;
+
+function UStrTryGetBoolBetween(const src, prefix, suffix: u16string; out value: Boolean; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+begin
+  Result := False;
+
+  if UStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
+  begin
+    value := StrToBoolW(PWideChar(src) + P1 - 1, P2 - P1, False);
+    Result := True;
+  end;
+end;
+
+function UStrTryGetFloatBetween(const src, prefix, suffix: u16string; out value: Double; first, last: Integer;
+  flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+  pwc: PWideChar;
+begin
   value := 0;
-  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+
+  if UStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
     try
-      value := BufToFloatW(PWideChar(src) +  P1 - 1, P2 - P1, nil);
-      Result := True;
+      value := BufToFloatW(PWideChar(src) + P1 - 1, P2 - P1, @pwc);
+      Result := not Assigned(pwc);
     except
       Result := False;
     end;
   end
-  else Result := False;
+  else
+    Result := False;
 end;
 
-function GetFloatBetweenW(const src, prefix, suffix: UnicodeString;
-  start: Integer = 1; limit: Integer = 0): Double;
+function UStrGetFloatBetween(const src, prefix, suffix: u16string; first, last: Integer;
+  flags: TStringSearchFlags): Double;
 var
   P1, P2: Integer;
   c: PWideChar;
 begin
-  if GetTrimedSectionBetweenW(src, prefix, suffix, P1, P2, start, limit) then
+  if UStrGetTrimedSectionBetween(src, prefix, suffix, P1, P2, first, last, flags) then
   begin
-    Result := BufToFloatW(PWideChar(src) +  P1 - 1, P2 - P1, @c);
+    Result := BufToFloatW(PWideChar(src) + P1 - 1, P2 - P1, @c);
 
-    if Assigned(c) then Result := 0;
+    if Assigned(c) then
+      Result := 0;
   end
-  else Result := 0;
+  else
+    Result := 0;
 end;
 
 function BeginWithW(s: PWideChar; len: Integer; sub: PWideChar; sublen: Integer): Boolean;
@@ -5665,16 +15124,18 @@ var
   i: Integer;
 begin
   Result := False;
-  
-  if len < sublen then Exit;
+
+  if len < sublen then
+    Exit;
 
   for i := 0 to sublen - 1 do
-    if sub[i] <> s[i] then Exit;
+    if sub[i] <> s[i] then
+      Exit;
 
   Result := True;
 end;
 
-function BeginWithW(s: PWideChar; len: Integer; const sub: UnicodeString): Boolean; overload;
+function BeginWithW(s: PWideChar; len: Integer; const sub: u16string): Boolean;
 var
   i, sublen: Integer;
   _sub: PWideChar;
@@ -5682,12 +15143,14 @@ begin
   Result := False;
 
   _sub := PWideChar(sub);
-  sublen := Length(sub);
-  
-  if len < sublen then Exit;
+  sublen := length(sub);
+
+  if len < sublen then
+    Exit;
 
   for i := 0 to sublen - 1 do
-    if _sub[i] <> s[i] then Exit;
+    if _sub[i] <> s[i] then
+      Exit;
 
   Result := True;
 end;
@@ -5696,31 +15159,220 @@ function BeginWithW(s, sub: PWideChar): Boolean;
 begin
   while (s^ = sub^) and (sub^ <> #0) do
   begin
-    Inc(s); Inc(sub);
+    Inc(s);
+    Inc(sub);
   end;
 
   Result := sub^ = #0;
 end;
 
+function UStrBeginWith(const s, sub: u16string): Boolean;
+begin
+  Result := BeginWithW(PWideChar(s), length(s), PWideChar(sub), length(sub));
+end;
+
+function UStrIBeginWith(const s, sub: u16string): Boolean;
+begin
+  Result := IBeginWithW(PWideChar(s), length(s), PWideChar(sub), length(sub));
+end;
+
+function IBeginWithW(s: PWideChar; len: Integer; sub: PWideChar; sublen: Integer): Boolean;
+var
+  i: Integer;
+  c1, c2: WideChar;
+begin
+  Result := False;
+
+  if len < sublen then
+    Exit;
+
+  for i := 0 to sublen - 1 do
+  begin
+    c1 := sub[i];
+    c2 := s[i];
+
+    if (c1 >= 'A') and (c1 <= 'Z') then
+      Inc(Word(c1), 32);
+    if (c2 >= 'A') and (c2 <= 'Z') then
+      Inc(Word(c2), 32);
+
+    if c1 <> c2 then
+      Exit;
+  end;
+
+  Result := True;
+end;
+
 function IBeginWithW(s, sub: PWideChar): Boolean; overload;
+begin
+  if s = nil then
+    Result := False
+  else if IsEmptyString(sub) then
+    Result := True
+  else
+  begin
+    Result := True;
+    repeat
+      if sub^ <> s^ then
+      begin
+        Result := False;
+        Break;
+      end;
+      Inc(sub);
+      Inc(s);
+    until sub^ = #0;
+  end;
+end;
+
+function EndWithW(str: PWideChar; len: Integer; suffix: PWideChar; suffixLen: Integer): Boolean;
+begin
+  Result := False;
+
+  if len < suffixLen then
+    Exit;
+
+  Dec(suffixLen);
+  Dec(len);
+
+  while suffixLen >= 0 do
+  begin
+    if str[len] <> suffix[suffixLen] then
+      Exit;
+    Dec(len);
+    Dec(suffixLen)
+  end;
+
+  Result := True;
+end;
+
+function EndWithW(s, sub: PWideChar): Boolean;
+begin
+  Result := EndWithW(s, StrLenW(s), sub, StrLenW(sub));
+end;
+
+function EndWithW(s: PWideChar; len: Integer; const suffix: u16string): Boolean;
+begin
+  Result := EndWithW(s, len, PWideChar(suffix), length(suffix));
+end;
+
+function IEndWithW(str: PWideChar; len: Integer; suffix: PWideChar; suffixLen: Integer): Boolean;
 var
   c1, c2: WideChar;
 begin
-  c2 := #0;
+  Result := False;
 
-  while True do
+  if len < suffixLen then
+    Exit;
+
+  Dec(suffixLen);
+  Dec(len);
+
+  while suffixLen >= 0 do
   begin
-    c1 := s^; c2 := sub^;
+    c1 := str[len];
+    c2 := suffix[suffixLen];
 
-    if (c1 >= 'A') and (c1 <= 'Z') then Inc(Word(c1), 32);
-    if (c2 >= 'A') and (c2 <= 'Z') then Inc(Word(c2), 32);
+    if (c1 >= 'A') and (c1 <= 'Z') then
+      Inc(Word(c1), 32);
+    if (c2 >= 'A') and (c2 <= 'Z') then
+      Inc(Word(c2), 32);
 
-    if (c1 <> c2) or (c2 = #0) then Break;
+    if c1 <> c2 then
+      Exit;
 
-    Inc(s); Inc(sub);
+    Dec(len);
+    Dec(suffixLen)
   end;
 
-  Result := c2 = #0;
+  Result := True;
+end;
+
+function IEndWithW(s, sub: PWideChar): Boolean;
+begin
+  Result := IEndWithW(s, StrLenW(s), sub, StrLenW(sub));
+end;
+
+function UStrEndWith(const str, suffix: u16string): Boolean;
+begin
+  Result := EndWithW(PWideChar(str), length(str), PWideChar(suffix), length(suffix));
+end;
+
+function UStrIEndWith(const str, suffix: u16string): Boolean;
+begin
+  Result := IEndWithW(PWideChar(str), length(str), PWideChar(suffix), length(suffix));
+end;
+
+function EndWithA(str: PAnsiChar; len: Integer; suffix: PAnsiChar; suffixLen: Integer): Boolean;
+begin
+  Result := False;
+
+  if len < suffixLen then
+    Exit;
+
+  Dec(suffixLen);
+  Dec(len);
+
+  while suffixLen >= 0 do
+  begin
+    if str[len] <> suffix[suffixLen] then
+      Exit;
+    Dec(len);
+    Dec(suffixLen)
+  end;
+
+  Result := True;
+end;
+
+function EndWithA(s, sub: PAnsiChar): Boolean;
+begin
+  Result := EndWithA(s, StrLenA(s), sub, StrLenA(sub));
+end;
+
+function IEndWithA(str: PAnsiChar; len: Integer; suffix: PAnsiChar; suffixLen: Integer): Boolean;
+var
+  c1, c2: AnsiChar;
+begin
+  Result := False;
+
+  if len < suffixLen then
+    Exit;
+
+  Dec(suffixLen);
+  Dec(len);
+
+  while suffixLen >= 0 do
+  begin
+    c1 := str[len];
+    c2 := suffix[suffixLen];
+
+    if (c1 >= 'A') and (c1 <= 'Z') then
+      Inc(Byte(c1), 32);
+    if (c2 >= 'A') and (c2 <= 'Z') then
+      Inc(Byte(c2), 32);
+
+    if c1 <> c2 then
+      Exit;
+
+    Dec(len);
+    Dec(suffixLen)
+  end;
+
+  Result := True;
+end;
+
+function IEndWithA(s, sub: PAnsiChar): Boolean;
+begin
+  Result := IEndWithA(s, StrLenA(s), sub, StrLenA(sub));
+end;
+
+function RBStrEndWith(const str, suffix: RawByteString): Boolean;
+begin
+  Result := EndWithA(PAnsiChar(str), length(str), PAnsiChar(suffix), length(suffix));
+end;
+
+function RBStrIEndWith(const str, suffix: RawByteString): Boolean;
+begin
+  Result := EndWithA(PAnsiChar(str), length(str), PAnsiChar(suffix), length(suffix));
 end;
 
 function BeginWithA(s: PAnsiChar; len: Integer; sub: PAnsiChar; sublen: Integer): Boolean;
@@ -5729,272 +15381,681 @@ var
 begin
   Result := False;
 
-  if len < sublen then Exit;
+  if len < sublen then
+    Exit;
 
   for i := 0 to sublen - 1 do
-    if sub[i] <> s[i] then Exit;
+    if sub[i] <> s[i] then
+      Exit;
 
   Result := True;
 end;
 
+function BeginWithA(s: PAnsiChar; len: Integer; const sub: RawByteString): Boolean;
+begin
+  Result := BeginWithA(s, len, PAnsiChar(sub), length(sub));
+end;
+
 function BeginWithA(s, sub: PAnsiChar): Boolean;
 begin
-  while (s^ = sub^) and (sub^ <> #0) do
+  if s = nil then
+    Result := False
+  else if IsEmptyString(sub) then
+    Result := True
+  else
   begin
-    Inc(s); Inc(sub);
+    Result := True;
+    repeat
+      if sub^ <> s^ then
+      begin
+        Result := False;
+        Break;
+      end;
+      Inc(sub);
+      Inc(s);
+    until sub^ = #0;
+  end;
+end;
+
+function IBeginWithA(s: PAnsiChar; len: Integer; sub: PAnsiChar; sublen: Integer): Boolean; overload;
+var
+  i: Integer;
+  c1, c2: AnsiChar;
+begin
+  Result := False;
+
+  if len < sublen then
+    Exit;
+
+  for i := 0 to sublen - 1 do
+  begin
+    c1 := sub[i];
+    c2 := s[i];
+
+    if (c1 >= 'A') and (c1 <= 'Z') then
+      Inc(Byte(c1), 32);
+    if (c2 >= 'A') and (c2 <= 'Z') then
+      Inc(Byte(c2), 32);
+
+    if c1 <> c2 then
+      Exit;
   end;
 
-  Result := sub^ = #0;
+  Result := True;
 end;
 
 function IBeginWithA(s, sub: PAnsiChar): Boolean;
 var
   c1, c2: AnsiChar;
 begin
-  c2 := #0;
-
-  while True do
+  if s = nil then
+    Result := False
+  else if IsEmptyString(sub) then
+    Result := True
+  else
   begin
-    c1 := s^; c2 := sub^;
-
-    if (c1 >= 'A') and (c1 <= 'Z') then Inc(Byte(c1), 32);
-    if (c2 >= 'A') and (c2 <= 'Z') then Inc(Byte(c2), 32);
-
-    if (c1 <> c2) or (c2 = #0) then Break;
-
-    Inc(s); Inc(sub);
+    Result := True;
+    repeat
+      c1 := CASE_CHAR_TABLE[ccUpper][s^];
+      c2 := CASE_CHAR_TABLE[ccUpper][sub^];
+      if c1 <> c2 then
+      begin
+        Result := False;
+        Break;
+      end;
+      Inc(sub);
+      Inc(s);
+    until sub^ = #0;
   end;
-
-  Result := c2 = #0;
 end;
 
-function GetSectionBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
-  out P1, P2: Integer; start: Integer = 1; limit: Integer = 0;
-  EndingNoSuffix: Boolean = True): Boolean;
+function RBStrBeginWith(const s, sub: RawByteString): Boolean;
+begin
+  Result := BeginWithA(PAnsiChar(s), length(s), PAnsiChar(sub), length(sub));
+end;
+
+function RBStrIBeginWith(const s, sub: RawByteString): Boolean;
+begin
+  Result := IBeginWithA(PAnsiChar(s), length(s), PAnsiChar(sub), length(sub));
+end;
+
+{$endregion}
+
+function GetSectionBetweenA2(s: PAnsiChar; len: Integer; const prefix: RawByteString; const suffix: array of AnsiChar;
+  out SectionBegin, SectionEnd: PAnsiChar; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
 var
-  i: Integer;
+  sec, prefixSec, res: TAnsiCharSection;
+begin
+  sec._begin := s;
+  sec._end := s + len;
+  prefixSec.SetStr(prefix);
+  res := sec.GetSectionBetween2(prefixSec, suffix, EndingNoSuffix, flags);
+
+  if res.length > 0 then
+  begin
+    SectionBegin := res._begin;
+    SectionEnd := res._end;
+    Result := True;
+  end
+  else
+    Result := False;
+end;
+
+function RBStrGetSectionBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  out P1, P2: Integer; first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  s, SecBegin, SecEnd: PAnsiChar;
 begin
   Result := False;
 
   if src <> '' then
   begin
-    if limit = 0 then
-      limit := Length(src);
+    s := PAnsiChar(src);
 
-    p1 := StrPosA(prefix, src, start, limit);
+    if last = 0 then
+      last := length(src) + 1;
 
-    if p1 > 0 then
+    Result := GetSectionBetweenA2(s + first - 1, last - first, prefix, suffix, SecBegin, SecEnd, EndingNoSuffix, flags);
+
+    if Result then
     begin
-      Inc(p1, Length(prefix));
-      p2 := p1;
-      while p2 <= limit do
-      begin
-        for i := Low(suffix) to high(suffix) do
-        begin
-          if src[p2] = suffix[i] then
-          begin
-            Result := True;
-            Exit;
-          end;
-        end;
-
-        Inc(p2);
-      end;
-
-      (*
-      在字符串结尾允许不带suffix。比如prefix为'ab', suffix为[';', ',']时，
-      从'abcde;123'、'abcde'、'abcde,123'三个src中都能提取出'cde'
-      *)
-      if (p2 > Integer(Length(src))) and EndingNoSuffix then
-        Result := True;
+      P1 := SecBegin + 1 - s;
+      P2 := SecEnd + 1 - s;
     end;
   end;
 end;
 
-function GetSubstrBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
-  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): RawByteString;
+function RBStrGetTrimedSectionBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  out P1, P2: Integer; first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  tmp: Integer;
+begin
+  Result := RBStrGetSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags);
+
+  if Result then
+  begin
+    while (P1 < P2) and (src[P1] <= #32) do
+      Inc(P1);
+
+    tmp := P2 - 1;
+
+    while (tmp >= P1) and (src[tmp] <= #32) do
+      Dec(tmp);
+
+    P2 := tmp + 1;
+  end;
+end;
+
+function RBStrGetSubstrBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): RawByteString;
 var
   P1, P2: Integer;
 begin
-  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit, EndingNoSuffix) then
+  if RBStrGetSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
     Result := Copy(src, P1, P2 - P1)
   else
     Result := '';
 end;
 
-function GetTrimedSubstrBetweenA(const src, prefix: RawByteString; const suffix: array of AnsiChar;
-  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): RawByteString;
+function RBStrGetTrimedSubstrBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): RawByteString;
 var
   P1, P2: Integer;
 begin
-  if GetSectionBetweenA(src, prefix, suffix, P1, P2, start, limit, EndingNoSuffix) then
-    Result := TrimCopyA(src, P1, P2 - P1)
+  if RBStrGetSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+    Result := RBStrTrimCopy(src, P1, P2 - P1)
   else
     Result := '';
 end;
 
-//提取夹在prefix和suffix中任一字符之间的子串
-
-function GetSectionBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
-  out P1, P2: Integer; start, limit: Integer; EndingNoSuffix: Boolean): Boolean;
+function RBStrTryGetInt64Between2(const src, prefix: RawByteString; const suffix: array of AnsiChar; out value: Int64;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
 var
-  i: Integer;
+  P1, P2: Integer;
+  c: PAnsiChar;
+begin
+  Result := False;
+
+  if RBStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    value := BufToInt64A(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      value := 0
+    else
+      Result := True;
+  end;
+end;
+
+function RBStrGetInt64Between2(const src, prefix: RawByteString; const suffix: array of AnsiChar; first, last: Integer;
+  EndingNoSuffix: Boolean; flags: TStringSearchFlags): Int64;
+var
+  P1, P2: Integer;
+  c: PAnsiChar;
+begin
+  if RBStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    Result := BufToInt64A(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      Result := 0
+  end
+  else
+    Result := 0;
+end;
+
+function RBStrTryGetIntegerBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  out value: Integer; first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+  c: PAnsiChar;
+begin
+  Result := False;
+
+  if RBStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    value := BufToIntA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      value := 0
+    else
+      Result := True;
+  end;
+end;
+
+function RBStrGetIntegerBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Integer;
+var
+  P1, P2: Integer;
+  c: PAnsiChar;
+begin
+  if RBStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    Result := BufToIntA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      Result := 0
+  end
+  else
+    Result := 0;
+end;
+
+function RBStrTryGetBoolBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; out value: Boolean;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+begin
+  if RBStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    value := StrToBoolA(PAnsiChar(src) + P1 - 1, P2 - P1, False);
+    Result := True;
+  end
+  else
+    Result := False
+end;
+
+function RBStrGetBoolBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; def: Boolean;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean; overload;
+var
+  P1, P2: Integer;
+begin
+  if RBStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+    Result := StrToBoolA(PAnsiChar(src) + P1 - 1, P2 - P1, def)
+  else
+    Result := def;
+end;
+
+function RBStrTryGetFloatBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; out value: Double;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+  c: PAnsiChar;
+begin
+  Result := False;
+
+  value := 0;
+
+  if RBStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    try
+      value := BufToFloatA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
+
+      if not Assigned(c) then
+        Result := True;
+    except
+
+    end;
+  end;
+end;
+
+function RBStrGetFloatBetween2(const src, prefix: RawByteString; const suffix: array of AnsiChar; first, last: Integer;
+  EndingNoSuffix: Boolean; flags: TStringSearchFlags): Double;
+var
+  P1, P2: Integer;
+  c: PAnsiChar;
+begin
+  if RBStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    Result := BufToFloatA(PAnsiChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      Result := 0;
+  end
+  else
+    Result := 0;
+end;
+
+// 提取夹在prefix和suffix中任一字符之间的子串
+function GetSectionBetweenW2(s: PWideChar; len: Integer; const prefix: u16string; const suffix: array of WideChar;
+  out SectionBegin, SectionEnd: PWideChar; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  sec, prefixSec, res: TWideCharSection;
+begin
+  sec._begin := s;
+  sec._end := s + len;
+  prefixSec.SetUStr(prefix);
+  res := sec.GetSectionBetween2(prefixSec, suffix, EndingNoSuffix, flags);
+
+  if res.length > 0 then
+  begin
+    SectionBegin := res._begin;
+    SectionEnd := res._end;
+    Result := True;
+  end
+  else
+    Result := False;
+end;
+
+function UStrGetSectionBetween2(const src, prefix: u16string; const suffix: array of WideChar; out P1, P2: Integer;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  s, SecBegin, SecEnd: PWideChar;
 begin
   Result := False;
 
   if src <> '' then
   begin
-    if limit = 0 then
-      limit := Length(src);
+    s := PWideChar(src);
 
-    p1 := UStrPos(prefix, src, start, limit);
+    if last = 0 then
+      last := length(src) + 1;
 
-    if p1 > 0 then
+    Result := GetSectionBetweenW2(s + first - 1, last - first, prefix, suffix, SecBegin, SecEnd, EndingNoSuffix, flags);
+
+    if Result then
     begin
-      Inc(p1, Length(prefix));
-      p2 := p1;
-      while p2 <= limit do
-      begin
-        for i := Low(suffix) to high(suffix) do
-        begin
-          if src[p2] = suffix[i] then
-          begin
-            Result := True;
-            Exit;
-          end;
-        end;
-
-        Inc(p2);
-      end;
-
-      (*
-      在字符串结尾允许不带suffix。比如prefix为'ab', suffix为[';', ',']时，
-      从'abcde;123'、'abcde'、'abcde,123'三个src中都能提取出'cde'
-      *)
-      if (p2 > Integer(Length(src))) and EndingNoSuffix then
-        Result := True;
+      P1 := SecBegin + 1 - s;
+      P2 := SecEnd + 1 - s;
     end;
   end;
 end;
 
-function GetSubstrBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
-  start, limit: Integer; EndingNoSuffix: Boolean): UnicodeString;
+function UStrGetTrimedSectionBetween2(const src, prefix: u16string; const suffix: array of WideChar;
+  out P1, P2: Integer; first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  tmp: Integer;
+begin
+  Result := UStrGetSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags);
+
+  if Result then
+  begin
+    while (P1 < P2) and (src[P1] <= #32) do
+      Inc(P1);
+
+    tmp := P2 - 1;
+
+    while (tmp >= P1) and (src[tmp] <= #32) do
+      Dec(tmp);
+
+    P2 := tmp + 1;
+  end;
+end;
+
+function UStrGetSubstrBetween2(const src, prefix: u16string; const suffix: array of WideChar; first, last: Integer;
+  EndingNoSuffix: Boolean; flags: TStringSearchFlags): u16string;
 var
   P1, P2: Integer;
 begin
-  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit, EndingNoSuffix) then
+  if UStrGetSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
     Result := Copy(src, P1, P2 - P1)
   else
     Result := '';
 end;
 
-function GetTrimedSubstrBetweenW(const src, prefix: UnicodeString; const suffix: array of WideChar;
-  start: Integer = 1; limit: Integer = 0; EndingNoSuffix: Boolean = True): UnicodeString;
+function UStrGetTrimedSubstrBetween2(const src, prefix: u16string; const suffix: array of WideChar;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): u16string;
 var
   P1, P2: Integer;
 begin
-  if GetSectionBetweenW(src, prefix, suffix, P1, P2, start, limit, EndingNoSuffix) then
-    Result := TrimCopyU(src, P1, P2 - P1)
+  if UStrGetSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+    Result := UStrTrimCopy(src, P1, P2 - P1)
   else
     Result := '';
 end;
 
-function UStrCopyUntil(const src: UnicodeString; const suffix: array of WideChar;
-  StartIndex, EndIndex: Integer; EndingNoSuffix: Boolean = True): UnicodeString;
+function UStrTryGetInt64Between2(const src, prefix: u16string; const suffix: array of WideChar; out value: Int64;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+  c: PWideChar;
+begin
+  Result := False;
+
+  if UStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    c := nil;
+    value := BufToInt64W(PWideChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      value := 0
+    else
+      Result := True;
+  end;
+end;
+
+function UStrGetInt64Between2(const src, prefix: u16string; const suffix: array of WideChar; first, last: Integer;
+  EndingNoSuffix: Boolean; flags: TStringSearchFlags): Int64;
+var
+  P1, P2: Integer;
+  c: PWideChar;
+begin
+  if UStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    c := nil;
+
+    Result := BufToInt64W(PWideChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      Result := 0;
+  end
+  else
+    Result := 0;
+end;
+
+function UStrTryGetIntegerBetween2(const src, prefix: u16string; const suffix: array of WideChar;
+  out value: Integer; first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+  c: PWideChar;
+begin
+  Result := False;
+
+  if UStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    c := nil;
+    value := BufToIntW(PWideChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      value := 0
+    else
+      Result := True;
+  end;
+end;
+
+function UStrGetIntegerBetween2(const src, prefix: u16string; const suffix: array of WideChar;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Integer;
+var
+  P1, P2: Integer;
+  c: PWideChar;
+begin
+  if UStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    c := nil;
+
+    Result := BufToIntW(PWideChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      Result := 0;
+  end
+  else
+    Result := 0;
+end;
+
+function UStrTryGetBoolBetween2(const src, prefix: u16string; const suffix: array of WideChar; out value: Boolean;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+begin
+  if UStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    value := StrToBoolW(PWideChar(src) + P1 - 1, P2 - P1, False);
+    Result := True;
+  end
+  else
+    Result := False
+end;
+
+function UStrGetBoolBetween2(const src, prefix: u16string; const suffix: array of WideChar; def: Boolean;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+begin
+  if UStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+    Result := StrToBoolW(PWideChar(src) + P1 - 1, P2 - P1, def)
+  else
+    Result := def;
+end;
+
+function UStrTryGetFloatBetween2(const src, prefix: u16string; const suffix: array of WideChar; out value: Double;
+  first, last: Integer; EndingNoSuffix: Boolean; flags: TStringSearchFlags): Boolean;
+var
+  P1, P2: Integer;
+begin
+  value := 0;
+  if UStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    try
+      value := BufToFloatW(PWideChar(src) + P1 - 1, P2 - P1, nil);
+      Result := True;
+    except
+      Result := False;
+    end;
+  end
+  else
+    Result := False;
+end;
+
+function UStrGetFloatBetween2(const src, prefix: u16string; const suffix: array of WideChar; first, last: Integer;
+  EndingNoSuffix: Boolean; flags: TStringSearchFlags): Double;
+var
+  P1, P2: Integer;
+  c: PWideChar;
+begin
+  if UStrGetTrimedSectionBetween2(src, prefix, suffix, P1, P2, first, last, EndingNoSuffix, flags) then
+  begin
+    Result := BufToFloatW(PWideChar(src) + P1 - 1, P2 - P1, @c);
+
+    if Assigned(c) then
+      Result := 0;
+  end
+  else
+    Result := 0;
+end;
+
+function UStrCopyUntil(const src: u16string; const suffix: array of WideChar; first, last: Integer;
+  EndingNoSuffix: Boolean = True): u16string;
 var
   i: Integer;
-  P: Integer;
+  p: Integer;
 begin
   Result := '';
-  P := StartIndex;
-  while P <= EndIndex do
+  p := first;
+  while p <= last do
   begin
     for i := Low(suffix) to high(suffix) do
     begin
-      if src[P] = suffix[i] then
+      if src[p] = suffix[i] then
       begin
-        Result := Copy(src, StartIndex, P - StartIndex);
+        Result := Copy(src, first, p - first);
         Exit;
       end;
     end;
 
-    Inc(P);
+    Inc(p);
   end;
 
-      (*
-      在字符串结尾允许不带suffix。比如prefix为'ab', suffix为[';', ',']时，
-      从'abcde;123'、'abcde'、'abcde,123'三个src中都能提取出'cde'
-      *)
-  if (P > Integer(Length(src))) and EndingNoSuffix then
-    Result := Copy(src, StartIndex, P - StartIndex);
+  (*
+    在字符串结尾允许不带suffix。比如prefix为'ab', suffix为[';', ',']时，
+    从'abcde;123'、'abcde'、'abcde,123'三个src中都能提取出'cde'
+    *)
+  if (p > Integer(length(src))) and EndingNoSuffix then
+    Result := Copy(src, first, p - first);
 end;
 
-function TrimCopyU(const s: UnicodeString; start, len: Integer): UnicodeString;
-var
-  P1, P2: Integer;
+function UStrTrimCopy(const s: u16string; first, len: Integer): u16string;
 begin
-  Result := '';
-
-  P1 := start;
-
-  if P1 <= 0 then P1 := 1;
-
-  P2 := P1 + len - 1;
-
-  if P2 > Length(s) then P2 := Length(s);
-
-  if P1 <= Length(s) then
+  if first > length(s) then
+    Result := ''
+  else
   begin
-    while (P1 <= P2) and (s[P1] <= #32) do Inc(P1);
-    while (P2 >= P1) and (s[P2] <= #32) do Dec(P2);
+    if (len < 0) or (len > length(s) + 1 - first) then
+      len := length(s) + 1 - first;
 
-    if P2 >= P1 then Result := Copy(s, P1, P2 + 1 - P1);
+    Result := UStrSection(s, first, first + len).trim.ToUStr;
   end;
 end;
 
-function TrimCopyA(const s: RawByteString; start, len: Integer): RawByteString;
-var
-  P1, P2: Integer;
+function RBStrTrimCopy(const s: RawByteString; first, len: Integer): RawByteString;
 begin
-  Result := '';
-
-  P1 := start;
-
-  if P1 <= 0 then P1 := 1;
-
-  P2 := P1 + len - 1;
-
-  if P2 > Length(s) then P2 := Length(s);
-
-  if P1 <= Length(s) then
+  if first > length(s) then
+    Result := ''
+  else
   begin
-    while (P1 <= P2) and (s[P1] <= #32) do Inc(P1);
-    while (P2 >= P1) and (s[P2] <= #32) do Dec(P2);
+    if (len < 0) or (len > length(s) + 1 - first) then
+      len := length(s) + 1 - first;
 
-    if P2 >= P1 then Result := Copy(s, P1, P2 + 1 - P1);
+    Result := RBStrSection(s, first, first + len).trim.toString;
   end;
 end;
 
-function TrimCopyW(const s: WideString; start, len: Integer): WideString;
-var
-  P1, P2: Integer;
+function BStrTrimCopy(const s: WideString; first, len: Integer): WideString;
 begin
-  Result := '';
-
-  P1 := start;
-
-  if P1 <= 0 then P1 := 1;
-
-  P2 := P1 + len - 1;
-
-  if P2 > Length(s) then P2 := Length(s);
-
-  if P1 <= Length(s) then
+  if first > length(s) then
+    Result := ''
+  else
   begin
-    while (P1 <= P2) and (s[P1] <= #32) do Inc(P1);
-    while (P2 >= P1) and (s[P2] <= #32) do Dec(P2);
+    if (len < 0) or (len > length(s) + 1 - first) then
+      len := length(s) + 1 - first;
 
-    if P2 >= P1 then Result := Copy(s, P1, P2 + 1 - P1);
+    Result := BStrSection(s, first, first + len).trim.ToUStr;
+  end;
+end;
+
+function GetTagClosedW(s: PWideChar; len: Integer; BeginTag, EndTag: WideChar; out TagBegin: PWideChar): Integer;
+var
+  P1, P2, strend: PWideChar;
+  n: Integer;
+begin
+  TagBegin := nil;
+  Result := 0;
+  strend := s + len;
+
+  P1 := s;
+
+  while (P1 < strend) and (P1^ <> BeginTag) do
+    Inc(P1);
+
+  if P1 >= strend then
+    Exit;
+
+  P2 := P1 + 1;
+
+  n := 1;
+
+  while (n > 0) and (P2 < strend) do
+  begin
+    if P2^ = BeginTag then
+      Inc(n)
+    else if P2^ = EndTag then
+      Dec(n);
+    Inc(P2);
+  end;
+
+  if n = 0 then
+  begin
+    TagBegin := P1;
+    Result := P2 - P1;
+  end;
+end;
+
+function UStrGetTagClosed(const s: u16string; BeginTag, EndTag: WideChar; first, last: Integer): u16string;
+var
+  p: PWideChar;
+  len: Integer;
+begin
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > length(s)) then
+    last := length(s) + 1;
+
+  if first >= last then
+    Result := ''
+  else
+  begin
+    len := GetTagClosedW(PWideChar(s) + first - 1, last - first, BeginTag, EndTag, p);
+    SetLength(Result, len);
+    Move(p^, Pointer(Result)^, len * 2);
   end;
 end;
 
@@ -6010,31 +16071,30 @@ begin
   for i := 0 to len - 1 do
   begin
     case str[i] of
-      '0'..'9', 'a'..'z', 'A'..'Z', '_', '-': ;
+      '0' .. '9', 'a' .. 'z', 'A' .. 'Z', '_', '-':
+        ;
 
       '.':
-        begin
-          if _at = -1 then Exit;
-
+        if  (_at <> -1) and (i>(_at+1)) then
           _dot := i;
-        end;
 
       '@':
         begin
-          if _at <> -1 then Exit;
-          
+          if _at <> -1 then
+            Exit;
           _at := i;
         end
-      else Exit;
+      else
+        Exit;
     end;
   end;
 
-  Result := (_at <> -1) and (_dot <> -1);
+  Result := (_at > 0) and (_dot > (_at+1)) and ((len-1)>_dot);
 end;
 
-function IsValidEmailA(const s: RawByteString): Boolean;
+function RBStrIsValidEmail(const s: RawByteString): Boolean;
 begin
-  Result := IsValidEmailA(PAnsiChar(s), Length(s));
+  Result := IsValidEmailA(PAnsiChar(s), length(s));
 end;
 
 function IsValidEmailW(str: PWideChar; len: Integer): Boolean;
@@ -6049,88 +16109,306 @@ begin
   for i := 0 to len - 1 do
   begin
     case str[i] of
-      '0'..'9', 'a'..'z', 'A'..'Z', '_', '-': ;
+      '0' .. '9', 'a' .. 'z', 'A' .. 'Z', '_', '-':
+        ;
 
       '.':
-        begin
-          if _at = -1 then Exit;
-
+        if (_at <> -1) and (i>(_at+1)) then
           _dot := i;
-        end;
 
       '@':
         begin
-          if _at <> -1 then Exit;
-          
+          if _at <> -1 then
+            Exit;
           _at := i;
         end
-      else Exit;
+      else
+        Exit;
     end;
   end;
 
-  Result := (_at <> -1) and (_dot <> -1);
+  Result := (_at > 0) and (_dot > (_at+1)) and ((len-1)>_dot);
 end;
 
-function IsValidEmailU(const s: UnicodeString): Boolean;
+function UStrIsValidEmail(const s: u16string): Boolean;
 begin
-  Result := IsValidEmailW(PWideChar(s), Length(s));
+  Result := IsValidEmailW(PWideChar(s), length(s));
 end;
 
-function IsValidEmailW(const s: WideString): Boolean; 
+function BStrIsValidEmail(const s: WideString): Boolean;
 begin
-  Result := IsValidEmailW(PWideChar(s), Length(s));
+  Result := IsValidEmailW(PWideChar(s), length(s));
 end;
 
-function ExtractIntegerA(const str: RawByteString): Integer;
+function RBStrExtract(const s, ValidChars: RawByteString; callback: TRBStrSectionProc): RawByteString;
+var
+  i, P1, P2, L: Integer;
+  found: Boolean;
+begin
+  Result := '';
+
+  P1 := 1;
+  L := length(s);
+
+  while P1 <= L do
+  begin
+    while P1 <= L do
+    begin
+      found := False;
+
+      for i := 1 to length(ValidChars) do
+        if ValidChars[i] = s[P1] then
+        begin
+          found := True;
+          Break;
+        end;
+
+      if found then
+        Break;
+
+      Inc(P1);
+    end;
+
+    if P1 > L then
+      Exit;
+
+    P2 := P1 + 1;
+
+    while P2 <= L do
+    begin
+      found := False;
+
+      for i := 1 to length(ValidChars) do
+        if ValidChars[i] = s[P2] then
+        begin
+          found := True;
+          Break;
+        end;
+
+      if not found then
+        Break;
+
+      Inc(P2);
+    end;
+
+    if not Assigned(callback) or callback(PAnsiChar(s) + P1 - 1, P2 - P1) then
+    begin
+      if (P1 = 1) and (P2 = L + 1) then
+        Result := s
+      else
+        Result := Copy(s, P1, P2 - P1);
+
+      Break;
+    end
+    else
+      P1 := P2;
+  end;
+end;
+
+function RBStrExtractEmail(const s: RawByteString): RawByteString;
+begin
+  Result := RBStrExtract(s, '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.@_-', IsValidEmailA);
+end;
+
+function RBStrExtractQQID(const s: RawByteString): RawByteString;
+begin
+  Result := RBStrExtract(s, '0123456789', IsQQA);
+end;
+
+function UStrExtract(const s, ValidChars: u16string; callback: TUStrSectionProc): u16string;
+var
+  i, P1, P2, L: Integer;
+  found: Boolean;
+begin
+  Result := '';
+
+  P1 := 1;
+  L := length(s);
+
+  while P1 <= L do
+  begin
+    while P1 <= L do
+    begin
+      found := False;
+
+      for i := 1 to length(ValidChars) do
+        if ValidChars[i] = s[P1] then
+        begin
+          found := True;
+          Break;
+        end;
+
+      if found then
+        Break;
+
+      Inc(P1);
+    end;
+
+    if P1 > L then
+      Exit;
+
+    P2 := P1 + 1;
+
+    while P2 <= L do
+    begin
+      found := False;
+
+      for i := 1 to length(ValidChars) do
+        if ValidChars[i] = s[P2] then
+        begin
+          found := True;
+          Break;
+        end;
+
+      if not found then
+        Break;
+
+      Inc(P2);
+    end;
+
+    if not Assigned(callback) or callback(PWideChar(s) + P1 - 1, P2 - P1) then
+    begin
+      if (P1 = 1) and (P2 = L + 1) then
+        Result := s
+      else
+        Result := Copy(s, P1, P2 - P1);
+
+      Break;
+    end
+    else
+      P1 := P2;
+  end;
+end;
+
+function UStrExtractEmail(const s: u16string): u16string;
+begin
+  Result := UStrExtract(s, '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.@_-', IsValidEmailW);
+end;
+
+function UStrExtractQQID(const s: u16string): u16string;
+begin
+  Result := UStrExtract(s, '0123456789', IsQQW);
+end;
+
+var
+  g_PasswordChars: u16string;
+
+function IsValidPasswordW(str: PWideChar; len: Integer): Boolean;
+begin
+  Result := len > 5;
+end;
+
+function IsValidPassword(const str: u16string): Boolean;
+var
+  i: Integer;
+begin
+  if Length(str) <= 5 then Result := False
+  else begin
+    Result := True;
+    for i := 1 to Length(str) do
+      if UStrScan(g_PasswordChars, str[i]) <= 0 then
+      begin
+        Result := False;
+        Break;
+      end;
+  end;
+end;
+
+function UStrExtractPassword(const s: u16string): u16string;
+begin
+  Result := UStrExtract(s, g_PasswordChars, IsValidPasswordW);
+end;
+
+function ExtractIntegerA(str: PAnsiChar; len: Integer): Int64;
 var
   P1: Integer;
 begin
   Result := 0;
 
-  P1 := 1;
+  P1 := 0;
 
-  while (P1 <= Length(str)) and ((str[P1] < '0') or (str[P1] > '9')) do Inc(P1);
+  while (P1 < len) and ((str[P1] < '0') or (str[P1] > '9')) do
+    Inc(P1);
 
-  if P1 > Length(str) then Exit;
+  if P1 >= len then
+    Exit;
 
-  while (P1 <= Length(str)) and ((str[P1] >= '0') and (str[P1] <= '9')) do
+  while (P1 < len) and ((str[P1] >= '0') and (str[P1] <= '9')) do
   begin
     Result := Result * 10 + Ord(str[P1]) - $30;
     Inc(P1);
   end;
 end;
 
-function ExtractIntegersA(const str: RawByteString; var numbers: array of Int64): Integer;
+function RBStrExtractInteger(const str: RawByteString; first, last: Integer): Int64;
+begin
+  if first <= 0 then
+    first := 1;
+  if (last <= 0) or (last > length(str)) then
+    last := length(str) + 1;
+  Result := ExtractIntegerA(PAnsiChar(str) + first - 1, last - first);
+end;
+
+function ExtractFloatA(str: PAnsiChar; len: Integer): Double;
 var
-  I, P1: Integer;
+  P1: Integer;
+begin
+  Result := 0;
+
+  P1 := 0;
+
+  while (P1 < len) and ((str[P1] < '0') or (str[P1] > '9')) do
+    Inc(P1);
+
+  if P1 >= len then
+    Exit;
+
+  Result := BufToFloatA(str + P1, len - P1);
+end;
+
+function RBStrExtractFloat(const str: RawByteString; first, last: Integer): Double;
+begin
+  if first <= 0 then
+    first := 1;
+  if (last <= 0) or (last > length(str)) then
+    last := length(str) + 1;
+  Result := ExtractFloatA(PAnsiChar(str) + first - 1, last - first);
+end;
+
+function RBStrExtractIntegers(const str: RawByteString; var numbers: array of Int64): Integer;
+var
+  i, P1: Integer;
   v: Int64;
 begin
   Result := 0;
 
-  if Length(numbers) = 0 then Exit;
+  if length(numbers) = 0 then
+    Exit;
 
   P1 := -1;
   v := 0;
 
-  for I := 1 to Length(str) do
+  for i := 1 to length(str) do
   begin
-    if (str[I] >= '0') and (str[I] <= '9') then
+    if (str[i] >= '0') and (str[i] <= '9') then
     begin
       if P1 = -1 then
       begin
-        P1 := I;
+        P1 := i;
         v := Ord(str[i]) - $30;
       end
       else
         v := v * 10 + Ord(str[i]) - $30;
     end
-    else begin
+    else
+    begin
       if P1 <> -1 then
       begin
         P1 := -1;
         numbers[Result] := v;
         Inc(Result);
-        if Result >= Length(numbers) then Break;
+        if Result >= length(numbers) then
+          Break;
       end;
     end;
   end;
@@ -6142,56 +16420,114 @@ begin
   end;
 end;
 
-function UStrExtractInteger(const str: UnicodeString): Integer;
+function ExtractIntegerW(str: PWideChar; len: Integer): Int64;
 var
   P1: Integer;
 begin
   Result := 0;
 
-  P1 := 1;
+  P1 := 0;
 
-  while (P1 <= Length(str)) and ((str[P1] < '0') or (str[P1] > '9')) do Inc(P1);
+  while (P1 < len) and ((str[P1] < '0') or (str[P1] > '9')) do
+    Inc(P1);
 
-  if P1 > Length(str) then Exit;
+  if P1 >= len then
+    Exit;
 
-  while (P1 <= Length(str)) and ((str[P1] >= '0') and (str[P1] <= '9')) do
+  while (P1 < len) and ((str[P1] >= '0') and (str[P1] <= '9')) do
   begin
     Result := Result * 10 + Ord(str[P1]) - $30;
     Inc(P1);
   end;
 end;
 
-function UStrExtractIntegers(const str: UnicodeString; var numbers: array of Int64): Integer;
+function UStrExtractInteger(const str: u16string; first, last: Integer): Int64;
+begin
+  if first <= 0 then
+    first := 1;
+  if (last <= 0) or (last > length(str)) then
+    last := length(str) + 1;
+  Result := ExtractIntegerW(PWideChar(str) + first - 1, last - first);
+end;
+
+function BStrExtractInteger(const str: WideString; first, last: Integer): Int64;
+begin
+  if first <= 0 then
+    first := 1;
+  if (last <= 0) or (last > length(str)) then
+    last := length(str) + 1;
+  Result := ExtractIntegerW(PWideChar(str) + first - 1, last - first);
+end;
+
+function ExtractFloatW(str: PWideChar; len: Integer): Double;
 var
-  I, P1: Integer;
+  P1: Integer;
+begin
+  Result := 0;
+
+  P1 := 0;
+
+  while (P1 < len) and ((str[P1] < '0') or (str[P1] > '9')) do
+    Inc(P1);
+
+  if P1 >= len then
+    Exit;
+
+  Result := BufToFloatW(str + P1, len - P1);
+end;
+
+function UStrExtractFloat(const str: u16string; first, last: Integer): Double;
+begin
+  if first <= 0 then
+    first := 1;
+  if (last <= 0) or (last > length(str)) then
+    last := length(str) + 1;
+  Result := ExtractFloatW(PWideChar(str) + first - 1, last - first);
+end;
+
+function BStrExtractFloat(const str: WideString; first, last: Integer): Double;
+begin
+  if first <= 0 then
+    first := 1;
+  if (last <= 0) or (last > length(str)) then
+    last := length(str) + 1;
+  Result := ExtractFloatW(PWideChar(str) + first - 1, last - first);
+end;
+
+function UStrExtractIntegers(const str: u16string; var numbers: array of Int64): Integer;
+var
+  i, P1: Integer;
   v: Int64;
 begin
   Result := 0;
 
-  if Length(numbers) = 0 then Exit;
+  if length(numbers) = 0 then
+    Exit;
 
   P1 := -1;
   v := 0;
 
-  for I := 1 to Length(str) do
+  for i := 1 to length(str) do
   begin
-    if (str[I] >= '0') and (str[I] <= '9') then
+    if (str[i] >= '0') and (str[i] <= '9') then
     begin
       if P1 = -1 then
       begin
-        P1 := I;
+        P1 := i;
         v := Ord(str[i]) - $30;
       end
       else
         v := v * 10 + Ord(str[i]) - $30;
     end
-    else begin
+    else
+    begin
       if P1 <> -1 then
       begin
         P1 := -1;
         numbers[Result] := v;
         Inc(Result);
-        if Result >= Length(numbers) then Break;
+        if Result >= length(numbers) then
+          Break;
       end;
     end;
   end;
@@ -6200,59 +16536,43 @@ begin
   begin
     numbers[Result] := v;
     Inc(Result);
-  end;
-end;
-
-function BStrExtractInteger(const str: WideString): Integer;
-var
-  P1: Integer;
-begin
-  Result := 0;
-
-  P1 := 1;
-
-  while (P1 <= Length(str)) and ((str[P1] < '0') or (str[P1] > '9')) do Inc(P1);
-
-  if P1 > Length(str) then Exit;
-
-  while (P1 <= Length(str)) and ((str[P1] >= '0') and (str[P1] <= '9')) do
-  begin
-    Result := Result * 10 + Ord(str[P1]) - $30;
-    Inc(P1);
   end;
 end;
 
 function BStrExtractIntegers(const str: WideString; var numbers: array of Int64): Integer;
 var
-  I, P1: Integer;
+  i, P1: Integer;
   v: Int64;
 begin
   Result := 0;
 
-  if Length(numbers) = 0 then Exit;
+  if length(numbers) = 0 then
+    Exit;
 
   P1 := -1;
   v := 0;
 
-  for I := 1 to Length(str) do
+  for i := 1 to length(str) do
   begin
-    if (str[I] >= '0') and (str[I] <= '9') then
+    if (str[i] >= '0') and (str[i] <= '9') then
     begin
       if P1 = -1 then
       begin
-        P1 := I;
+        P1 := i;
         v := Ord(str[i]) - $30;
       end
       else
         v := v * 10 + Ord(str[i]) - $30;
     end
-    else begin
+    else
+    begin
       if P1 <> -1 then
       begin
         P1 := -1;
         numbers[Result] := v;
         Inc(Result);
-        if Result >= Length(numbers) then Break;
+        if Result >= length(numbers) then
+          Break;
       end;
     end;
   end;
@@ -6268,13 +16588,16 @@ function StrSliceA(s: PAnsiChar; len, offset, num: Integer): RawByteString;
 var
   max_len: Integer;
 begin
-  if offset < 0 then offset := 0;
+  if offset < 0 then
+    offset := 0;
 
   max_len := len - offset;
 
-  if max_len < 0 then max_len := 0;
+  if max_len < 0 then
+    max_len := 0;
 
-  if (num < 0) or (num > max_len) then num := max_len;
+  if (num < 0) or (num > max_len) then
+    num := max_len;
 
   SetLength(Result, num);
 
@@ -6284,7 +16607,7 @@ end;
 
 function StrSliceA(const s: RawByteString; offset, num: Integer): RawByteString;
 begin
-  Result := StrSliceA(PAnsiChar(s), Length(s), offset, num);
+  Result := StrSliceA(PAnsiChar(s), length(s), offset, num);
 end;
 
 procedure StrSplit(const str, delimiter: string; list: TStrings);
@@ -6293,83 +16616,195 @@ var
   L: Integer;
 begin
   P1 := 1;
-  L := Length(str);
+  L := length(str);
 
-  list.Clear;
+  list.clear;
 
   while True do
   begin
-    while (P1 <= L) and (StrScan(delimiter, str[P1]) > 0) do Inc(P1);
+    while (P1 <= L) and (StrScan(delimiter, str[P1]) > 0) do
+      Inc(P1);
 
-    if P1 > L then Break;
+    if P1 > L then
+      Break;
 
     P2 := P1 + 1;
 
-    while (P2 <= L) and (StrScan(delimiter, str[P2]) <= 0) do Inc(P2);
+    while (P2 <= L) and (StrScan(delimiter, str[P2]) <= 0) do
+      Inc(P2);
 
-    list.Add(Copy(str, P1, P2 - P1));
+    list.add(Copy(str, P1, P2 - P1));
 
     P1 := P2 + 1;
   end;
 end;
 
-procedure UStrSplit2(const s, delimiter: UnicodeString; out s1, s2: UnicodeString;
-  BeginIndex, EndIndex: Integer);
+procedure UStrSplit2(const s, delimiter: u16string; out s1, s2: u16string; BeginIndex, last: Integer);
 var
-  P: Integer;
+  p: Integer;
 begin
-  if BeginIndex <= 0 then BeginIndex := 1;
+  if BeginIndex <= 0 then
+    BeginIndex := 1;
 
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(s))) then
-    EndIndex := Length(s);
+  if (last <= 0) or (last > Integer(length(s))) then
+    last := length(s) + 1;
 
-  if EndIndex < BeginIndex then
+  if last <= BeginIndex then
   begin
     s1 := '';
     s2 := '';
   end
-  else begin
-    P := UStrPos(delimiter, s, BeginIndex, EndIndex);
+  else
+  begin
+    p := UStrPos(delimiter, s, BeginIndex, last);
 
-    if P <= 0 then
+    if p <= 0 then
     begin
-      s1 := Copy(s, BeginIndex, EndIndex + 1 - BeginIndex);
+      s1 := Copy(s, BeginIndex, last - BeginIndex);
       s2 := '';
     end
-    else begin
-      s1 := Copy(s, BeginIndex, P - BeginIndex);
-      Inc(P, Length(delimiter));
-      s2 := Copy(s, P, EndIndex + 1 - P);
+    else
+    begin
+      s1 := Copy(s, BeginIndex, p - BeginIndex);
+      Inc(p, length(delimiter));
+      s2 := Copy(s, p, last - p);
     end;
   end;
 end;
 
-procedure TrimStrings(strs: TStrings);
+function UStrGetDelimiteredSection(const s, delimiter: u16string; index, first, last: Integer): u16string;
 var
-  i: Integer;
+  P1, P2, n: Integer;
 begin
-  strs.BeginUpdate;
+  Result := '';
 
-  try
-    for i := 0 to strs.Count - 1 do
-      strs[i] := Trim(strs[i]);
-  finally
-    strs.EndUpdate;
+  if first <= 0 then
+    first := 1;
+
+  if (last <= 0) or (last > length(s)) then
+    last := length(s) + 1;
+
+  if last <= first then
+    Exit;
+
+  P1 := first;
+  n := 0;
+
+  while P1 < last do
+  begin
+    P2 := UStrPos(delimiter, s, P1, last);
+
+    if P2 <= 0 then
+      P2 := last;
+
+    if n = index then
+    begin
+      Result := Copy(s, P1, P2 - P1);
+      Break;
+    end;
+
+    P1 := P2 + length(delimiter);
+    Inc(n);
   end;
 end;
 
-procedure DeleteBlankStrings(strs: TStrings);
+function TrimStrings(strs: TStrings): TStrings;
 var
   i: Integer;
 begin
   strs.BeginUpdate;
 
   try
-    for i := strs.Count - 1 downto 0 do
-      if strs[i] = '' then strs.Delete(i);      
+    for i := 0 to strs.count - 1 do
+      strs[i] := trim(strs[i]);
   finally
     strs.EndUpdate;
   end;
+
+  Result := strs;
+end;
+
+function DeleteBlankItems(strs: TStrings): TStrings;
+var
+  i: Integer;
+begin
+  strs.BeginUpdate;
+
+  try
+    for i := strs.count - 1 downto 0 do
+      if strs[i] = '' then
+        strs.delete(i);
+  finally
+    strs.EndUpdate;
+  end;
+
+  Result := strs;
+end;
+
+function RBStrsTrim(strs: TRawByteStrings): TRawByteStrings;
+var
+  i: Integer;
+begin
+  strs.BeginUpdate;
+
+  try
+    for i := 0 to strs.count - 1 do
+      strs[i] := RBStrTrim(strs[i]);
+  finally
+    strs.EndUpdate;
+  end;
+
+  Result := strs;
+end;
+
+function RBStrsDeleteBlankItems(strs: TRawByteStrings): TRawByteStrings;
+var
+  i: Integer;
+begin
+  strs.BeginUpdate;
+
+  try
+    for i := strs.count - 1 downto 0 do
+      if strs[i] = '' then
+        strs.delete(i);
+  finally
+    strs.EndUpdate;
+  end;
+
+  Result := strs;
+end;
+
+function UStrsTrim(strs: TUnicodeStrings): TUnicodeStrings;
+var
+  i: Integer;
+begin
+  strs.BeginUpdate;
+
+  try
+    for i := 0 to strs.count - 1 do
+      strs[i] := UStrTrim(strs[i]);
+  finally
+    strs.EndUpdate;
+  end;
+
+  Result := strs;
+end;
+
+function UStrsDeleteBlankItems(strs: TUnicodeStrings): TUnicodeStrings;
+var
+  i: Integer;
+begin
+  strs.BeginUpdate;
+
+  try
+    for i := strs.count - 1 downto 0 do
+      if strs[i] = '' then
+        strs.delete(i);
+  finally
+    strs.EndUpdate;
+  end;
+
+  Result := strs;
 end;
 
 function IndexOfCharA(const arr: array of AnsiChar; c: AnsiChar): Integer;
@@ -6388,34 +16823,38 @@ begin
   end;
 end;
 
-function StrSplitA(const str: RawByteString; const delimiters: array of AnsiChar;
+function RBStrSplit(const str: RawByteString; const delimiters: array of AnsiChar;
   var strs: array of RawByteString): Integer;
 var
   P1, P2: Integer;
   L, n: Integer;
 begin
   P1 := 1;
-  L := Length(str);
+  L := length(str);
 
   n := 0;
 
   while P1 <= L do
   begin
-    while (P1 <= L) and (IndexOfCharA(delimiters, str[P1]) >= 0) do Inc(P1);
+    while (P1 <= L) and (IndexOfCharA(delimiters, str[P1]) >= 0) do
+      Inc(P1);
 
-    if P1 > L then Break;
+    if P1 > L then
+      Break;
 
     P2 := P1 + 1;
 
-    while (P2 <= L) and (IndexOfCharA(delimiters, str[P2]) = -1) do Inc(P2);
+    while (P2 <= L) and (IndexOfCharA(delimiters, str[P2]) = -1) do
+      Inc(P2);
 
-    if Length(strs) > n then
+    if length(strs) > n then
     begin
       strs[n] := Copy(str, P1, P2 - P1);
       Inc(n);
     end;
 
-    if n >= Length(strs) then Break;
+    if n >= length(strs) then
+      Break;
 
     P1 := P2 + 1;
   end;
@@ -6423,123 +16862,152 @@ begin
   Result := n;
 end;
 
-procedure StrSplitA2(const s, delimiter: RawByteString; out s1, s2: RawByteString;
-  BeginIndex: Integer = 1; EndIndex: Integer = 0);
+procedure RBStrSplit2(const s, delimiter: RawByteString; out s1, s2: RawByteString; BeginIndex: Integer = 1;
+  last: Integer = 0);
 var
-  P: Integer;
+  p: Integer;
 begin
-  if BeginIndex <= 0 then BeginIndex := 1;
+  if BeginIndex <= 0 then
+    BeginIndex := 1;
 
-  if (EndIndex <= 0) or (EndIndex > Integer(Length(s))) then
-    EndIndex := Length(s);
+  if (last <= 0) or (last > Integer(length(s))) then
+    last := length(s) + 1;
 
-  if EndIndex < BeginIndex then
+  if last <= BeginIndex then
   begin
     s1 := '';
     s2 := '';
   end
-  else begin
-    P := StrPosA(delimiter, s, BeginIndex, EndIndex);
+  else
+  begin
+    p := RBStrPos(delimiter, s, BeginIndex, last);
 
-    if P <= 0 then
+    if p <= 0 then
     begin
-      s1 := Copy(s, BeginIndex, EndIndex + 1 - BeginIndex);
+      s1 := Copy(s, BeginIndex, last - BeginIndex);
       s2 := '';
     end
-    else begin
-      s1 := Copy(s, BeginIndex, P - BeginIndex);
-      Inc(P, Length(delimiter));
-      s2 := Copy(s, P, EndIndex + 1 - P);
+    else
+    begin
+      s1 := Copy(s, BeginIndex, p - BeginIndex);
+      Inc(p, length(delimiter));
+      s2 := Copy(s, p, last - p);
     end;
   end;
 end;
 
 function StrToDateTimeA(const s: RawByteString; out dt: TDateTime): Boolean;
 var
-  numbers: array[0..5] of Int64;
+  numbers: array [0 .. 6] of Int64;
   i, n: Integer;
 begin
-  n := ExtractIntegersA(s, numbers);
+  n := RBStrExtractIntegers(s, numbers);
 
-  for i := n to 5 do numbers[i] := 0;
+  for i := n to 6 do
+    numbers[i] := 0;
 
   if n >= 3 then
-    Result := TryEncodeDateTime(numbers[0], numbers[1], numbers[2],
-      numbers[3], numbers[4], numbers[5], 0, dt)
+    Result := TryEncodeDateTime(numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5], numbers[6], dt)
   else
     Result := False;
 end;
 
-function UStrToDateTime(const s: UnicodeString; out dt: TDateTime): Boolean;
+function UStrToDateTime(const s: u16string; out dt: TDateTime): Boolean;
 var
-  numbers: array[0..5] of Int64;
+  numbers: array [0 .. 6] of Int64;
   i, n: Integer;
 begin
   n := UStrExtractIntegers(s, numbers);
 
-  for i := n to 5 do numbers[i] := 0;
+  for i := n to 6 do
+    numbers[i] := 0;
 
   if n >= 3 then
-    Result := TryEncodeDateTime(numbers[0], numbers[1], numbers[2],
-      numbers[3], numbers[4], numbers[5], 0, dt)
+    Result := TryEncodeDateTime(numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5], numbers[6], dt)
   else
     Result := False;
 end;
 
+procedure StopAndWaitForThread(thread: TThread);
+var
+  threads: array [0 .. 0] of TThread;
+begin
+  if Assigned(thread) then
+  begin
+    threads[0] := thread;
+    WaitForThreads(threads);
+  end;
+end;
+
 procedure WaitForThreads(const threads: array of TThread);
 var
-  handles: array[0..MAXIMUM_WAIT_OBJECTS - 1] of THandle;
-  P1, P2, I: Integer;
+  handles: array [0 .. MAXIMUM_WAIT_OBJECTS - 1] of THandle;
+  P1, P2, i, n: Integer;
 begin
+  for i := Low(threads) to High(threads) do
+  begin
+    threads[i].Terminate;
+    if threads[i] is TSignalThread then
+      TSignalThread(threads[i]).SendStopSignal;
+  end;
+
   P1 := Low(threads);
 
   while P1 <= High(threads) do
   begin
     P2 := High(threads);
 
-    if P2 + 1 - P1 > Length(handles) then
-      P2 := P1 + Length(handles) - 1;
+    if P2 + 1 - P1 > length(handles) then
+      P2 := P1 + length(handles) - 1;
 
-    for I := P1 to P2 do
-      handles[I - P1] := threads[I].Handle;
-
-    WaitForMultipleObjects(P2 + 1 - P1, PWOHandleArray(@handles), True, INFINITE);
-
-    P1 := P2 + 1;
-  end;
-end;
-
-procedure StopAndWaitForThread(threads: TList);
-var
-  handles: array[0..MAXIMUM_WAIT_OBJECTS - 1] of THandle;
-  P1, P2, I, n: Integer;
-begin
-  for I := 0 to threads.Count - 1 do
-  begin
-    TThread(threads[I]).Terminate;
-
-    if TThread(threads[I]) is TSignalThread then
-      TSignalThread(threads[I]).SendStopSignal;
-  end;
-
-  P1 := 0;
-
-  while P1 < threads.Count do
-  begin
-    P2 := threads.Count - 1;
-
-    if P2 - P1 + 1 > Length(handles) then
-      P2 := P1 + Length(handles) - 1;
-
-    for I := P1 to P2 do
-      handles[I - P1] := TThread(threads[I]).Handle;
+    for i := P1 to P2 do
+      handles[i - P1] := threads[i].handle;
 
     n := P2 + 1 - P1;
 
     if RunningInMainThread then
     begin
-      while MsgWaitForMultipleObjects(n, handles, True, INFINITE, QS_ALLINPUT) =
-        DWORD(n + WAIT_OBJECT_0) do
+      while MsgWaitForMultipleObjects(n, PWOHandleArray(@handles)^, True, INFINITE, QS_ALLINPUT) = DWORD
+        (n + WAIT_OBJECT_0) do
+        Application.ProcessMessages;
+    end
+    else
+      WaitForMultipleObjects(n, PWOHandleArray(@handles), True, INFINITE);
+
+    P1 := P2 + 1;
+  end;
+end;
+
+procedure StopAndWaitForThreads(threads: TList);
+var
+  handles: array [0 .. MAXIMUM_WAIT_OBJECTS - 1] of THandle;
+  P1, P2, i, n: Integer;
+begin
+  for i := 0 to threads.count - 1 do
+  begin
+    TThread(threads[i]).Terminate;
+
+    if TThread(threads[i]) is TSignalThread then
+      TSignalThread(threads[i]).SendStopSignal;
+  end;
+
+  P1 := 0;
+
+  while P1 < threads.count do
+  begin
+    P2 := threads.count - 1;
+
+    if P2 - P1 + 1 > length(handles) then
+      P2 := P1 + length(handles) - 1;
+
+    for i := P1 to P2 do
+      handles[i - P1] := TThread(threads[i]).handle;
+
+    n := P2 + 1 - P1;
+
+    if RunningInMainThread then
+    begin
+      while MsgWaitForMultipleObjects(n, handles, True, INFINITE, QS_ALLINPUT) = DWORD(n + WAIT_OBJECT_0) do
         Application.ProcessMessages;
     end
     else
@@ -6548,53 +17016,98 @@ begin
     P1 := P2 + 1;
   end;
 
-  for I := 0 to threads.Count - 1 do
-    TObject(threads[I]).Free;
+  for i := 0 to threads.count - 1 do
+    TObject(threads[i]).Free;
 
-  threads.Clear;
+  threads.clear;
 end;
 
-function GetFloatBeforeA(str: PAnsiChar; len: Integer; substr: PAnsiChar;
-  sublen: Integer; out number: Double): Boolean;
+procedure StopAndWaitForThreads(threads: TObjectList<TThread>); overload;
 var
-  P, P1, P2: PAnsiChar;
-  dot: Boolean; //小数点是否已经出现
+  handles: array [0 .. MAXIMUM_WAIT_OBJECTS - 1] of THandle;
+  P1, P2, i, n: Integer;
+begin
+  for i := 0 to threads.count - 1 do
+  begin
+    threads[i].Terminate;
+
+    if threads[i] is TSignalThread then
+      TSignalThread(threads[i]).SendStopSignal;
+  end;
+
+  P1 := 0;
+
+  while P1 < threads.count do
+  begin
+    P2 := threads.count - 1;
+
+    if P2 - P1 + 1 > length(handles) then
+      P2 := P1 + length(handles) - 1;
+
+    for i := P1 to P2 do
+      handles[i - P1] := threads[i].handle;
+
+    n := P2 + 1 - P1;
+
+    if RunningInMainThread then
+    begin
+      while MsgWaitForMultipleObjects(n, handles, True, INFINITE, QS_ALLINPUT) = DWORD(n + WAIT_OBJECT_0) do
+        Application.ProcessMessages;
+    end
+    else
+      WaitForMultipleObjects(n, PWOHandleArray(@handles), True, INFINITE);
+
+    P1 := P2 + 1;
+  end;
+
+  threads.clear;
+end;
+
+function GetFloatBeforeA(str: PAnsiChar; len: Integer; substr: PAnsiChar; sublen: Integer; var value: Double): Boolean;
+var
+  p, P1, P2: PAnsiChar;
+  dot: Boolean; // 小数点是否已经出现
   ratio: Integer;
+  dv: Double;
 begin
   Result := False;
-  P := str + 1;
+  dv := 0;
+  p := str + 1;
 
-  while P < str + len - sublen do
+  while p < str + len - sublen do
   begin
-    P1 := StrPosA(substr, sublen, P, str + len - P);
+    P1 := StrPosA(substr, sublen, p, str + len - p);
 
-    if P1 = nil then Break;
+    if P1 = nil then
+      Break;
 
     P2 := P1 - 1;
 
     if (P2^ >= '0') and (P2^ <= '9') then
     begin
       ratio := 1;
-      number := 0;
+      dv := 0;
       dot := False;
       while P2 >= str do
       begin
         if (P2^ >= '0') and (P2^ <= '9') then
         begin
-          number := number + (Ord(P2^) and $0F) * ratio;
+          dv := dv + (Ord(P2^) and $0F) * ratio;
           ratio := ratio * 10;
         end
         else if P2^ = '.' then
         begin
-          if dot then Break;
+          if dot then
+            Break;
 
           dot := True;
 
-          number := number / ratio;
+          dv := dv / ratio;
 
           ratio := 1;
         end
-        else Break;
+        else
+          Break;
 
         Dec(P2);
       end;
@@ -6603,53 +17116,58 @@ begin
       Break;
     end;
 
-    P := P1 + sublen;
+    p := P1 + sublen;
   end;
 
-  if not Result then
-    number := 0;
+  if Result then
+    value := dv;
 end;
 
-function GetFloatBeforeW(str: PWideChar; len: Integer; substr: PWideChar; sublen: Integer; out number: Double): Boolean;
+function GetFloatBeforeW(str: PWideChar; len: Integer; substr: PWideChar; sublen: Integer; var value: Double): Boolean;
 var
-  P, P1, P2: PWideChar;
-  dot: Boolean; //小数点是否已经出现
+  p, P1, P2: PWideChar;
+  dot: Boolean; // 小数点是否已经出现
   ratio: Integer;
+  dv: Double;
 begin
   Result := False;
-  P := str + 1;
+  p := str + 1;
+  dv := 0;
 
-  while P < str + len - sublen do
+  while p < str + len - sublen do
   begin
-    P1 := StrPosW(substr, sublen, P, str + len - P);
+    P1 := StrPosW(substr, sublen, p, str + len - p);
 
-    if P1 = nil then Break;
+    if P1 = nil then
+      Break;
 
     P2 := P1 - 1;
 
     if (P2^ >= '0') and (P2^ <= '9') then
     begin
       ratio := 1;
-      number := 0;
+      dv := 0;
       dot := False;
       while P2 >= str do
       begin
         if (P2^ >= '0') and (P2^ <= '9') then
         begin
-          number := number + (Ord(P2^) and $0F) * ratio;
+          dv := dv + (Ord(P2^) and $0F) * ratio;
           ratio := ratio * 10;
         end
         else if P2^ = '.' then
         begin
-          if dot then Break;
+          if dot then
+            Break;
 
           dot := True;
 
-          number := number / ratio;
+          dv := dv / ratio;
 
           ratio := 1;
         end
-        else Break;
+        else
+          Break;
 
         Dec(P2);
       end;
@@ -6658,38 +17176,238 @@ begin
       Break;
     end;
 
-    P := P1 + sublen;
+    p := P1 + sublen;
   end;
 
-  if not Result then
-    number := 0;
+  if Result then
+    value := dv;
 end;
 
-function GetFloatBeforeA(const s, suffix: RawByteString;
-  out number: Double): Boolean;
+function RBStrGetFloatBefore(const s, suffix: RawByteString; var value: Double): Boolean;
 begin
-  Result := GetFloatBeforeA(PAnsiChar(Pointer(s)), Length(s),
-    PAnsiChar(Pointer(suffix)), Length(suffix), number);
+  Result := GetFloatBeforeA(PAnsiChar(Pointer(s)), length(s), PAnsiChar(Pointer(suffix)), length(suffix), value);
 end;
 
-function UStrGetFloatBefore(const s, suffix: UnicodeString; out number: Double): Boolean;
+function UStrGetFloatBefore(const s, suffix: u16string; var value: Double): Boolean;
 begin
-  Result := GetFloatBeforeW(PWideChar(Pointer(s)), Length(s),
-    PWideChar(Pointer(suffix)), Length(suffix), number);
+  Result := GetFloatBeforeW(PWideChar(Pointer(s)), length(s), PWideChar(Pointer(suffix)), length(suffix), value);
 end;
 
-function BStrGetFloatBefore(const s, suffix: WideString; out number: Double): Boolean;
+function BStrGetFloatBefore(const s, suffix: WideString; var value: Double): Boolean;
 begin
-  Result := GetFloatBeforeW(PWideChar(Pointer(s)), Length(s),
-    PWideChar(Pointer(suffix)), Length(suffix), number);
+  Result := GetFloatBeforeW(PWideChar(Pointer(s)), length(s), PWideChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function GetFloatBefore(const s, suffix: RawByteString; var value: Double): Boolean;
+begin
+  Result := GetFloatBeforeA(PAnsiChar(Pointer(s)), length(s), PAnsiChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function GetFloatBefore(const s, suffix: u16string; var value: Double): Boolean;
+begin
+  Result := GetFloatBeforeW(PWideChar(Pointer(s)), length(s), PWideChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function GetFloatBefore(const s, suffix: WideString; var value: Double): Boolean;
+begin
+  Result := GetFloatBeforeW(PWideChar(Pointer(s)), length(s), PWideChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function GetIntegerBeforeA(str: PAnsiChar; len: Integer; substr: PAnsiChar; sublen: Integer;
+  var value: Integer): Boolean;
+var
+  p, P1, P2: PAnsiChar;
+  ratio, dv: Integer;
+begin
+  Result := False;
+  dv := 0;
+  p := str + 1;
+
+  while p < str + len - sublen do
+  begin
+    P1 := StrPosA(substr, sublen, p, str + len - p);
+
+    if P1 = nil then
+      Break;
+
+    P2 := P1 - 1;
+
+    if (P1 <> str) and (P2^ >= '0') and (P2^ <= '9') then
+    begin
+      dv := 0;
+      ratio := 1;
+
+      while P2 >= str do
+      begin
+        if (P2^ >= '0') and (P2^ <= '9') then
+        begin
+          dv := dv + (Ord(P2^) and $0F) * ratio;
+          ratio := ratio * 10;
+          Dec(P2);
+        end
+        else
+          Break;
+      end;
+
+      Result := True;
+    end;
+
+    p := P1 + sublen;
+  end;
+
+  if Result then
+    value := dv;
+end;
+
+function GetIntegerBeforeW(str: PWideChar; len: Integer; substr: PWideChar; sublen: Integer;
+  var value: Integer): Boolean;
+var
+  p, P1, P2: PWideChar;
+  ratio, dv: Integer;
+begin
+  Result := False;
+  dv := 0;
+  p := str + 1;
+
+  while p < str + len - sublen do
+  begin
+    P1 := StrPosW(substr, sublen, p, str + len - p);
+
+    if P1 = nil then
+      Break;
+
+    P2 := P1 - 1;
+
+    if (P1 <> str) and (P2^ >= '0') and (P2^ <= '9') then
+    begin
+      dv := 0;
+      ratio := 1;
+
+      while P2 >= str do
+      begin
+        if (P2^ >= '0') and (P2^ <= '9') then
+        begin
+          dv := dv + (Ord(P2^) and $0F) * ratio;
+          ratio := ratio * 10;
+          Dec(P2);
+        end
+        else
+          Break;
+      end;
+
+      Result := True;
+    end;
+
+    p := P1 + sublen;
+  end;
+
+  if Result then
+    value := dv;
+end;
+
+function RBStrGetIntegerBefore(const s, suffix: RawByteString; var value: Integer): Boolean;
+begin
+  Result := GetIntegerBeforeA(PAnsiChar(Pointer(s)), length(s), PAnsiChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function UStrGetIntegerBefore(const s, suffix: u16string; var value: Integer): Boolean;
+begin
+  Result := GetIntegerBeforeW(PWideChar(Pointer(s)), length(s), PWideChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function BStrGetIntegerBefore(const s, suffix: WideString; var value: Integer): Boolean;
+begin
+  Result := GetIntegerBeforeW(PWideChar(Pointer(s)), length(s), PWideChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function GetIntegerBefore(const s, suffix: RawByteString; var value: Integer): Boolean;
+begin
+  Result := GetIntegerBeforeA(PAnsiChar(Pointer(s)), length(s), PAnsiChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function GetIntegerBefore(const s, suffix: u16string; var value: Integer): Boolean;
+begin
+  Result := GetIntegerBeforeW(PWideChar(Pointer(s)), length(s), PWideChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function GetIntegerBefore(const s, suffix: WideString; var value: Integer): Boolean;
+begin
+  Result := GetIntegerBeforeW(PWideChar(Pointer(s)), length(s), PWideChar(Pointer(suffix)), length(suffix), value);
+end;
+
+function PasswordCharDiff(ch1, ch2: AnsiChar): Integer;
+var
+  t1, t2: Integer;
+begin
+  if ch1 = ch2 then
+  begin
+    Result := 0;
+    Exit;
+  end;
+
+  t1 := Ord(ch1);
+  t2 := Ord(ch2);
+
+  if ((ch1 in ['a' .. 'z']) or (ch1 in ['A' .. 'Z'])) and ((ch2 in ['a' .. 'z']) or (ch2 in ['A' .. 'Z'])) then
+    Result := t2 - t1
+  else
+  begin
+    if ch1 in ['a' .. 'z'] then
+      Dec(t1, 32);
+    if ch2 in ['a' .. 'z'] then
+      Dec(t2, 32);
+    Result := t2 - t1;
+  end;
+end;
+
+function PasswordScore(const password: RawByteString): Integer;
+var
+  i, diff, v1, v2: Integer;
+  chmin, chmax: AnsiChar;
+begin
+  Result := 0;
+
+  if password = '' then
+    Exit;
+
+  chmin := password[1];
+  chmax := password[1];
+
+  v1 := 0;
+  v2 := 0;
+
+  for i := 2 to length(password) do
+  begin
+    if password[i] > chmax then
+      chmax := password[i];
+    if password[i] < chmin then
+      chmin := password[i];
+
+    diff := PasswordCharDiff(password[i], password[i - 1]);
+
+    Inc(v1, diff * diff);
+
+    if i > 2 then
+    begin
+      diff := PasswordCharDiff(password[i], password[i - 2]);
+      Inc(v2, diff * diff);
+    end;
+  end;
+
+  if v1 > v2 then
+    v1 := v2;
+
+  Result := Trunc(sqrt(abs((Ord(chmax) - Ord(chmin))))) + length(password) + Trunc(sqrt(v1));
 end;
 
 function IsIntegerA(str: PAnsiChar; len: Integer): Boolean;
 var
   i: Integer;
 begin
-  if len = 0 then Result := False
-  else begin
+  if len <= 0 then
+    Result := False
+  else
+  begin
     Result := True;
 
     for i := 0 to len - 1 do
@@ -6699,22 +17417,23 @@ begin
         Result := False;
         Break;
       end;
-    end; 
+    end;
   end;
 end;
 
-function IsIntegerA(const str: RawByteString): Boolean;
+function RBStrIsInteger(const str: RawByteString): Boolean;
 begin
-  Result := IsIntegerA(PAnsiChar(str), Length(str));
+  Result := IsIntegerA(PAnsiChar(str), length(str));
 end;
-
 
 function IsIntegerW(str: PWideChar; len: Integer): Boolean;
 var
   i: Integer;
 begin
-  if len = 0 then Result := False
-  else begin
+  if len <= 0 then
+    Result := False
+  else
+  begin
     Result := True;
 
     for i := 0 to len - 1 do
@@ -6724,113 +17443,160 @@ begin
         Result := False;
         Break;
       end;
-    end; 
+    end;
   end;
 end;
 
-function UStrIsInteger(const str: UnicodeString): Boolean;
+function UStrIsInteger(const str: u16string): Boolean;
 begin
-  Result := IsIntegerW(PWideChar(str), Length(str));
+  Result := IsIntegerW(PWideChar(str), length(str));
 end;
 
 function BStrIsInteger(const str: WideString): Boolean;
 begin
-  Result := IsIntegerW(PWideChar(str), Length(str));
+  Result := IsIntegerW(PWideChar(str), length(str));
 end;
 
-function CheckAccount(const str: RawByteString): Boolean;
-//检测是否帐号，可以是邮箱
-var
-  i, Len: integer;
+function IsQQA(str: PAnsiChar; len: Integer): Boolean;
 begin
-  Result := False;
-
-  Len := Length(str);
-
-  if Len < 5 then Exit;
-
-  for i := 1 to Len do
-  begin
-    if not (str[i] in ['0'..'9', 'a'..'z', 'A'..'Z', '@', '_', '.', '-']) then
-      Exit;
-  end;
-
-  Result := True;
+  Result := (len >= 5) and (length(str) <= 12) and IsIntegerA(str, len);
 end;
 
-function IsTencentQQIDA(const str: RawByteString): Boolean;
-//检测是否有效的QQ号码
+function RBStrIsQQ(const str: RawByteString): Boolean;
+// 检测是否有效的QQ号码
 begin
-  Result := (Length(str) >= 5) and (Length(str) <= 12) and IsIntegerA(str);
+  Result := (length(str) >= 5) and (length(str) <= 12) and RBStrIsInteger(str);
 end;
 
-//是否是18位身份证号码
+function IsQQW(str: PWideChar; len: Integer): Boolean;
+begin
+  Result := (len >= 5) and (len <= 12) and IsIntegerW(str, len);
+end;
 
-function IsChinaIDCardNoA18(const idc18: RawByteString): Boolean;
+function UStrIsQQ(const str: u16string): Boolean;
+begin
+  Result := (length(str) >= 5) and (length(str) <= 12) and UStrIsInteger(str);
+end;
+
+// 是否是18位身份证号码
+
+function RBStrIsCnIDCard18(const idc18: RawByteString): Boolean;
 const
-  IDCBITS: array[1..18] of Integer =
-  (7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2, 1);
-  CHECKSUMBITS: array[0..10] of AnsiChar =
-  ('1', '0', 'x', '9', '8', '7', '6', '5', '4', '3', '2');
+  IDCBITS: array [1 .. 18] of Integer = (7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2, 1);
+  CHECKSUMBITS: array [0 .. 10] of AnsiChar = ('1', '0', 'x', '9', '8', '7', '6', '5', '4', '3', '2');
 var
   checksum, i: Integer;
   ch: AnsiChar;
 begin
   Result := False;
 
-  if Length(idc18) <> 18 then Exit;
+  if length(idc18) <> 18 then
+    Exit;
 
   if idc18[18] in ['x', 'X'] then
   begin
-    if not IsIntegerA(PAnsiChar(idc18), 17) then Exit;
+    if not IsIntegerA(PAnsiChar(idc18), 17) then
+      Exit;
   end
-  else if not IsIntegerA(idc18) then Exit;
+  else if not RBStrIsInteger(idc18) then
+    Exit;
+
   checksum := 0;
+
   for i := 1 to 17 do
   begin
     ch := idc18[i];
     Inc(checksum, (Byte(ch) and $0F) * IDCBITS[i]);
   end;
-  if (idc18[18] = 'X') then ch := 'x'
-  else ch := idc18[18];
+
+  if (idc18[18] = 'X') then
+    ch := 'x'
+  else
+    ch := idc18[18];
+
   Result := CHECKSUMBITS[checksum mod 11] = ch;
 end;
 
-function IsChinaIDCardNoA(const idc: RawByteString): Boolean;
+function RBStrIsCnIDCard(const idc: RawByteString): Boolean;
 begin
-  if (Length(idc) = 15) then Result := IsIntegerA(idc)
-  else if (Length(idc) = 18) then Result := IsChinaIDCardNoA18(idc)
-  else Result := False;
+  if (length(idc) = 15) then
+    Result := RBStrIsInteger(idc)
+  else if (length(idc) = 18) then
+    Result := RBStrIsCnIDCard18(idc)
+  else
+    Result := False;
 end;
 
-function UStrIsChinaIDCardNo(const idc: UnicodeString): Boolean;
+// 是否是18位身份证号码
+
+function UStrIsCnIDCard18(const idc18: u16string): Boolean;
+const
+  IDCBITS: array [1 .. 18] of Integer = (7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2, 1);
+  CHECKSUMBITS: array [0 .. 10] of WideChar = ('1', '0', 'x', '9', '8', '7', '6', '5', '4', '3', '2');
+var
+  checksum, i: Integer;
+  ch: WideChar;
 begin
-  Result := False; 
+  Result := False;
+
+  if length(idc18) <> 18 then
+    Exit;
+
+  if (idc18[18] = 'x') or (idc18[18] = 'X') then
+  begin
+    if not IsIntegerW(PWideChar(idc18), 17) then
+      Exit;
+  end
+  else if not UStrIsInteger(idc18) then
+    Exit;
+
+  checksum := 0;
+
+  for i := 1 to 17 do
+  begin
+    ch := idc18[i];
+    Inc(checksum, (Word(ch) and $000F) * IDCBITS[i]);
+  end;
+
+  if (idc18[18] = 'X') then
+    ch := 'x'
+  else
+    ch := idc18[18];
+
+  Result := CHECKSUMBITS[checksum mod 11] = ch;
 end;
 
-function BStrIsChinaIDCardNo(const idc: WideString): Boolean;
+function UStrIsCnIDCard(const idc: u16string): Boolean;
 begin
-  Result := False; 
+  if (length(idc) = 15) then
+    Result := UStrIsInteger(idc)
+  else if (length(idc) = 18) then
+    Result := UStrIsCnIDCard18(idc)
+  else
+    Result := False;
 end;
 
 function IDCard15to18(const idc15: RawByteString; out idc18: RawByteString): Boolean;
 const
-  IDCBITS: array[1..18] of Integer =
-    (7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2, 1);
+  IDCBITS: array [1 .. 18] of Integer = (7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2, 1);
 
-  CHECKSUMBITS: array[0..10] of AnsiChar =
-    ('1', '0', 'x', '9', '8', '7', '6', '5', '4', '3', '2');
+  CHECKSUMBITS: array [0 .. 10] of AnsiChar = ('1', '0', 'x', '9', '8', '7', '6', '5', '4', '3', '2');
 var
   checksum, i: Integer;
   ch: AnsiChar;
 begin
   Result := False;
-  if ((Length(idc15) <> 15) or not IsIntegerA(idc15)) then Exit;
+
+  if ((length(idc15) <> 15) or not RBStrIsInteger(idc15)) then
+    Exit;
+
   SetLength(idc18, 18);
-  for i := 1 to 6 do idc18[i] := idc15[i];
+  for i := 1 to 6 do
+    idc18[i] := idc15[i];
   idc18[7] := '1';
   idc18[8] := '9';
-  for i := 7 to 15 do idc18[i + 2] := idc15[i];
+  for i := 7 to 15 do
+    idc18[i + 2] := idc15[i];
   checksum := 0;
   for i := 1 to 17 do
   begin
@@ -6844,7 +17610,13 @@ end;
 procedure StreamWriteStrA(stream: TStream; const str: RawByteString);
 begin
   if str <> '' then
-    stream.write(Pointer(str)^, Length(str));
+    stream.write(Pointer(str)^, length(str));
+end;
+
+procedure StreamWriteUStr(stream: TStream; const str: u16string);
+begin
+  if str <> '' then
+    stream.write(Pointer(str)^, length(str) * 2);
 end;
 
 procedure ThreadListAdd(list: TThreadList; item: Pointer);
@@ -6853,7 +17625,7 @@ var
 begin
   _list := list.LockList;
   try
-    _list.Add(item);
+    _list.add(item);
   finally
     list.UnlockList;
   end;
@@ -6865,7 +17637,7 @@ var
 begin
   _list := list.LockList;
   try
-    _list.Delete(index);
+    _list.delete(index);
   finally
     list.UnlockList;
   end;
@@ -6877,7 +17649,7 @@ var
 begin
   _list := list.LockList;
   try
-    _list.Remove(item);
+    _list.remove(item);
   finally
     list.UnlockList;
   end;
@@ -6908,7 +17680,7 @@ begin
   InternalList := list.LockList;
 
   try
-    Result := InternalList.Count;
+    Result := InternalList.count;
   finally
     list.UnlockList;
   end;
@@ -6927,6 +17699,23 @@ begin
   end;
 end;
 
+procedure RefObject(instance: TObject);
+begin
+  if Assigned(instance) and (instance is TRefCountedObject) then
+    TRefCountedObject(instance).AddRef;
+end;
+
+procedure SmartUnrefObject(obj: TObject);
+begin
+  if Assigned(obj) then
+  begin
+    if obj is TRefCountedObject then
+      TRefCountedObject(obj).release
+    else
+      obj.Free;
+  end;
+end;
+
 procedure ClearObjectList(objlist: TObject);
 var
   i: Integer;
@@ -6938,29 +17727,29 @@ begin
     begin
       list := TList(objlist);
 
-      for i := 0 to list.Count - 1 do
-        TObject(list[i]).Free;
+      for i := 0 to list.count - 1 do
+        SmartUnrefObject(TObject(list[i]));
 
-      list.Clear;
+      list.clear;
     end
     else if objlist is TThreadList then
     begin
       list := TThreadList(objlist).LockList;
       try
-        for i := 0 to list.Count - 1 do
-          TObject(list[i]).Free;
+        for i := 0 to list.count - 1 do
+          SmartUnrefObject(TObject(list[i]));
 
-        list.Clear;
+        list.clear;
       finally
         TThreadList(objlist).UnlockList;
       end;
     end
     else if objlist is TCircularList then
     begin
-      for i := 0 to TCircularList(objlist).Count - 1 do
-        TObject(TCircularList(objlist)[i]).Free;
+      for i := 0 to TCircularList(objlist).count - 1 do
+        SmartUnrefObject(TObject(TCircularList(objlist)[i]));
 
-      TCircularList(objlist).Clear;
+      TCircularList(objlist).clear;
     end;
   end;
 end;
@@ -6976,13 +17765,13 @@ end;
 
 function ControlFindContainer(control: TControl; cls: TClass): TWinControl;
 begin
-  Result := control.Parent;
+  Result := control.parent;
   while Assigned(Result) do
   begin
     if not Assigned(cls) or (Result is cls) then
       Break;
 
-    Result := Result.Parent;
+    Result := Result.parent;
   end;
 end;
 
@@ -7004,7 +17793,7 @@ end;
 function ControlVisible(ctrl: TControl): Boolean;
 begin
   while Assigned(ctrl) and ctrl.Visible do
-    ctrl := ctrl.Parent;
+    ctrl := ctrl.parent;
 
   Result := not Assigned(ctrl);
 end;
@@ -7021,7 +17810,15 @@ end;
 
 procedure EditSetNumberOnly(edit: TWinControl);
 begin
-  SetWindowLong(edit.Handle, GWL_STYLE, GetWindowLong(edit.Handle, GWL_STYLE) or ES_NUMBER);
+  SetWindowLong(edit.handle, GWL_STYLE, GetWindowLong(edit.handle, GWL_STYLE) or ES_NUMBER);
+end;
+
+function CtrlDown: Boolean;
+var
+  State: TKeyboardState;
+begin
+  GetKeyboardState(State);
+  Result := ((State[VK_CONTROL] and 128) <> 0);
 end;
 
 procedure CloseForm(form: TCustomForm);
@@ -7032,48 +17829,60 @@ begin
     form.Close;
 end;
 
+procedure SetModalResult(form: TCustomForm; mr: TModalResult);
+begin
+  if fsModal in form.FormState then
+    form.ModalResult := mr
+  else
+    form.Close;
+end;
+
 procedure ListViewSetRowCount(ListView: TListView; count: Integer);
 var
   TopIndex, ItemIndex: Integer;
 begin
-  try
-    TopIndex := ListView_GetTopIndex(ListView.Handle);
-    ItemIndex := ListView.ItemIndex;
-    ListView.Items.Count := count;
-
-    if TopIndex <> -1 then
-    begin
-      TopIndex := TopIndex + ListView.VisibleRowCount - 1;
-
-      if TopIndex >= count then
-        TopIndex := count - 1;
+  if ListView.items.count <> count then
+  begin
+    try
+      TopIndex := ListView_GetTopIndex(ListView.handle);
+      ItemIndex := ListView.ItemIndex;
+      ListView.items.count := count;
 
       if TopIndex <> -1 then
-        ListView.Items[TopIndex].MakeVisible(False);
+      begin
+        TopIndex := TopIndex + ListView.VisibleRowCount - 1;
+
+        if TopIndex >= count then
+          TopIndex := count - 1;
+
+        if TopIndex <> -1 then
+          ListView.items[TopIndex].MakeVisible(False);
+      end;
+
+      if ItemIndex >= count then
+        ItemIndex := count - 1;
+
+      ListView.ItemIndex := ItemIndex;
+    except
     end;
-
-    if ItemIndex >= count then ItemIndex := count - 1;
-
-    ListView.ItemIndex := ItemIndex;
-
-    ListView.Refresh;
-  except
   end;
+
+  ListView.Refresh;
 end;
 
-procedure ShowInfoDialog(const msg: string; hwnd: THandle);
+procedure InfoBox(const msg: string);
 begin
-  Application.MessageBox(PChar(Msg), '提示', MB_ICONINFORMATION or MB_OK);
+  Application.MessageBox(PChar(msg), '提示', MB_ICONINFORMATION or MB_OK);
 end;
 
-procedure ShowErrorDialog(const msg: string; hwnd: THandle);
+procedure ErrorBox(const msg: string);
 begin
-  Application.MessageBox(PChar(Msg), '错误', MB_ICONERROR or MB_OK);
+  Application.MessageBox(PChar(msg), '错误', MB_ICONERROR or MB_OK);
 end;
 
-procedure ShowWarnDialog(const msg: string; hwnd: THandle = 0);
+procedure WarnBox(const msg: string);
 begin
-  Application.MessageBox(PChar(Msg), '警告', MB_ICONEXCLAMATION or MB_OK);
+  Application.MessageBox(PChar(msg), '警告', MB_ICONEXCLAMATION or MB_OK);
 end;
 
 function ConfirmDialog(const msg: string; const parent: THandle = 0; const title: string = '';
@@ -7081,25 +17890,120 @@ function ConfirmDialog(const msg: string; const parent: THandle = 0; const title
 var
   _title: string;
 begin
-  if title = '' then _title := '确认'
-  else _title := title;
+  if title = '' then
+    _title := '确认'
+  else
+    _title := title;
 
-  Result := TConfirmDlgResult(Application.MessageBox(PChar(msg), PChar(_title),
-    MB_ICONQUESTION or Ord(buttons)) - 1);
+  Result := TConfirmDlgResult(Application.MessageBox(PChar(msg), PChar(_title), MB_ICONQUESTION or Ord(buttons)) - 1);
 end;
 
-function InternetExplorerGetCookie(const url: PAnsiChar; HttpOnly: Boolean): RawByteString;
+procedure ShowMessageEx(const v: string);
+begin
+  ShowMessage(v);
+end;
+
+procedure ShowMessageEx(const v: RawByteString); overload;
+begin
+  ShowMessage(string(v));
+end;
+
+procedure ShowMessageEx(const v: TAnsiCharSection);
+begin
+  ShowMessage(string(v.toString));
+end;
+
+procedure ShowMessageEx(v: Integer);
+begin
+  ShowMessage(IntToStr(v));
+end;
+
+procedure ShowMessageEx(v: Int64);
+begin
+  ShowMessage(IntToStr(v));
+end;
+
+procedure ShowMessageEx(v: Double);
+begin
+  ShowMessage(FloatToStr(v));
+end;
+
+procedure ShowMessageEx(v: Extended);
+begin
+  ShowMessage(FloatToStr(v));
+end;
+
+procedure ShowMessageEx(v: Real);
+begin
+  ShowMessage(FloatToStr(v));
+end;
+
+(*
+procedure ShowMessageEx(v: Real48);
+begin
+  ShowMessage(FloatToStr(v));
+end;
+*)
+
+procedure ShowMessageEx(v: Boolean);
+begin
+  if v then
+    ShowMessage('true')
+  else
+    ShowMessage('false');
+end;
+
 const
-  INTERNET_COOKIE_HTPONLY = 8192;
+  IID_IPersistFile: TGUID = '{0000010B-0000-0000-C000-000000000046}';
+
+function SHGetTargetOfShortcut(const LinkFile: string): string;
+var
+  IntfLink: IShellLink;
+  IntfPersist: IPersistFile;
+  pfd: _WIN32_FIND_DATA;
+  buf: array [0 .. MAX_PATH] of Char;
+begin
+  Result := '';
+  IntfLink := CreateComObject(CLSID_ShellLink) as IShellLink;
+
+  if Assigned(IntfLink) and SUCCEEDED(IntfLink.QueryInterface(IID_IPersistFile, IntfPersist)) and SUCCEEDED
+    (IntfPersist.Load(PWideChar(u16string(LinkFile)), STGM_READ)) and SUCCEEDED
+    (IntfLink.GetPath(buf, length(buf) - 1, pfd, SLGP_RAWPATH)) then
+    Result := Array2Str(buf);
+end;
+
+function SHCreateShortcut(const TargetFile, desc, CreateAt: string): Boolean;
+var
+  IntfLink: IShellLink;
+  IntfPersist: IPersistFile;
+begin
+  Result := False;
+
+  IntfLink := CreateComObject(CLSID_ShellLink) as IShellLink;
+
+  if (IntfLink <> nil) and SUCCEEDED(IntfLink.QueryInterface(IID_IPersistFile, IntfPersist)) and SUCCEEDED
+    (IntfLink.SetPath(PChar(TargetFile))) then
+  begin
+    IntfLink.SetDescription(PChar(desc));
+    IntfLink.SetWorkingDirectory(PChar(ExtractFilePath(TargetFile)));
+
+    if SUCCEEDED(IntfPersist.Save(PWideChar(u16string(CreateAt)), True)) then
+      Result := True;
+  end;
+end;
+
+type
+  TFNInternetGetCookie = function(lpszUrl, lpszCookieName, lpszCookieData: PWideChar; lpdwSize: PDWORD): BOOL; stdcall;
+  TFNInternetGetCookieEx = function(lpszUrl, lpszCookieName, lpszCookieData: PWideChar; lpdwSize: PDWORD;
+    dwFlags: DWORD; lpReserved: Pointer): BOOL; stdcall;
+
+function InternetExplorerGetCookie(const url: u16string; HttpOnly: Boolean): u16string;
+const
+  INTERNET_COOKIE_HTTPONLY = 8192;
 var
   hModule: THandle;
-
-  fnInternetGetCookie: function(lpszUrl, lpszCookieName, lpszCookieData: PAnsiChar;
-    lpdwSize: PDWORD): BOOL; stdcall;
-
-  fnInternetGetCookieEx: function(lpszUrl, lpszCookieName, lpszCookieData: PAnsiChar;
-    lpdwSize: PDWORD; dwFlags: DWORD; lpReserved: Pointer): BOOL; stdcall;
-
+  fnInternetGetCookie: TFNInternetGetCookie;
+  fnInternetGetCookieEx: TFNInternetGetCookieEx;
   CookieSize: DWORD;
   flags: DWORD;
   LastError: Integer;
@@ -7109,79 +18013,316 @@ begin
   hModule := LoadLibrary('wininet.dll');
 
   if hModule <> 0 then
-  try
-    fnInternetGetCookieEx := GetProcAddress(hModule, 'InternetGetCookieExA');
+    try
+      fnInternetGetCookieEx := GetProcAddress(hModule, 'InternetGetCookieExW');
 
-    if Assigned(fnInternetGetCookieEx) then
-    begin
-      if HttpOnly then flags := INTERNET_COOKIE_HTPONLY
-      else flags := 0;
-
-      CookieSize := 0;
-
-      if not fnInternetGetCookieEx(url, nil, PAnsiChar(@dummy), @CookieSize, flags, nil) then
+      if Assigned(fnInternetGetCookieEx) then
       begin
-        LastError := GetLastError;
-
-        if LastError = ERROR_INSUFFICIENT_BUFFER then
-        begin
-          SetLength(Result, CookieSize);
-
-          if not fnInternetGetCookieEx(url, nil, PAnsiChar(Result), @CookieSize, flags, nil) then
-            Result := '';
-        end;
-      end;
-    end
-    else begin
-      fnInternetGetCookie := GetProcAddress(hModule, 'InternetGetCookieA');
-
-      if Assigned(fnInternetGetCookie) then
-      begin
+        if HttpOnly then
+          flags := INTERNET_COOKIE_HTTPONLY
+        else
+          flags := 0;
 
         CookieSize := 0;
 
-        if not fnInternetGetCookie(url, nil, PAnsiChar(@dummy), @CookieSize) then
+        if not fnInternetGetCookieEx(PWideChar(url), nil, PWideChar(@dummy), Pointer(@CookieSize), flags, nil) then
         begin
           LastError := GetLastError;
 
           if LastError = ERROR_INSUFFICIENT_BUFFER then
           begin
-            SetLength(Result, CookieSize);
+            SetLength(Result, CookieSize div 2 - 1);
 
-            if not fnInternetGetCookie(url, nil, PAnsiChar(Result), @CookieSize) then
+            if not fnInternetGetCookieEx(PWideChar(url), nil, PWideChar(Result), Pointer(@CookieSize), flags, nil) then
               Result := '';
           end;
+        end;
+      end
+      else
+      begin
+        fnInternetGetCookie := GetProcAddress(hModule, 'InternetGetCookieW');
+
+        if Assigned(fnInternetGetCookie) then
+        begin
+          CookieSize := 0;
+
+          if not fnInternetGetCookie(PWideChar(url), nil, PWideChar(@dummy), Pointer(@CookieSize)) then
+          begin
+            LastError := GetLastError;
+
+            if LastError = ERROR_INSUFFICIENT_BUFFER then
+            begin
+              SetLength(Result, CookieSize div 2 - 1);
+
+              if not fnInternetGetCookie(PWideChar(url), nil, PWideChar(Result), Pointer(@CookieSize)) then
+                Result := '';
+            end;
+          end;
+        end;
+      end;
+    finally
+      FreeLibrary(hModule);
+    end;
+end;
+
+function getProcessorCount: Integer;
+begin
+  Result := g_SystemInfo.dwNumberOfProcessors;
+end;
+
+function GetEnvVar(const name: string): string;
+var
+  valueLen: Integer;
+begin
+  valueLen := Windows.GetEnvironmentVariable(PChar(name), nil, 0);
+  if valueLen = 0 then
+    Result := ''
+  else
+  begin
+    SetLength(Result, valueLen - 1);
+    Windows.GetEnvironmentVariable(PChar(name), PChar(Result), valueLen);
+  end;
+end;
+
+function SetEnvVar(const name, value: string): Boolean;
+begin
+  Result := Windows.SetEnvironmentVariable(PChar(name), PChar(value));
+end;
+
+function EnvPathAdd(const dir: string): Boolean;
+var
+  strs: TStringList;
+  pathList, dir2: string;
+begin
+  if dir = '' then
+    Result := False
+  else
+  begin
+    if dir[length(dir)] = '\' then
+      dir2 := Copy(dir, 1, length(dir) - 1)
+    else
+      dir2 := dir + '\';
+
+    strs := TStringList.Create;
+    try
+      strs.CaseSensitive := False;
+      strs.delimiter := ';';
+      strs.StrictDelimiter := True;
+      pathList := GetEnvVar('PATH');
+      strs.DelimitedText := pathList;
+      if (strs.IndexOf(dir) = -1) and (strs.IndexOf(dir2) = -1) then
+        Result := SetEnvVar('PATH', dir + ';' + pathList)
+      else
+        Result := True;
+    finally
+      strs.Free;
+    end;
+  end;
+end;
+
+function GetTempFileFullPath: string;
+var
+  tmpath: array [0 .. MAX_PATH] of Char;
+begin
+  SetString(Result, tmpath, Windows.GetTempPath(MAX_PATH, tmpath));
+  Result := PathJoin(Result, RandomAlphaDigitUStr(8));
+end;
+
+function myLoadLibrary(const paths: array of string; const dllFileName: string): hModule;
+var
+  i: Integer;
+begin
+  Result := 0;
+  for i := Low(paths) to High(paths) do
+  begin
+    Result := Windows.LoadLibrary(PChar(PathJoin(paths[i], dllFileName)));
+
+    if Result <> 0 then
+      Break;
+  end;
+
+  if Result = 0 then
+    Result := Windows.LoadLibrary(PChar(dllFileName));
+end;
+
+function getOSErrorMessage(errorCode: Integer): string;
+var
+  pstr, pResult: PChar;
+  len1, len2: Integer;
+  buf: array [0 .. 31] of Char;
+begin
+{$IFDEF UNICODE}
+  len1 := IntToStrBufW(errorCode, buf);
+{$ELSE}
+  len1 := IntToStrBufA(errorCode, buf);
+{$ENDIF}
+  len2 := FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM or FORMAT_MESSAGE_IGNORE_INSERTS or FORMAT_MESSAGE_ARGUMENT_ARRAY or
+      FORMAT_MESSAGE_ALLOCATE_BUFFER, nil, errorCode, 0, PChar(@pstr), 256, nil);
+
+  while (len2 > 0) and (((pstr[len2 - 1] >= #0) and (pstr[len2 - 1] < #32)) or (pstr[len2 - 1] = '.') or
+      (pstr[len2 - 1] = '。')) do
+    Dec(len2);
+
+  if len2 = 0 then
+    SetLength(Result, len1 + 6)
+  else
+    SetLength(Result, len1 + len2 + 8);
+
+  pResult := PChar(Result);
+  pResult[0] := 'e';
+  pResult[1] := 'r';
+  pResult[2] := 'r';
+  pResult[3] := 'o';
+  pResult[4] := 'r';
+  pResult[5] := ' ';
+  Move(buf, pResult[6], len1 * SizeOf(Char));
+
+  if len2 > 0 then
+  begin
+    pResult[len1 + 6] := '(';
+    Move(pstr^, pResult[len1 + 7], len2 * SizeOf(Char));
+    LocalFree(HLOCAL(pstr));
+    pResult[length(Result) - 1] := ')';
+  end;
+end;
+
+function getNTStartType(st: TNTServiceType; sst: TNTServiceStartType): DWORD;
+const
+  NTStartType: array [TNTServiceStartType] of Integer = (SERVICE_BOOT_START, SERVICE_SYSTEM_START, SERVICE_AUTO_START,
+    SERVICE_DEMAND_START, SERVICE_DISABLED);
+begin
+  Result := NTStartType[sst];
+  if (sst in [sstBoot, sstSystem]) and (st <> stDevice) then
+    Result := SERVICE_AUTO_START;
+end;
+
+function getNTErrorSeverity(sev: TErrorSeverity): Integer;
+const
+  NTErrorSeverity: array [TErrorSeverity] of Integer = (SERVICE_ERROR_IGNORE, SERVICE_ERROR_NORMAL,
+    SERVICE_ERROR_SEVERE, SERVICE_ERROR_CRITICAL);
+begin
+  Result := NTErrorSeverity[sev];
+end;
+
+function installNTService(const name, displayName, filePath: string; _type: TNTServiceType;
+  startType: TNTServiceStartType; errorSeverity: TErrorSeverity; updateIfExists: Boolean): Integer;
+var
+  TmpTagID: Integer;
+  pTag: Pointer;
+  SvcMgr, svc: SC_HANDLE;
+  loadGroup, pServiceStartName, pPassword: PChar;
+begin
+  Result := 0;
+  SvcMgr := OpenSCManager(nil, nil, SC_MANAGER_ALL_ACCESS);
+  if SvcMgr = 0 then
+  begin
+    Result := GetLastError;
+    Exit;
+  end;
+
+  svc := 0;
+
+  try
+    TmpTagID := 0;
+    if TmpTagID > 0 then
+      pTag := @TmpTagID
+    else
+      pTag := nil;
+
+    pServiceStartName := nil;
+    loadGroup := nil;
+    pPassword := nil;
+
+    svc := CreateService(SvcMgr, PChar(name), PChar(displayName), SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
+      getNTStartType(_type, startType), getNTErrorSeverity(errorSeverity), PChar(filePath), loadGroup, pTag, nil,
+      pServiceStartName, pPassword);
+
+    if svc = 0 then
+    begin
+      Result := GetLastError;
+
+      if updateIfExists then
+      begin
+        if Result = ERROR_SERVICE_EXISTS then
+        begin
+          svc := OpenService(SvcMgr, PChar(name), SERVICE_ALL_ACCESS);
+          if svc = 0 then
+            Result := GetLastError
+          else if ChangeServiceConfig(svc, SERVICE_WIN32_OWN_PROCESS or SERVICE_INTERACTIVE_PROCESS,
+            getNTStartType(_type, startType), getNTErrorSeverity(errorSeverity), PChar(filePath), loadGroup, pTag,
+            nil, pServiceStartName, pPassword, PChar(displayName)) then
+            Result := 0
+          else
+            Result := GetLastError;
         end;
       end;
     end;
   finally
-    FreeLibrary(hModule);
+    if svc <> 0 then
+      CloseServiceHandle(svc);
+
+    if SvcMgr <> 0 then
+      CloseServiceHandle(SvcMgr);
   end;
 end;
 
-function SHCreateShortcut(const TargetFile, desc, CreateAt: string): Boolean;
-const
-  IID_IPersistFile: TGUID = '{0000010B-0000-0000-C000-000000000046}';
+function uninstallNTService(const svcName: string): Integer;
 var
-  intfLink: IShellLink;
-  IntfPersist: IPersistFile;
+  SvcMgr, svc: SC_HANDLE;
+begin
+  SvcMgr := OpenSCManager(nil, nil, SC_MANAGER_ALL_ACCESS);
+  if SvcMgr = 0 then
+  begin
+    Result := GetLastError;
+    Exit;
+  end;
+  svc := OpenService(SvcMgr, PChar(svcName), SERVICE_ALL_ACCESS);
+
+  if (svc <> 0) and DeleteService(svc) then
+    Result := 0
+  else
+    Result := GetLastError; ;
+
+  if svc <> 0 then
+    CloseServiceHandle(svc);
+
+  if SvcMgr <> 0 then
+    CloseServiceHandle(SvcMgr);
+end;
+
+function NTServiceExists(const svcName: string): Boolean;
+var
+  SvcMgr, svc: SC_HANDLE;
 begin
   Result := False;
-  
-  IntfLink := CreateComObject(CLSID_ShellLink) as IShellLink;
+  SvcMgr := OpenSCManager(nil, nil, SC_MANAGER_ALL_ACCESS);
+  if SvcMgr = 0 then
+    Exit;
+  svc := OpenService(SvcMgr, PChar(svcName), SERVICE_ALL_ACCESS);
+  Result := svc <> 0;
+  if svc <> 0 then
+    CloseServiceHandle(svc);
 
-  if (IntfLink <> nil) and SUCCEEDED(
-    IntfLink.QueryInterface(IID_IPersistFile, IntfPersist)) and
-    SUCCEEDED(intfLink.SetPath(PChar(TargetFile))) then
-  begin
-    intfLink.SetDescription(PChar(desc));
-
-    if SUCCEEDED(IntfPersist.Save(PWideChar(UnicodeString(CreateAt)), True)) then
-      Result := True;
-  end;
+  if SvcMgr <> 0 then
+    CloseServiceHandle(SvcMgr);
 end;
 
-function FindChildWindowRecursive(parent: HWND; WndClassName, WndText: PWideChar): HWND;
+function ArrayContails(const ExcludeWindows: array of THandle; h: THandle): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+
+  for i := Low(ExcludeWindows) to High(ExcludeWindows) do
+    if ExcludeWindows[i] = h then
+    begin
+      Result := True;
+      Break;
+    end;
+end;
+
+function FindChildWindowRecursive(parent: HWND; WndClassName, WndText: PWideChar;
+  const ExcludeWindows: array of THandle): HWND;
 var
   tmp, wnd: HWND;
 begin
@@ -7189,66 +18330,48 @@ begin
 
   wnd := FindWindowExW(parent, 0, WndClassName, WndText);
 
-  if wnd <> 0 then Result := wnd
-  else begin
+  if (wnd <> 0) and not ArrayContails(ExcludeWindows, wnd) then
+    Result := wnd
+  else
+  begin
     tmp := GetWindow(parent, GW_CHILD);
 
     while tmp <> 0 do
     begin
-      wnd := FindChildWindowRecursive(tmp, WndClassName, WndText);
+      wnd := FindChildWindowRecursive(tmp, WndClassName, WndText, ExcludeWindows);
 
       if wnd <> 0 then
       begin
         Result := wnd;
         Break;
       end
-      else tmp := GetWindow(tmp, GW_HWNDNEXT);
+      else
+        tmp := GetWindow(tmp, GW_HWNDNEXT);
     end;
   end;
-end;
-
-function SHGetTargetOfShortcut(const LinkFile: string): string;
-const
-  IID_IPersistFile: TGUID = '{0000010B-0000-0000-C000-000000000046}';
-var
-  intfLink: IShellLink;
-  IntfPersist: IPersistFile;
-  pfd: _WIN32_FIND_DATA;
-  bSuccess: Boolean;
-begin
-  Result := '';
-  IntfLink := CreateComObject(CLSID_ShellLink) as IShellLink;
-  SetString(Result, nil, MAX_PATH);
-
-  bSuccess := (IntfLink <> nil) and SUCCEEDED(
-    IntfLink.QueryInterface(IID_IPersistFile, IntfPersist))
-    and SUCCEEDED(IntfPersist.Load(PWideChar(UnicodeString(LinkFile)), STGM_READ)) and
-    SUCCEEDED(intfLink.GetPath(PChar(Result), MAX_PATH, pfd, SLGP_RAWPATH));
-
-  if not bSuccess then Result := '';
 end;
 
 function SHGetSpecialFolderPath(FolderID: TSpecialFolderID): string;
 var
   pidl: PItemIDList;
-  buf: array [0..MAX_PATH] of Char;
+  buf: array [0 .. MAX_PATH] of Char;
 begin
   Result := '';
 
-  if Succeeded(SHGetSpecialFolderLocation(0, Ord(FolderID), pidl)) then
+  if SUCCEEDED(SHGetSpecialFolderLocation(0, Ord(FolderID), pidl)) then
   begin
-    if SHGetPathFromIDList(PIDL, buf) then
+    if SHGetPathFromIDList(pidl, buf) then
       Result := StrPas(buf);
-      
+
     CoTaskMemFree(pidl);
   end;
 end;
 
-procedure HeapAdjust(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  iRoot: LongWord; pCompare: TPointerCompareProc; pSwap: TPointerProc); forward;
+procedure HeapAdjust(pArray: Pointer; nItemSize, nItemCount: LongWord; iRoot: LongWord; pCompare: TPointerCompareProc;
+  pSwap: TPointerProc); forward;
 
-procedure HeapSort(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; pSwap: TPointerProc);
+procedure HeapSort(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc;
+  pSwap: TPointerProc);
 var
   i: LongWord;
 begin
@@ -7263,8 +18386,8 @@ begin
   end;
 end;
 
-procedure QuickSort(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; pSwap: TPointerProc);
+procedure QuickSort(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc;
+  pSwap: TPointerProc);
 var
   i, j, pidx: LongWord;
   LItem, RItem, Pivot: Pointer;
@@ -7279,8 +18402,10 @@ begin
     pidx := (i + j) shr 1;
     Pivot := Pointer(LongWord(pArray) + nItemSize * pidx);
     repeat
-      while pCompare(Pointer(LongWord(pArray) + nItemSize * i), Pivot) < 0 do Inc(i);
-      while pCompare(Pointer(LongWord(pArray) + nItemSize * j), Pivot) > 0 do Dec(j);
+      while pCompare(Pointer(LongWord(pArray) + nItemSize * i), Pivot) < 0 do
+        Inc(i);
+      while pCompare(Pointer(LongWord(pArray) + nItemSize * j), Pivot) > 0 do
+        Dec(j);
       if i < j then
       begin
         LItem := Pointer(LongWord(pArray) + nItemSize * i);
@@ -7299,89 +18424,91 @@ begin
         Inc(i);
         Dec(j);
       end
-      else if i = j then Inc(i);
+      else if i = j then
+        Inc(i);
     until i >= j;
     if LIndex < j then
-      QuickSort(Pointer(LongWord(pArray) + nItemSize * LIndex),
-        nItemSize, j - LIndex + 1, pCompare, pSwap);
+      QuickSort(Pointer(LongWord(pArray) + nItemSize * LIndex), nItemSize, j - LIndex + 1, pCompare, pSwap);
     LIndex := i;
   end;
 end;
 
-function BinarySearch(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; const Value): Integer;
+function BinarySearch(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc;
+  const value): Integer;
 var
-  L, R, M, CR: Integer;
+  L, R, m, CR: Integer;
   ItemAddr: Pointer;
 begin
   L := 0;
   R := nItemCount - 1;
   while L <= R do
   begin
-    M := (L + R) shr 1;
-    ItemAddr := Pointer(LongWord(pArray) + nItemSize * LongWord(M));
-    CR := pCompare(ItemAddr, @Value);
+    m := (L + R) shr 1;
+    ItemAddr := Pointer(LongWord(pArray) + nItemSize * LongWord(m));
+    CR := pCompare(ItemAddr, @value);
     if CR = 0 then
     begin
-      Result := M;
+      Result := m;
       Exit;
     end;
-    if CR > 0 then R := M - 1
-    else L := M + 1;
+    if CR > 0 then
+      R := m - 1
+    else
+      L := m + 1;
   end;
   Result := -1;
 end;
 
-function BinarySearchInsertPos(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; const Value): Integer;
+function BinarySearchInsertPos(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc;
+  const value): Integer;
 var
-  L, R, M, CR: Integer;
+  L, R, m, CR: Integer;
   ItemAddr: Pointer;
 begin
   L := 0;
   R := nItemCount - 1;
   while L <= R do
   begin
-    M := (L + R) shr 1;
-    ItemAddr := Pointer(LongWord(pArray) + nItemSize * LongWord(M));
-    CR := pCompare(ItemAddr, @Value);
+    m := (L + R) shr 1;
+    ItemAddr := Pointer(LongWord(pArray) + nItemSize * LongWord(m));
+    CR := pCompare(ItemAddr, @value);
     if CR = 0 then
     begin
-      Result := M;
+      Result := m;
       Exit;
     end;
 
     if CR > 0 then
     begin
-      if (M = L) or (pCompare(Pointer(LongWord(ItemAddr) - nItemSize), @Value) <= 0) then
+      if (m = L) or (pCompare(Pointer(LongWord(ItemAddr) - nItemSize), @value) <= 0) then
       begin
-        Result := M;
+        Result := m;
         Exit;
       end;
-      R := M - 1;
+      R := m - 1;
       Continue;
     end;
 
-    if (M = R) or (pCompare(Pointer(LongWord(ItemAddr) + nItemSize), @Value) >= 0) then
+    if (m = R) or (pCompare(Pointer(LongWord(ItemAddr) + nItemSize), @value) >= 0) then
     begin
-      Result := M + 1;
+      Result := m + 1;
       Exit;
     end;
-    L := M + 1;
+    L := m + 1;
   end;
   Result := 0;
 end;
 
-function Search(pArray: Pointer; nItemSize, nItemCount: LongWord;
-  pCompare: TPointerCompareProc; const Value): Integer;
+function Search(pArray: Pointer; nItemSize, nItemCount: LongWord; pCompare: TPointerCompareProc; const value): Integer;
 var
   i: LongWord;
 begin
   Result := -1;
-  if nItemCount = 0 then Exit;
+  if nItemCount = 0 then
+    Exit;
   for i := 0 to nItemCount - 1 do
   begin
-    if pCompare(Pointer(LongWord(pArray) + nItemSize * i), @Value) = 0 then
+    if pCompare(Pointer(LongWord(pArray) + nItemSize * i), @value) = 0 then
     begin
       Result := i;
       Exit;
@@ -7389,16 +18516,16 @@ begin
   end;
 end;
 
-procedure HeapAdjust(pArray: Pointer; nItemSize, nItemCount, iRoot: LongWord;
-  pCompare: TPointerCompareProc; pSwap: TPointerProc);
+procedure HeapAdjust(pArray: Pointer; nItemSize, nItemCount, iRoot: LongWord; pCompare: TPointerCompareProc;
+  pSwap: TPointerProc);
 var
   iChild: LongWord;
-  Parent, Child1, Child2: Pointer;
+  parent, Child1, Child2: Pointer;
 begin
   iChild := 2 * iRoot + 1;
   while iChild < nItemCount do
   begin
-    Parent := Pointer(LongWord(pArray) + nItemSize * iRoot);
+    parent := Pointer(LongWord(pArray) + nItemSize * iRoot);
     Child1 := Pointer(LongWord(pArray) + nItemSize * iChild);
     if iChild < nItemCount - 1 then
     begin
@@ -7409,114 +18536,486 @@ begin
         Inc(iChild);
       end;
     end;
-    if pCompare(Parent, Child1) < 0 then
+    if pCompare(parent, Child1) < 0 then
     begin
-      pSwap(Parent, Child1);
+      pSwap(parent, Child1);
       iRoot := iChild;
       iChild := iRoot * 2 + 1;
     end
-    else Break;
+    else
+      Break;
   end;
 end;
 
-function CompareCodePageName(Name1, Name2: PAnsiChar;
-  Len1, Len2: Integer): Integer; overload;
-var
-  i: Integer;
-  C1, C2: AnsiChar;
-begin
-  if Len1 > Len2 then Result := 1
-  else if Len1 < Len2 then Result := -1
-  else begin
-    for i := Len1 - 1 downto 0 do
-    begin
-      C1 := Name1[i];
-      if C1 in ['A'..'Z'] then C1 := AnsiChar(Byte(C1) or $20);
-      C2 := Name2[i];
-      if C2 in ['A'..'Z'] then C2 := AnsiChar(Byte(C2) or $20);
-      if C1 = C2 then Continue;
-      if C1 > C2 then Result := 1
-      else Result := -1;
-      Exit;
-    end;
-    Result := 0;
+type
+  TCodePageInfo = record
+    Name: RawByteString;
+    ID: Integer;
   end;
-end;
 
-function CompareCodePageName(const Name1, Name2: AnsiString): Integer; overload;
-begin
-  Result := CompareCodePageName(PAnsiChar(Name1), PAnsiChar(Name2),
-    Length(Name1), Length(Name2));
-end;
+  PCodePageInfo = ^TCodePageInfo;
+
+const
+  NAME_SORTED_CODE_PAGES: array [0 .. 144] of TCodePageInfo = ((Name: 'cp_acp'; ID: 0), (Name: 'IBM037'; ID: 37),
+    (Name: 'IBM437'; ID: 437), (Name: 'IBM500'; ID: 500), (Name: 'ASMO-708'; ID: 708), (Name: 'ASMO-449+'; ID: 709),
+    (Name: 'BCON V4'; ID: 709), (Name: 'Arabic'; ID: 710), (Name: 'DOS-720'; ID: 720), (Name: 'ibm737'; ID: 737),
+    (Name: 'ibm775'; ID: 775), (Name: 'ibm850'; ID: 850), (Name: 'ibm852'; ID: 852), (Name: 'IBM855'; ID: 855),
+    (Name: 'ibm857'; ID: 857), (Name: 'IBM00858'; ID: 858), (Name: 'IBM860'; ID: 860), (Name: 'ibm861'; ID: 861),
+    (Name: 'DOS-862'; ID: 862), (Name: 'IBM863'; ID: 863), (Name: 'IBM864'; ID: 864), (Name: 'IBM865'; ID: 865),
+    (Name: 'cp866'; ID: 866), (Name: 'ibm869'; ID: 869), (Name: 'IBM870'; ID: 870), (Name: 'windows-874'; ID: 874),
+    (Name: 'cp875'; ID: 875), (Name: 'shift_jis'; ID: 932), (Name: 'gb2312'; ID: 936), (Name: 'GBK'; ID: 936),
+    (Name: 'ks_c_5601-1987'; ID: 949), (Name: 'big5'; ID: 950), (Name: 'IBM1026'; ID: 1026), (Name: 'IBM01047';
+      ID: 1047), (Name: 'IBM01140'; ID: 1140), (Name: 'IBM01141'; ID: 1141), (Name: 'IBM01142'; ID: 1142),
+    (Name: 'IBM01143'; ID: 1143), (Name: 'IBM01144'; ID: 1144), (Name: 'IBM01145'; ID: 1145), (Name: 'IBM01146';
+      ID: 1146), (Name: 'IBM01147'; ID: 1147), (Name: 'IBM01148'; ID: 1148), (Name: 'IBM01149'; ID: 1149),
+    (Name: 'utf-16'; ID: 1200), (Name: 'unicodeFFFE'; ID: 1201), (Name: 'windows-1250'; ID: 1250),
+    (Name: 'windows-1251'; ID: 1251), (Name: 'windows-1252'; ID: 1252), (Name: 'windows-1253'; ID: 1253),
+    (Name: 'windows-1254'; ID: 1254), (Name: 'windows-1255'; ID: 1255), (Name: 'windows-1256'; ID: 1256),
+    (Name: 'windows-1257'; ID: 1257), (Name: 'windows-1258'; ID: 1258), (Name: 'Johab'; ID: 1361), (Name: 'macintosh';
+      ID: 10000), (Name: 'x-mac-japanese'; ID: 10001), (Name: 'x-mac-chinesetrad'; ID: 10002), (Name: 'x-mac-korean';
+      ID: 10003), (Name: 'x-mac-arabic'; ID: 10004), (Name: 'x-mac-hebrew'; ID: 10005), (Name: 'x-mac-greek';
+      ID: 10006), (Name: 'x-mac-cyrillic'; ID: 10007), (Name: 'x-mac-chinesesimp'; ID: 10008),
+    (Name: 'x-mac-romanian'; ID: 10010), (Name: 'x-mac-ukrainian'; ID: 10017), (Name: 'x-mac-thai'; ID: 10021),
+    (Name: 'x-mac-ce'; ID: 10029), (Name: 'x-mac-icelandic'; ID: 10079), (Name: 'x-mac-turkish'; ID: 10081),
+    (Name: 'x-mac-croatian'; ID: 10082), (Name: 'utf-32'; ID: 12000), (Name: 'utf-32BE'; ID: 12001),
+    (Name: 'x-Chinese_CNS'; ID: 20000), (Name: 'x-cp20001'; ID: 20001), (Name: 'x_Chinese-Eten'; ID: 20002),
+    (Name: 'x-cp20003'; ID: 20003), (Name: 'x-cp20004'; ID: 20004), (Name: 'x-cp20005'; ID: 20005), (Name: 'x-IA5';
+      ID: 20105), (Name: 'x-IA5-German'; ID: 20106), (Name: 'x-IA5-Swedish'; ID: 20107), (Name: 'x-IA5-Norwegian';
+      ID: 20108), (Name: 'us-ascii'; ID: 20127), (Name: 'x-cp20261'; ID: 20261), (Name: 'x-cp20269'; ID: 20269),
+    (Name: 'IBM273'; ID: 20273), (Name: 'IBM277'; ID: 20277), (Name: 'IBM278'; ID: 20278), (Name: 'IBM280';
+      ID: 20280), (Name: 'IBM284'; ID: 20284), (Name: 'IBM285'; ID: 20285), (Name: 'IBM290'; ID: 20290),
+    (Name: 'IBM297'; ID: 20297), (Name: 'IBM420'; ID: 20420), (Name: 'IBM423'; ID: 20423), (Name: 'IBM424';
+      ID: 20424), (Name: 'x-EBCDIC-KoreanExtended'; ID: 20833), (Name: 'IBM-Thai'; ID: 20838), (Name: 'koi8-r';
+      ID: 20866), (Name: 'IBM871'; ID: 20871), (Name: 'IBM880'; ID: 20880), (Name: 'IBM905'; ID: 20905),
+    (Name: 'IBM00924'; ID: 20924), (Name: 'EUC-JP'; ID: 20932), (Name: 'x-cp20936'; ID: 20936), (Name: 'x-cp20949';
+      ID: 20949), (Name: 'cp1025'; ID: 21025), (Name: 'koi8-u'; ID: 21866), (Name: 'iso-8859-1'; ID: 28591),
+    (Name: 'iso-8859-2'; ID: 28592), (Name: 'iso-8859-3'; ID: 28593), (Name: 'iso-8859-4'; ID: 28594),
+    (Name: 'iso-8859-5'; ID: 28595), (Name: 'iso-8859-6'; ID: 28596), (Name: 'iso-8859-7'; ID: 28597),
+    (Name: 'iso-8859-8'; ID: 28598), (Name: 'iso-8859-9'; ID: 28599), (Name: 'iso-8859-13'; ID: 28603),
+    (Name: 'iso-8859-15'; ID: 28605), (Name: 'x-Europa'; ID: 29001), (Name: 'iso-8859-8-i'; ID: 38598),
+    (Name: 'iso-2022-jp'; ID: 50220), (Name: 'csISO2022JP'; ID: 50221), (Name: 'iso-2022-jp'; ID: 50222),
+    (Name: 'iso-2022-kr'; ID: 50225), (Name: 'x-cp50227'; ID: 50227), (Name: 'euc-jp'; ID: 51932), (Name: 'EUC-CN';
+      ID: 51936), (Name: 'euc-kr'; ID: 51949), (Name: 'hz-gb-2312'; ID: 52936), (Name: 'GB18030'; ID: 54936),
+    (Name: 'x-iscii-de'; ID: 57002), (Name: 'x-iscii-be'; ID: 57003), (Name: 'x-iscii-ta'; ID: 57004),
+    (Name: 'x-iscii-te'; ID: 57005), (Name: 'x-iscii-as'; ID: 57006), (Name: 'x-iscii-or'; ID: 57007),
+    (Name: 'x-iscii-ka'; ID: 57008), (Name: 'x-iscii-ma'; ID: 57009), (Name: 'x-iscii-gu'; ID: 57010),
+    (Name: 'x-iscii-pa'; ID: 57011), (Name: 'utf-7'; ID: 65000), (Name: 'utf-8'; ID: 65001));
+
+  ID_SORTED_CODE_PAGES: array [0 .. 143] of TCodePageInfo = ((Name: 'cp_acp'; ID: 0), (Name: 'IBM037'; ID: 37),
+    (Name: 'IBM437'; ID: 437), (Name: 'IBM500'; ID: 500), (Name: 'ASMO-708'; ID: 708), (Name: 'ASMO-449+'; ID: 709),
+    (Name: 'BCON V4'; ID: 709), (Name: 'Arabic'; ID: 710), (Name: 'DOS-720'; ID: 720), (Name: 'ibm737'; ID: 737),
+    (Name: 'ibm775'; ID: 775), (Name: 'ibm850'; ID: 850), (Name: 'ibm852'; ID: 852), (Name: 'IBM855'; ID: 855),
+    (Name: 'ibm857'; ID: 857), (Name: 'IBM00858'; ID: 858), (Name: 'IBM860'; ID: 860), (Name: 'ibm861'; ID: 861),
+    (Name: 'DOS-862'; ID: 862), (Name: 'IBM863'; ID: 863), (Name: 'IBM864'; ID: 864), (Name: 'IBM865'; ID: 865),
+    (Name: 'cp866'; ID: 866), (Name: 'ibm869'; ID: 869), (Name: 'IBM870'; ID: 870), (Name: 'windows-874'; ID: 874),
+    (Name: 'cp875'; ID: 875), (Name: 'shift_jis'; ID: 932), (Name: 'gb2312'; ID: 936), (Name: 'ks_c_5601-1987';
+      ID: 949), (Name: 'big5'; ID: 950), (Name: 'IBM1026'; ID: 1026), (Name: 'IBM01047'; ID: 1047),
+    (Name: 'IBM01140'; ID: 1140), (Name: 'IBM01141'; ID: 1141), (Name: 'IBM01142'; ID: 1142),
+    (Name: 'IBM01143'; ID: 1143), (Name: 'IBM01144'; ID: 1144), (Name: 'IBM01145'; ID: 1145), (Name: 'IBM01146';
+      ID: 1146), (Name: 'IBM01147'; ID: 1147), (Name: 'IBM01148'; ID: 1148), (Name: 'IBM01149'; ID: 1149),
+    (Name: 'utf-16'; ID: 1200), (Name: 'unicodeFFFE'; ID: 1201), (Name: 'windows-1250'; ID: 1250),
+    (Name: 'windows-1251'; ID: 1251), (Name: 'windows-1252'; ID: 1252), (Name: 'windows-1253'; ID: 1253),
+    (Name: 'windows-1254'; ID: 1254), (Name: 'windows-1255'; ID: 1255), (Name: 'windows-1256'; ID: 1256),
+    (Name: 'windows-1257'; ID: 1257), (Name: 'windows-1258'; ID: 1258), (Name: 'Johab'; ID: 1361), (Name: 'macintosh';
+      ID: 10000), (Name: 'x-mac-japanese'; ID: 10001), (Name: 'x-mac-chinesetrad'; ID: 10002), (Name: 'x-mac-korean';
+      ID: 10003), (Name: 'x-mac-arabic'; ID: 10004), (Name: 'x-mac-hebrew'; ID: 10005), (Name: 'x-mac-greek';
+      ID: 10006), (Name: 'x-mac-cyrillic'; ID: 10007), (Name: 'x-mac-chinesesimp'; ID: 10008),
+    (Name: 'x-mac-romanian'; ID: 10010), (Name: 'x-mac-ukrainian'; ID: 10017), (Name: 'x-mac-thai'; ID: 10021),
+    (Name: 'x-mac-ce'; ID: 10029), (Name: 'x-mac-icelandic'; ID: 10079), (Name: 'x-mac-turkish'; ID: 10081),
+    (Name: 'x-mac-croatian'; ID: 10082), (Name: 'utf-32'; ID: 12000), (Name: 'utf-32BE'; ID: 12001),
+    (Name: 'x-Chinese_CNS'; ID: 20000), (Name: 'x-cp20001'; ID: 20001), (Name: 'x_Chinese-Eten'; ID: 20002),
+    (Name: 'x-cp20003'; ID: 20003), (Name: 'x-cp20004'; ID: 20004), (Name: 'x-cp20005'; ID: 20005), (Name: 'x-IA5';
+      ID: 20105), (Name: 'x-IA5-German'; ID: 20106), (Name: 'x-IA5-Swedish'; ID: 20107), (Name: 'x-IA5-Norwegian';
+      ID: 20108), (Name: 'us-ascii'; ID: 20127), (Name: 'x-cp20261'; ID: 20261), (Name: 'x-cp20269'; ID: 20269),
+    (Name: 'IBM273'; ID: 20273), (Name: 'IBM277'; ID: 20277), (Name: 'IBM278'; ID: 20278), (Name: 'IBM280';
+      ID: 20280), (Name: 'IBM284'; ID: 20284), (Name: 'IBM285'; ID: 20285), (Name: 'IBM290'; ID: 20290),
+    (Name: 'IBM297'; ID: 20297), (Name: 'IBM420'; ID: 20420), (Name: 'IBM423'; ID: 20423), (Name: 'IBM424';
+      ID: 20424), (Name: 'x-EBCDIC-KoreanExtended'; ID: 20833), (Name: 'IBM-Thai'; ID: 20838), (Name: 'koi8-r';
+      ID: 20866), (Name: 'IBM871'; ID: 20871), (Name: 'IBM880'; ID: 20880), (Name: 'IBM905'; ID: 20905),
+    (Name: 'IBM00924'; ID: 20924), (Name: 'EUC-JP'; ID: 20932), (Name: 'x-cp20936'; ID: 20936), (Name: 'x-cp20949';
+      ID: 20949), (Name: 'cp1025'; ID: 21025), (Name: 'koi8-u'; ID: 21866), (Name: 'iso-8859-1'; ID: 28591),
+    (Name: 'iso-8859-2'; ID: 28592), (Name: 'iso-8859-3'; ID: 28593), (Name: 'iso-8859-4'; ID: 28594),
+    (Name: 'iso-8859-5'; ID: 28595), (Name: 'iso-8859-6'; ID: 28596), (Name: 'iso-8859-7'; ID: 28597),
+    (Name: 'iso-8859-8'; ID: 28598), (Name: 'iso-8859-9'; ID: 28599), (Name: 'iso-8859-13'; ID: 28603),
+    (Name: 'iso-8859-15'; ID: 28605), (Name: 'x-Europa'; ID: 29001), (Name: 'iso-8859-8-i'; ID: 38598),
+    (Name: 'iso-2022-jp'; ID: 50220), (Name: 'csISO2022JP'; ID: 50221), (Name: 'iso-2022-jp'; ID: 50222),
+    (Name: 'iso-2022-kr'; ID: 50225), (Name: 'x-cp50227'; ID: 50227), (Name: 'euc-jp'; ID: 51932), (Name: 'EUC-CN';
+      ID: 51936), (Name: 'euc-kr'; ID: 51949), (Name: 'hz-gb-2312'; ID: 52936), (Name: 'GB18030'; ID: 54936),
+    (Name: 'x-iscii-de'; ID: 57002), (Name: 'x-iscii-be'; ID: 57003), (Name: 'x-iscii-ta'; ID: 57004),
+    (Name: 'x-iscii-te'; ID: 57005), (Name: 'x-iscii-as'; ID: 57006), (Name: 'x-iscii-or'; ID: 57007),
+    (Name: 'x-iscii-ka'; ID: 57008), (Name: 'x-iscii-ma'; ID: 57009), (Name: 'x-iscii-gu'; ID: 57010),
+    (Name: 'x-iscii-pa'; ID: 57011), (Name: 'utf-7'; ID: 65000), (Name: 'utf-8'; ID: 65001));
 
 type
   TAnsiStrPtrAndLen = record
     Ptr: PAnsiChar;
-    Len: Integer;
+    len: Integer;
   end;
+
   PAnsiStrPtrAndLen = ^TAnsiStrPtrAndLen;
 
-function CodePageNameSearchCmp(First: PCodePage; Second: PAnsiStrPtrAndLen): Integer;
+function CodePageNameSearchCmp(first: PCodePageInfo; second: PAnsiStrPtrAndLen): Integer;
 begin
-  Result := CompareCodePageName(PAnsiChar(First^.Name), Second^.Ptr,
-    Length(First^.Name), Second^.Len);
+  Result := AsciiICompare(PAnsiChar(first^.Name), length(first^.Name), second^.Ptr, second^.len);
 end;
 
 function CodePageName2ID(Name: PAnsiChar; NameLen: Integer): Integer;
 var
   PtrLen: TAnsiStrPtrAndLen;
 begin
-  PtrLen.Ptr := Name; PtrLen.Len := NameLen;
-  Result := BinarySearch(@NAME_SORTED_CODE_PAGES, SizeOf(TCodePageInfo),
-    Length(NAME_SORTED_CODE_PAGES), @CodePageNameSearchCmp, PtrLen);
-  if Result >= 0 then Result := NAME_SORTED_CODE_PAGES[Result].ID;
+  PtrLen.Ptr := Name;
+  PtrLen.len := NameLen;
+  Result := BinarySearch(@NAME_SORTED_CODE_PAGES, SizeOf(TCodePageInfo), length(NAME_SORTED_CODE_PAGES),
+    TPointerCompareProc(@CodePageNameSearchCmp), PtrLen);
+  if Result >= 0 then
+    Result := NAME_SORTED_CODE_PAGES[Result].ID;
 end;
 
 function CodePageName2ID(const Name: AnsiString): Integer;
 begin
-  Result := CodePageName2ID(PAnsiChar(Name), Length(Name));
+  Result := CodePageName2ID(PAnsiChar(Name), length(Name));
 end;
 
-function CodePageIDSearchCmp(First: PCodePage; Second: PInteger): Integer;
+function CodePageIDSearchCmp(first: PCodePageInfo; second: PInteger): Integer;
 begin
-  Result := First^.ID - Second^;
+  Result := first^.ID - second^;
 end;
 
-function CodePageID2Name(ID: Integer): AnsiString; overload;
+function CodePageID2Name(ID: Integer): RawByteString;
 var
   Index: Integer;
 begin
-  Index := BinarySearch(@ID_SORTED_CODE_PAGES, SizeOf(TCodePageInfo),
-    Length(ID_SORTED_CODE_PAGES), @CodePageIDSearchCmp, ID);
-  if Index >= 0 then Result := ID_SORTED_CODE_PAGES[Index].Name
-  else Result := '';
+  Index := BinarySearch(@ID_SORTED_CODE_PAGES, SizeOf(TCodePageInfo), length(ID_SORTED_CODE_PAGES),
+    TPointerCompareProc(@CodePageIDSearchCmp), ID);
+  if Index >= 0 then
+    Result := ID_SORTED_CODE_PAGES[Index].Name
+  else
+    Result := '';
 end;
+
+const
+  MAX_DISP_ARGS = 64;
+
+function GetVariantArg(const param: TVariantArg): Variant;
+begin
+  Result := Null;
+
+  case param.vt of
+    VT_I4:
+      Result := param.lVal;
+    VT_BOOL:
+      Result := param.vbool;
+    VT_DATE:
+      Result := param.date;
+    VT_BSTR:
+      Result := WideString(param.bstrVal);
+    VT_R8:
+      Result := param.dblVal;
+    VT_CY:
+      Result := param.cyVal;
+    VT_BYREF or VT_VARIANT:
+      Result := param.pvarVal^;
+    VT_UNKNOWN or VT_BYREF:
+      Result := IUnknown(param.byRef);
+    VT_I8 or VT_BYREF:
+      Result := PInt64(param.byRef)^;
+  end;
+end;
+
+function AssignVariant(var param: TVariantArg; const value: TVarRec): Boolean;
+begin
+  Result := True;
+  with value do
+    case VType of
+      vtInteger:
+        begin
+          param.vt := VT_I4;
+          param.lVal := VInteger;
+        end;
+      vtBoolean:
+        begin
+          param.vt := VT_BOOL;
+          param.vbool := VBoolean;
+        end;
+      vtChar:
+        begin
+          param.vt := VT_BSTR;
+          param.bstrVal := StringToOleStr(VChar);
+        end;
+      vtExtended:
+        begin
+          param.vt := VT_R8;
+          param.dblVal := VExtended^;
+        end;
+      vtString:
+        begin
+          param.vt := VT_BSTR;
+          param.bstrVal := StringToOleStr(VString^);
+        end;
+      vtPointer:
+        if VPointer = nil then
+        begin
+          param.vt := VT_NULL;
+          param.byRef := nil;
+        end
+        else
+        begin
+          param.vt := VT_BYREF;
+          param.byRef := VPointer;
+        end;
+      vtPChar:
+        begin
+          param.vt := VT_BSTR;
+          param.bstrVal := StringToOleStr(VPChar);
+        end;
+      vtObject:
+        begin
+          param.vt := VT_BYREF;
+          param.byRef := VObject;
+        end;
+      vtClass:
+        begin
+          param.vt := VT_BYREF;
+          param.byRef := VClass;
+        end;
+      vtWideChar:
+        begin
+          param.vt := VT_BSTR;
+          param.bstrVal := @VWideChar;
+        end;
+      vtPWideChar:
+        begin
+          param.vt := VT_BSTR;
+          param.bstrVal := VPWideChar;
+        end;
+      vtAnsiString:
+        begin
+          param.vt := VT_BSTR;
+          param.bstrVal := StringToOleStr(string(VAnsiString));
+        end;
+      vtCurrency:
+        begin
+          param.vt := VT_CY;
+          param.cyVal := VCurrency^;
+        end;
+      vtVariant:
+        begin
+          param.vt := VT_BYREF or VT_VARIANT;
+          param.pvarVal := VVariant;
+        end;
+      vtInterface:
+        begin
+          param.vt := VT_UNKNOWN or VT_BYREF;
+          param.byRef := VInterface;
+        end;
+      vtWideString:
+        begin
+          param.vt := VT_BSTR;
+          param.bstrVal := VPWideChar;
+        end;
+      vtInt64:
+        begin
+          param.vt := VT_I8 or VT_BYREF;
+          param.byRef := VInt64;
+        end;
+      vtUnicodeString:
+        begin
+          param.vt := VT_BSTR;
+          param.bstrVal := StringToOleStr(u16string(VUnicodeString));
+        end;
+    else
+      Result := False;
+    end;
+end;
+
+function NameToDispID(const disp: IDispatch; const name: WideString; _lcid: TLCID; out _dispID: TDispID): Boolean;
+var
+  Names: array [0 .. 0] of PWideChar;
+begin
+  Names[0] := PWideChar(name);
+  Result := SUCCEEDED(disp.GetIDsOfNames(GUID_NULL, @Names, 1, _lcid, @_dispID));
+end;
+
+function DispMethodExists(const disp: IDispatch; _lcid: TLCID; const name: u16string): Boolean;
+var
+  Names: array [0 .. 0] of PWideChar;
+  ID: TDispID;
+begin
+  Names[0] := PWideChar(name);
+  Result := SUCCEEDED(disp.GetIDsOfNames(GUID_NULL, @Names, 1, _lcid, @ID));
+end;
+
+function ClassIDExists(const ClassID: TGUID): Boolean;
+var
+  p: PWideChar;
+begin
+  Result := SUCCEEDED(ProgIDFromCLSID(ClassID, p));
+
+  if Result then
+    CoTaskMemFree(p);
+end;
+
+function CallDispMethod(const disp: IDispatch; _lcid: TLCID; const name: u16string; const params: array of const ;
+  res: PVariant): Boolean;
+var
+  ID: TDispID;
+  Names: array [0 .. 0] of PWideChar;
+  dispParams: TDispParams;
+  argCnt, i, j: Integer;
+  args: array [0 .. MAX_DISP_ARGS - 1] of TVariantArg;
+  exceptionInfo: TExcepInfo;
+  ArgErr: Integer;
+  hr: HResult;
+begin
+  Names[0] := PWideChar(name);
+
+  if (Failed(disp.GetIDsOfNames(GUID_NULL, @Names, 1, _lcid, @ID))) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  argCnt := length(params);
+
+  if (argCnt > MAX_DISP_ARGS) then
+    argCnt := MAX_DISP_ARGS;
+
+  j := 0;
+
+  for i := Low(params) + argCnt - 1 downto Low(params) do
+  begin
+    AssignVariant(args[j], params[i]);
+    Inc(j);
+  end;
+
+  if (argCnt = 0) then
+    dispParams.rgvarg := nil
+  else
+    dispParams.rgvarg := PVariantArgList(@args);
+
+  dispParams.rgdispidNamedArgs := nil;
+  dispParams.cArgs := argCnt;
+  dispParams.cNamedArgs := 0;
+
+  if Assigned(res) then
+    VarClear(res^);
+
+  try
+    hr := disp.Invoke(ID, GUID_NULL, _lcid, DISPATCH_METHOD, dispParams, res, @exceptionInfo, @ArgErr);
+  except
+    if Assigned(res) then
+      VarClear(res^);
+    Result := False;
+    Exit;
+  end;
+  Result := SUCCEEDED(hr);
+end;
+
+{$region 'graphic utils'}
+
+function detectPictureFormat(const buf; bufSize: Integer): TPictureFormat;
+var
+  bytes: P4Bytes;
+begin
+  {
+    JPEG FFD8FF
+    PNG 89504E47
+    GIF 47494638
+    Bitmap 424D
+    }
+  Result := unknownPictureFormat;
+  bytes := P4Bytes(@buf);
+  if bufSize >= 4 then
+  begin
+    if (bytes[0] = $FF) and (bytes[1] = $D8) and (bytes[2] = $FF) then
+      Result := pfJpeg
+    else if (bytes[0] = $89) and (bytes[1] = $50) and (bytes[2] = $4E) and (bytes[3] = $47) then
+      Result := pfPng
+    else if (bytes[0] = $47) and (bytes[1] = $49) and (bytes[2] = $46) and (bytes[3] = $38) then
+      Result := pfGif
+    else if (bytes[0] = $42) and (bytes[1] = $4D) then
+      Result := pfBitmap;
+  end;
+end;
+
+function detectPictureFormat(AStream: TStream): TPictureFormat;
+var
+  buf: array [0 .. 3] of Byte;
+  bookmark: Int64;
+  bytesRead: Integer;
+begin
+  bookmark := AStream.Position;
+
+  try
+    bytesRead := AStream.Read(buf, SizeOf(buf));
+    Result := detectPictureFormat(buf, bytesRead);
+  finally
+    AStream.Position := bookmark;
+  end;
+end;
+
+{$endregion}
 
 { TRefCountedObject }
 
 function TRefCountedObject.AddRef: Integer;
 begin
   if Self <> nil then
-    Result := InterlockedIncrement(fRefCount)
+    Result := InterlockedIncrement(FRefCount)
   else
     Result := 0;
 end;
 
-constructor TRefCountedObject.Create;
+function TRefCountedObject.ExtendLife: Boolean;
 begin
-  fRefCount := 1;
+  Result := False;
 end;
 
-function TRefCountedObject.Release: Integer;
+class function TRefCountedObject.NewInstance: TObject;
+begin
+  Result := inherited NewInstance;
+  TRefCountedObject(Result).FRefCount := 1;
+end;
+
+function TRefCountedObject.release: Integer;
 begin
   if Self <> nil then
   begin
-    Result := InterlockedDecrement(fRefCount);
-
-    if Result = 0 then
-      Destroy;
+    Result := InterlockedDecrement(FRefCount);
+    if (Result = 0) and not ExtendLife then
+      Free;
   end
-  else Result := 0;
+  else
+    Result := 0;
+end;
+
+{ TAsyncWorkSyncResultTask }
+
+constructor TAsyncWorkSyncResultTask.Create(_MsgId: DWORD; _WindowHandle: THandle);
+begin
+  inherited Create;
+  FWindowHandle := _WindowHandle;
+  FMsgId := _MsgId;
+end;
+
+procedure TAsyncWorkSyncResultTask.run(context: TObject);
+var
+  MsgWnd: THandle;
+begin
+  try
+    Self.AsyncWork;
+  except
+
+  end;
+
+  Self.AddRef;
+
+  if FWindowHandle <> 0 then
+    MsgWnd := FWindowHandle
+  else
+    MsgWnd := Application.handle;
+
+  PostMessage(MsgWnd, FMsgId, 0, LPARAM(Self));
 end;
 
 { TSignalThread }
@@ -7531,6 +19030,11 @@ destructor TSignalThread.Destroy;
 begin
   CloseHandle(fStopSignal);
   inherited;
+end;
+
+function TSignalThread.GetTerminating: Boolean;
+begin
+  Result := Self.Terminated;
 end;
 
 procedure TSignalThread.SendStopSignal;
@@ -7563,15 +19067,17 @@ begin
 
   wr := WaitForMultipleObjectsEx(j, @WaitHandles, False, timeout, True);
 
-  if wr = WAIT_OBJECT_0 then Result := WAIT_TIMEOUT
+  if wr = WAIT_OBJECT_0 then
+    Result := WAIT_TIMEOUT
   else if (wr > WAIT_OBJECT_0) and (wr < WAIT_OBJECT_0 + j) then
     Result := wr - 1
-  else Result := wr;
+  else
+    Result := wr;
 end;
 
 function TSignalThread.WaitForSingleObject(handle: THandle; timeout: DWORD): DWORD;
 var
-  handles: array [0..0] of THandle;
+  handles: array [0 .. 0] of THandle;
 begin
   handles[0] := handle;
   Result := Self.WaitForMultiObjects(handles, timeout);
@@ -7582,7 +19088,122 @@ begin
   Result := WaitForSingleObjectEx(fStopSignal, timeout, True) = WAIT_OBJECT_0;
 end;
 
+{ TAsyncWorkSyncResultThread }
+
+constructor TAsyncWorkSyncResultThread.Create(_MsgId: DWORD; _WindowHandle: THandle);
+begin
+  FWindowHandle := _WindowHandle;
+  FMsgId := _MsgId;
+  inherited Create(False);
+end;
+
+procedure TAsyncWorkSyncResultThread.Execute;
+var
+  MsgWnd: THandle;
+begin
+  inherited;
+
+  FExceptionRaised := False;
+
+  try
+    Self.AsyncWork;
+  except
+    on e: Exception do
+    begin
+      FExceptionRaised := True;
+      StatusCode := 0;
+      StatusText := e.Message;
+    end;
+  end;
+
+  if FMsgId <> 0 then
+  begin
+    if FWindowHandle <> 0 then
+      MsgWnd := FWindowHandle
+    else
+      MsgWnd := Application.handle;
+
+    PostMessage(MsgWnd, FMsgId, 0, LPARAM(Self));
+  end;
+end;
+
+procedure TAsyncWorkSyncResultThread.HandleResult;
+begin
+
+end;
+
+{ TMyAnonymousThread }
+
+procedure TMyAnonymousThread.AsyncWork;
+begin
+  inherited;
+
+  if Assigned(FWorkMethod) then
+    FWorkMethod(Self)
+  else if Assigned(FWorkProc) then
+    FWorkProc(Self)
+  else if Assigned(FAnonymousWorkProc) then
+    FAnonymousWorkProc();
+end;
+
+constructor TMyAnonymousThread.Create(AWorkMethod, AResultMethod: TMyAnonymousCallbackMethod; _MsgId: DWORD;
+  _WindowHandle: THandle);
+begin
+  FWorkProc := nil;
+  FResultProc := nil;
+  FAnonymousWorkProc := nil;
+  FAnonymousResultProc := nil;
+  FWorkMethod := AWorkMethod;
+  FResultMethod := AResultMethod;
+  inherited Create(_MsgId, _WindowHandle);
+end;
+
+constructor TMyAnonymousThread.Create(AWorkProc, AResultProc: TMyAnonymousCallbackProc; _MsgId: DWORD;
+  _WindowHandle: THandle);
+begin
+  FWorkMethod := nil;
+  FResultMethod := nil;
+  FAnonymousWorkProc := nil;
+  FAnonymousResultProc := nil;
+  FWorkProc := AWorkProc;
+  FResultProc := AResultProc;
+  inherited Create(_MsgId, _WindowHandle);
+end;
+
+constructor TMyAnonymousThread.Create(AWorkProc, AResultProc: SysUtils.TProc; _MsgId: DWORD; _WindowHandle: THandle);
+begin
+  FWorkMethod := nil;
+  FResultMethod := nil;
+  FWorkProc := nil;
+  FResultProc := nil;
+  FAnonymousWorkProc := AWorkProc;
+  FAnonymousResultProc := AResultProc;
+  inherited Create(_MsgId, _WindowHandle);
+end;
+
+procedure TMyAnonymousThread.HandleResult;
+begin
+  inherited;
+
+  if Assigned(FResultMethod) then
+    FResultMethod(Self)
+  else if Assigned(FResultProc) then
+    FResultProc(Self)
+  else if Assigned(FAnonymousResultProc) then
+    FAnonymousResultProc();
+end;
+
 { TWorkThread }
+
+procedure TWorkThread.AfterExecute;
+begin
+
+end;
+
+procedure TWorkThread.BeforeExecute;
+begin
+
+end;
 
 procedure TWorkThread.ClearTask;
 var
@@ -7592,24 +19213,22 @@ begin
   begin
     task := TRunnable(fTaskQueue.pop);
 
-    if Assigned(task) then task.Release
-    else Break;
+    if Assigned(task) then
+      task.release
+    else
+      Break;
   end;
-end;
-
-constructor TWorkThread.Create(CreateSuspended: Boolean);
-begin
-  fTaskSemaphore := CreateEvent(nil, False, False, nil); 
-  fTaskQueue := TFIFOQueue.Create;
-  inherited Create(CreateSuspended);
 end;
 
 destructor TWorkThread.Destroy;
 begin
   Self.ClearTask;
-  fTaskQueue.Free;
-  CloseHandle(fTaskSemaphore);
   inherited;
+end;
+
+procedure TWorkThread.DoIdle;
+begin
+
 end;
 
 procedure TWorkThread.Execute;
@@ -7618,70 +19237,54 @@ var
 begin
   inherited;
 
-  while not Self.Terminated  do
-  begin
-    try
-      fWaitingForTask := True;
+  Self.BeforeExecute;
 
-      if Self.WaitForSingleObject(fTaskSemaphore) <> WAIT_OBJECT_0 then Continue;
+  try
+    while not Self.Terminated do
+    begin
+      try
+        fWaitingForTask := True;
 
-      fWaitingForTask := False;
+        if Self.WaitForSingleObject(fTaskSemaphore) <> WAIT_OBJECT_0 then
+          Continue;
 
-      while not Self.Terminated do
-      begin      
-        task := TRunnable(fTaskQueue.pop);
+        fWaitingForTask := False;
 
-        if not Assigned(task) then Break;
+        while not Self.Terminated do
+        begin
+          task := TRunnable(fTaskQueue.pop);
 
-        Inc(fCompletedTaskCount);
+          if not Assigned(task) then
+            Break;
 
-        FCurrentTaskStartTime := Now;
+          Inc(fCompletedTaskCount);
 
-        try
-          fCurrentTaskName := task.ClassName;
-          task.run(Self);
-        except
-          on e: Exception do
-            DbgOutput(TRunnable.ClassName + '.run: ' + e.Message);
+          FCurrentTaskStartTime := Now;
+
+          try
+            fCurrentTaskName := task.ClassName;
+            task.run(Self);
+          except
+            on e: Exception do
+              DbgOutput(TRunnable.ClassName + '.run: ' + e.Message);
+          end;
+
+          FCurrentTaskStartTime := 0;
+          fCurrentTaskName := '';
+
+          task.release;
         end;
-
-        FCurrentTaskStartTime := 0;
-        fCurrentTaskName := '';
-
-        task.Release;
+      except
+        on e: Exception do
+          DbgOutputException('TWorkThread.Execute', e);
       end;
-    except
-      on e: Exception do
-        DbgOutputException('TWorkThread.Execute', e);
     end;
+  finally
+    Self.AfterExecute;
   end;
 end;
 
-function TWorkThread.GetPendingTaskCount: Integer;
-begin
-  Result := fTaskQueue.size;
-end;
-
-function TWorkThread.QueueTask(task: TRunnable): Boolean;
-begin
-  fTaskQueue.push(task);
-
-  SetEvent(fTaskSemaphore);
-
-  Result := True;
-end;
-
-function TWorkThread.QueueTaskFirst(task: TRunnable): Boolean;
-begin
-  fTaskQueue.PushFront(task);
-
-  SetEvent(fTaskSemaphore);
-
-  Result := True;
-end;
-
 { TDelayRunnableThread }
-
 
 constructor TDelayRunnableThread.Create(CreateSuspended: Boolean);
 begin
@@ -7720,9 +19323,10 @@ begin
 
         Inc(fCompletedTaskCount);
 
-        task.Release;
+        task.release;
       end
-      else Self.WaitForSingleObject(fTaskEvent, delay);
+      else
+        Self.WaitForSingleObject(fTaskEvent, delay);
     except
       on e: Exception do
         DbgOutput('TDelayRunnableThread.loop: ' + e.Message);
@@ -7739,14 +19343,16 @@ function TDelayRunnableThread.QueueTask(task: TRunnable; DelayMS: Int64): Boolea
 begin
   Result := fTaskQueue.push(task, DelayMS);
 
-  if Result then SetEvent(fTaskEvent);
+  if Result then
+    SetEvent(fTaskEvent);
 end;
 
 function TDelayRunnableThread.QueueTask(task: TRunnable; runtime: TDateTime): Boolean;
 begin
   Result := fTaskQueue.push(task, runtime);
 
-  if Result then SetEvent(fTaskEvent);
+  if Result then
+    SetEvent(fTaskEvent);
 end;
 
 { TWorkThreadPool }
@@ -7768,26 +19374,28 @@ end;
 function TWorkThreadPool.QueueTask(task: TRunnable): Boolean;
 begin
   if fActive then
-    Result := TWorkThread(fThreads[Random(fThreads.Count)]).QueueTask(task)
+    Result := TWorkThread(fThreads[Random(fThreads.count)]).QueueTask(task)
   else
     Result := False;
 end;
 
-procedure TWorkThreadPool.SetActive(const Value: Boolean);
+procedure TWorkThreadPool.SetActive(const value: Boolean);
 begin
-  if fActive <> Value then
+  if fActive <> value then
   begin
-    fActive := Value;
-    if fActive then start
-    else Self.stop;
+    fActive := value;
+    if fActive then
+      start
+    else
+      Self.stop;
   end;
 end;
 
-procedure TWorkThreadPool.SetThreadCount(const Value: Integer);
+procedure TWorkThreadPool.SetThreadCount(const value: Integer);
 begin
   if not fActive then
   begin
-    fThreadCount := Value;
+    fThreadCount := value;
 
     if fThreadCount <= 0 then
       fThreadCount := 1;
@@ -7798,117 +19406,428 @@ procedure TWorkThreadPool.start;
 var
   i: Integer;
 begin
-  fThreads.Count := fThreadCount;
+  fThreads.count := fThreadCount;
 
-  for i := 0 to fThreads.Count - 1 do
+  for i := 0 to fThreads.count - 1 do
     fThreads[i] := ThreadClass.Create(False);
 end;
 
 procedure TWorkThreadPool.stop;
 begin
-  StopAndWaitForThread(fThreads);
+  StopAndWaitForThreads(fThreads);
+end;
+
+{ TPoolThread }
+
+constructor TPoolThread.Create(_pool: TThreadPool);
+begin
+  FExecSignal := CreateEvent(nil, False, False, nil);
+  _pool.AddRef;
+  FPool := _pool;
+  inherited Create(False);
+end;
+
+destructor TPoolThread.Destroy;
+begin
+  FRunnable.release;
+  CloseHandle(FExecSignal);
+  FPool.release;
+  inherited;
+end;
+
+procedure TPoolThread.Execute;
+var
+  task: TRunnable;
+begin
+  inherited;
+
+  while not Self.Terminated do
+  begin
+    if Self.WaitForSingleObject(FExecSignal) <> WAIT_OBJECT_0 then
+      Break;
+
+    task := TRunnable(InterlockedExchangePointer(Pointer(FRunnable), nil));
+
+    if Assigned(task) then
+    begin
+      try
+        task.run(Self);
+      except
+        on e: Exception do
+          DbgOutputException(e);
+      end;
+
+      task.release;
+    end;
+
+    FPool.return(Self);
+  end;
+end;
+
+procedure TPoolThread.run(task: TRunnable);
+begin
+  InterlockedExchangePointer(Pointer(FRunnable), Pointer(task));
+  SetEvent(FExecSignal);
+end;
+
+{ TThreadPool }
+
+procedure TThreadPool.ClearTask;
+var
+  task: TRunnable;
+begin
+  while True do
+  begin
+    task := TRunnable(fTaskQueue.pop);
+
+    if Assigned(task) then
+      task.release
+    else
+      Break;
+  end;
+end;
+
+procedure TThreadPool.ClearThreads;
+begin
+  ReleaseThreads(0);
+end;
+
+constructor TThreadPool.Create;
+begin
+  inherited Create;
+  fTaskQueue := TFIFOQueue.Create;
+end;
+
+destructor TThreadPool.Destroy;
+begin
+  stop;
+  fTaskQueue.Free;
+  inherited;
+end;
+
+function TThreadPool.ExecProc(AProc: TProc): Boolean;
+begin
+  Result := Self.Execute(TDelegatedRunnable.Create(AProc));
+end;
+
+function TThreadPool.Execute(runnable: TRunnable; OverflowStrategy: TPoolOverflowStrategy): Boolean;
+var
+  thread: TPoolThread;
+begin
+  try
+    thread := GetIdleThread;
+  except
+    case OverflowStrategy of
+      posFreeTask:
+        runnable.release;
+      posEnQueue:
+        fTaskQueue.push(runnable);
+    end;
+
+    raise ;
+  end;
+
+  Result := Assigned(thread);
+
+  if Result then
+    thread.run(runnable)
+  else
+  begin
+    case OverflowStrategy of
+      posFreeTask:
+        runnable.release;
+      posEnQueue:
+        fTaskQueue.push(runnable);
+    end;
+  end;
+end;
+
+function TThreadPool.GetIdleThread: TPoolThread;
+var
+  thread: TPoolThread;
+  CreateNew: Boolean;
+begin
+  thread := nil;
+  CreateNew := False;
+
+  LockIdle;
+
+  try
+    if FIdleThreadCount > 0 then
+    begin
+      thread := FIdleThreads;
+      FIdleThreads := thread.FNext;
+      InterlockedDecrement(FIdleThreadCount);
+      InterlockedIncrement(FRunningThreadCount);
+    end
+    else if (FMaxThreadCount <= 0) or (ThreadCount < FMaxThreadCount) then
+    begin
+      InterlockedIncrement(FRunningThreadCount);
+      CreateNew := True;
+    end;
+  finally
+    UnlockIdle;
+  end;
+
+  if CreateNew then
+    thread := TPoolThread.Create(Self);
+
+  Result := thread;
+end;
+
+function TThreadPool.GetTaskCountInQueue: Integer;
+begin
+  Result := fTaskQueue.size;
+end;
+
+function TThreadPool.GetThreadCount: Integer;
+begin
+  Result := FRunningThreadCount + FIdleThreadCount;
+end;
+
+procedure TThreadPool.LockIdle;
+begin
+  while InterlockedExchange(FIdleThreadsLock, 1) = 1 do
+    ;
+end;
+
+procedure TThreadPool.ReleaseThreads(n: Integer);
+var
+  threads: TObjectList<TThread>;
+begin
+  LockIdle;
+  threads := TObjectList<TThread>.Create;
+  try
+    while Assigned(FIdleThreads) do
+    begin
+      threads.add(FIdleThreads);
+      FIdleThreads := FIdleThreads.FNext;
+    end;
+    FIdleThreadCount := 0;
+    StopAndWaitForThreads(threads);
+  finally
+    UnlockIdle;
+    threads.Free;
+  end;
+end;
+
+procedure TThreadPool.return(thread: TPoolThread);
+var
+  task: TRunnable;
+begin
+  InterlockedIncrement(fCompletedTaskCount);
+  task := TRunnable(fTaskQueue.pop);
+
+  if Assigned(task) then
+  begin
+{$IFDEF debug}
+    DbgOutput('ThreadPool: execute queued task( ' + task.ClassName + ' )');
+{$ENDIF}
+    thread.run(task);
+  end
+  else
+  begin
+    InterlockedDecrement(FRunningThreadCount);
+
+    if ((FMaxThreadCount <= 0) and (FReserveThreadCount > 0) and (ThreadCount > FReserveThreadCount)) or
+      ((FMaxThreadCount > 0) and (ThreadCount > FMaxThreadCount)) then
+    begin
+      thread.FreeOnTerminate := True;
+      thread.SendStopSignal;
+      thread.Terminate;
+    end
+    else
+    begin
+      LockIdle;
+      try
+        InterlockedIncrement(FIdleThreadCount);
+        thread.FNext := FIdleThreads;
+        FIdleThreads := thread;
+      finally
+        UnlockIdle;
+      end
+    end;
+  end;
+end;
+
+procedure TThreadPool.SetMaxThreadCount(const value: Integer);
+begin
+  FMaxThreadCount := value;
+end;
+
+procedure TThreadPool.SetReserveThreadCount(const value: Integer);
+begin
+  FReserveThreadCount := value;
+end;
+
+procedure TThreadPool.stop;
+begin
+  ClearTask;
+  ClearThreads;
+end;
+
+procedure TThreadPool.UnlockIdle;
+begin
+  InterlockedExchange(FIdleThreadsLock, 0);
 end;
 
 { TCircularList }
 
-procedure TCircularList.add(Item: Pointer);
+procedure TCircularList.add(item: Pointer);
 var
   i: Integer;
 begin
-  if fCount = fCapacity then
-    TList.Error(SListCapacityError, fCapacity)
-  else begin
-    i := (fFirst + fCount) mod fCapacity;
-    fList[i] := Item;
-    Inc(fCount);
-  end;
+  if FCount = FCapacity then
+    grow;
+
+  // TList.Error(SListCapacityError, FCapacity)
+
+  i := (FFirst + FCount) mod FCapacity;
+  FList[i] := item;
+  Inc(FCount);
 end;
 
 function TCircularList.add: Pointer;
 var
   i: Integer;
 begin
-  if fCount = fCapacity then
-    TList.Error(SListCapacityError, fCapacity);
+  if FCount = FCapacity then
+    grow;
+  // TList.Error(SListCapacityError, FCapacity);
 
-  i := (fFirst + fCount) mod fCapacity;
-  Inc(fCount);
-  Result := fList[i];
+  i := (FFirst + FCount) mod FCapacity;
+  Inc(FCount);
+  Result := FList[i];
+end;
+
+function TCircularList.CircularAdd(item: Pointer): Pointer;
+var
+  i: Integer;
+begin
+  if FCapacity = 0 then
+    grow;
+
+  if FCount = FCapacity then
+  begin
+    Result := FList[FFirst];
+    FList[FFirst] := item;
+    FFirst := (FFirst + 1) mod FCapacity;
+  end
+  else
+  begin
+    i := (FFirst + FCount) mod FCapacity;
+    Result := FList[i];
+    FList[i] := item;
+    Inc(FCount);
+  end;
+end;
+
+function TCircularList.CircularAdd: Pointer;
+var
+  i: Integer;
+begin
+  if FCapacity = 0 then
+    grow;
+
+  if FCount = FCapacity then
+  begin
+    Result := FList[FFirst];
+    FFirst := (FFirst + 1) mod FCapacity;
+  end
+  else
+  begin
+    i := (FFirst + FCount) mod FCapacity;
+    Result := FList[i];
+    Inc(FCount);
+  end;
 end;
 
 procedure TCircularList.clear;
 begin
-  fFirst := 0;
-  fCount := 0;
+  FFirst := 0;
+  FCount := 0;
+  SetLength(FList, 0);
 end;
 
 constructor TCircularList.Create(_capacity: Integer);
 begin
-  SetLength(fList, _capacity);
-  fCapacity := _capacity;
-  fCount := 0;
-  fFirst := 0;
+  SetLength(FList, _capacity);
+  FCapacity := _capacity;
+  FCount := 0;
+  FFirst := 0;
 end;
 
 procedure TCircularList.delete(Index: Integer);
 var
-  I, J, K: Integer;
+  i, j, k: Integer;
 begin
-  if (Index < 0) or (Index >= fCount) then
+  if (Index < 0) or (Index >= FCount) then
     TList.Error(SListIndexError, Index);
 
-  if Index = 0 then MoveHead(1)
-  else if Index < fCount - 1 then
+  if Index = 0 then
+    MoveHead(1)
+  else if Index < FCount - 1 then
   begin
-    I := fFirst + Index;
+    i := FFirst + Index;
 
-    if I >= fCapacity then
+    if i >= FCapacity then
     begin
-      J := I mod fCapacity;
-
-      K := (fFirst + fCount - 1) mod fCapacity;
-
-      Move(fList[J + 1], fList[J], (K - J) * SizeOf(Pointer));
+      j := i mod FCapacity;
+      k := (FFirst + FCount - 1) mod FCapacity;
+      Move(FList[j + 1], FList[j], (k - j) * SizeOf(Pointer));
+      Dec(FCount);
     end
-    else begin
-      for K := I - 1 downto fFirst do
-        fList[K + 1] := fList[K];
+    else
+    begin
+      for k := i - 1 downto FFirst do
+        FList[k + 1] := FList[k];
 
       MoveHead(1);
     end;
   end;
-
-  Dec(fCount);
 end;
 
 destructor TCircularList.Destroy;
 begin
-  SetLength(fList, 0);
+  SetLength(FList, 0);
   inherited;
 end;
 
 function TCircularList.GetItem(Index: Integer): Pointer;
 begin
-  if (Index < 0) or (Index >= fCount) then
+  if (Index < 0) or (Index >= FCount) then
     TList.Error(SListIndexError, Index);
 
-  Result := fList[(fFirst + Index) mod fCapacity];
+  Result := FList[(FFirst + Index) mod FCapacity];
+end;
+
+procedure TCircularList.grow;
+var
+  delta: Integer;
+begin
+  if FCapacity > 64 then
+    delta := FCapacity div 4
+  else if FCapacity > 8 then
+    delta := 16
+  else
+    delta := 4;
+  SetCapacity(FCapacity + delta);
 end;
 
 function TCircularList.GetInternalIndex(Index: Integer): Integer;
 begin
-  Result := (fFirst + index) mod fCapacity;
+  Result := (FFirst + index) mod FCapacity;
 end;
 
-function TCircularList.IndexOf(Item: Pointer): Integer;
+function TCircularList.IndexOf(item: Pointer): Integer;
 var
   i: Integer;
 begin
   Result := -1;
 
-  for i := 0 to fCount - 1 do
+  for i := 0 to FCount - 1 do
   begin
-    if fList[(fFirst + i) mod fCapacity] = Item then
+    if FList[(FFirst + i) mod FCapacity] = item then
     begin
       Result := i;
       Break;
@@ -7918,224 +19837,263 @@ end;
 
 procedure TCircularList.MoveHead(num: Integer);
 begin
-  if num <= fCount then
+  if num <= FCount then
   begin
-    fFirst := (fFirst + num) mod fCapacity;
-    Dec(fCount, num);
+    FFirst := (FFirst + num) mod FCapacity;
+    Dec(FCount, num);
 
-    if fCount = 0 then
-      fFirst := 0;
+    if FCount = 0 then
+      FFirst := 0;
   end;
 end;
 
-function TCircularList.remove(Item: Pointer): Integer;
+function TCircularList.remove(item: Pointer): Integer;
 begin
-  Result := Self.IndexOf(Item);
+  Result := Self.IndexOf(item);
 
   if Result >= 0 then
-    Self.Delete(Result);
+    Self.delete(Result);
 end;
 
-procedure TCircularList.SetCount(const Value: Integer);
+procedure TCircularList.SetCapacity(const value: Integer);
+var
+  NewList: TDynamicArray;
 begin
-  if Value > Capacity then Exit;
+  if (value < FCount) or (value > 1024 * 1024 * 1024) then
+    TList.Error(PResStringRec(@SListCapacityError), value);
 
-  fCount := Value;
+  if value <> FCapacity then
+  begin
+    SetLength(NewList, value);
+
+    if FFirst + FCount - 1 < FCapacity then
+      Move(FList[FFirst], NewList[0], FCount * SizeOf(Pointer))
+    else
+    begin
+      Move(FList[FFirst], NewList[0], (FCapacity - FFirst) * SizeOf(Pointer));
+      Move(FList[0], NewList[FCapacity - FFirst], (FFirst + FCount - FCapacity) * SizeOf(Pointer));
+    end;
+
+    FList := NewList;
+    FFirst := 0;
+    FCapacity := value;
+  end;
 end;
 
-procedure TCircularList.SetItem(Index: Integer; const Value: Pointer);
+procedure TCircularList.SetCount(const value: Integer);
 begin
-  if (Index < 0) or (Index >= fCount) then
+  if value > capacity then
+    Exit;
+  FCount := value;
+end;
+
+procedure TCircularList.SetItem(Index: Integer; const value: Pointer);
+begin
+  if (Index < 0) or (Index >= FCount) then
     TList.Error(SListIndexError, Index);
 
-  fList[(fFirst + Index) mod fCapacity] := Value;
+  FList[(FFirst + Index) mod FCapacity] := value;
 end;
 
 { TFIFOQueue }
 
 procedure TFIFOQueue.clear;
 var
-  node: PTLinkNode;
+  node: PLinkNode;
 begin
-  while InterlockedExchange(fLockState, 1) = 1 do;
+  FLock.acquire();
 
   try
-    while Assigned(fFirst) do
+    while Assigned(FFirst) do
     begin
-      node := fFirst;
-      fFirst := fFirst.next;
+      node := FFirst;
+      FFirst := FFirst.next;
       Dispose(node);
     end;
 
     fLast := nil;
     fSize := 0;
-       
+
   finally
-    InterlockedExchange(fLockState, 0);
+    FLock.release;
   end;
 end;
 
 constructor TFIFOQueue.Create;
 begin
-  fLockState := 0;
-  fFirst := nil;
+  FLock.init;
+  FFirst := nil;
   fLast := nil;
 end;
 
 destructor TFIFOQueue.Destroy;
 begin
   Self.clear;
+  FLock.cleanup;
   inherited;
+end;
+
+procedure TFIFOQueue.lock;
+begin
+  FLock.acquire();
 end;
 
 function TFIFOQueue.pop: Pointer;
 var
-  node: PTLinkNode;
+  node: PLinkNode;
 begin
-
-  while InterlockedExchange(fLockState, 1) = 1 do;
+  FLock.acquire();
 
   try
-    node := fFirst;
+    node := FFirst;
 
-    if Assigned(fFirst) then
+    if Assigned(FFirst) then
     begin
       Result := node.data;
 
-      fFirst := node.next;
+      FFirst := node.next;
 
-      if not Assigned(fFirst) then
+      if not Assigned(FFirst) then
         fLast := nil;
 
       Dec(fSize);
     end
-    else Result := nil;
+    else
+      Result := nil;
   finally
-    InterlockedExchange(fLockState, 0);
+    FLock.release;
   end;
 
-  if Assigned(node) then Dispose(node);
+  if Assigned(node) then
+    Dispose(node);
 end;
 
 procedure TFIFOQueue.push(item: Pointer);
 var
-  node: PTLinkNode;
+  node: PLinkNode;
 begin
   New(node);
   node.data := item;
   node.next := nil;
-
-  while InterlockedExchange(fLockState, 1) = 1 do;
-
+  FLock.acquire();
   try
-    if Assigned(fFirst) then
+    if Assigned(FFirst) then
     begin
       fLast.next := node;
       fLast := node;
     end
-    else begin
-      fFirst := node;
+    else
+    begin
+      FFirst := node;
       fLast := node;
     end;
 
     Inc(fSize);
   finally
-    InterlockedExchange(fLockState, 0);
+    FLock.release;
   end;
 end;
 
 procedure TFIFOQueue.PushFront(item: Pointer);
 var
-  node: PTLinkNode;
+  node: PLinkNode;
 begin
   New(node);
   node.data := item;
   node.next := nil;
 
-  while InterlockedExchange(fLockState, 1) = 1 do;
+  FLock.acquire();
 
   try
-    node.next := fFirst;
-    fFirst := node;
+    node.next := FFirst;
+    FFirst := node;
 
-    if not Assigned(node.next) then fLast := node;
+    if not Assigned(node.next) then
+      fLast := node;
 
     Inc(fSize);
   finally
-    InterlockedExchange(fLockState, 0);
+    FLock.release;
   end;
+end;
+
+procedure TFIFOQueue.unlock;
+begin
+  FLock.release;
 end;
 
 { TLIFOQueue }
 
 procedure TLIFOQueue.clear;
 var
-  node: PTLinkNode;
+  node: PLinkNode;
 begin
-  while InterlockedExchange(fLockState, 1) = 1 do;
+  FLock.acquire();
 
   try
-    while Assigned(fFirst) do
+    while Assigned(FFirst) do
     begin
-      node := fFirst;
-      fFirst := fFirst.next;
+      node := FFirst;
+      FFirst := FFirst.next;
       Dispose(node);
     end;
-       
+
   finally
-    InterlockedExchange(fLockState, 0);
+    FLock.release;
   end;
 end;
 
 constructor TLIFOQueue.Create;
 begin
-  fFirst := nil;
-  fLockState := 0;
+  FFirst := nil;
+  FLock.init();
 end;
 
 destructor TLIFOQueue.Destroy;
 begin
   Self.clear;
+  FLock.cleanup;
   inherited;
 end;
 
 function TLIFOQueue.pop: Pointer;
 var
-  node: PTLinkNode;
+  node: PLinkNode;
 begin
-  while InterlockedExchange(fLockState, 1) = 1 do;
+  FLock.acquire();
 
   try
-    node := fFirst;
+    node := FFirst;
 
-    if Assigned(fFirst) then
+    if Assigned(FFirst) then
     begin
-      fFirst := fFirst.next;
+      FFirst := FFirst.next;
       Result := node.data;
     end
-    else Result := nil;
-    
+    else
+      Result := nil;
+
   finally
-    InterlockedExchange(fLockState, 0);
+    FLock.release;
   end;
 
-  if Assigned(node) then Dispose(node);
+  if Assigned(node) then
+    Dispose(node);
 end;
 
 procedure TLIFOQueue.push(item: Pointer);
 var
-  node: PTLinkNode;
+  node: PLinkNode;
 begin
   New(node);
   node.data := item;
-
-  while InterlockedExchange(fLockState, 1) = 1 do;
+  FLock.acquire();
 
   try
-    node.next := fFirst;
-    fFirst := node;
+    node.next := FFirst;
+    FFirst := node;
   finally
-    InterlockedExchange(fLockState, 0);
+    FLock.release;
   end;
 end;
 
@@ -8145,8 +20103,8 @@ procedure TLogWritter.write(sev: TMessageLevel; const text: RawByteString);
 begin
   if sev in fVerbosity then
   begin
-    if mtServerity in options then 
-    begin 
+    if mtServerity in options then
+    begin
       WriteAnsi(SEVERITY_NAMESA[sev]);
       WriteAnsi(':: ')
     end;
@@ -8159,18 +20117,18 @@ begin
   end;
 end;
 
-procedure TLogWritter.write(sev: TMessageLevel; const text: UnicodeString);
+procedure TLogWritter.write(sev: TMessageLevel; const text: u16string);
 begin
   if sev in fVerbosity then
   begin
-    if mtServerity in options then 
-    begin 
+    if mtServerity in options then
+    begin
       WriteUnicode(SEVERITY_NAMESW[sev]);
       WriteAnsi(':: ')
     end;
     if mtTime in options then
     begin
-      WriteUnicode(UnicodeString(FormatDateTime(DateTimeFormat, Now)));
+      WriteUnicode(u16string(FormatDateTime(DateTimeFormat, Now)));
       WriteUnicode(' ');
     end;
     WriteUnicode(text);
@@ -8181,12 +20139,12 @@ procedure TLogWritter.Writeln(sev: TMessageLevel; const text: RawByteString);
 begin
   if sev in fVerbosity then
   begin
-    if mtServerity in options then 
-    begin 
+    if mtServerity in options then
+    begin
       WriteAnsi(SEVERITY_NAMESA[sev]);
       WriteAnsi(':: ')
     end;
-    
+
     if mtTime in options then
     begin
       WriteAnsi(RawByteString(FormatDateTime(DateTimeFormat, Now)));
@@ -8197,18 +20155,18 @@ begin
   end;
 end;
 
-procedure TLogWritter.Writeln(sev: TMessageLevel; const text: UnicodeString);
+procedure TLogWritter.Writeln(sev: TMessageLevel; const text: u16string);
 begin
   if sev in fVerbosity then
   begin
-    if mtServerity in options then 
-    begin 
+    if mtServerity in options then
+    begin
       WriteUnicode(SEVERITY_NAMESW[sev]);
       WriteAnsi(':: ');
     end;
     if mtTime in options then
     begin
-      WriteUnicode(UnicodeString(FormatDateTime(DateTimeFormat, Now)));
+      WriteUnicode(u16string(FormatDateTime(DateTimeFormat, Now)));
       WriteUnicode(' ');
     end;
     WriteUnicode(text);
@@ -8223,8 +20181,7 @@ begin
   fOptions := [mtServerity, mtTime];
 end;
 
-procedure TLogWritter.FormatWrite(sev: TMessageLevel; const fmt: RawByteString;
-  const args: array of const);
+procedure TLogWritter.FormatWrite(sev: TMessageLevel; const fmt: RawByteString; const args: array of const );
 begin
   Self.write(sev, RawByteString(Format(string(fmt), args)));
 end;
@@ -8234,8 +20191,7 @@ begin
 
 end;
 
-procedure TLogWritter.FormatWrite(sev: TMessageLevel; const fmt: UnicodeString;
-  const args: array of const);
+procedure TLogWritter.FormatWrite(sev: TMessageLevel; const fmt: u16string; const args: array of const );
 begin
   Self.write(sev, WideFormat(fmt, args));
 end;
@@ -8257,19 +20213,19 @@ end;
 
 { TFileLogWritter }
 
-constructor TFileLogWritter.Create(const fileName: string);
+constructor TFileLogWritter.Create(const FileName: string);
 begin
   inherited Create;
 
   fEncoding := teAnsi;
 
-  if not FileExists(fileName) then
+  if not FileExists(FileName) then
   begin
-    ForceDirectories(ExtractFilePath(fileName));
-    FileClose(FileCreate(fileName));
+    ForceDirectories(ExtractFilePath(FileName));
+    FileClose(FileCreate(FileName));
   end;
 
-  fFileStream := TFileStream.Create(fileName, fmOpenReadWrite or fmShareDenyWrite);
+  fFileStream := TFileStream.Create(FileName, fmOpenReadWrite or fmShareDenyWrite);
 
   fFileStream.Seek(0, soFromEnd);
 end;
@@ -8282,35 +20238,36 @@ end;
 
 procedure TFileLogWritter.flush;
 begin
-  Windows.FlushFileBuffers(fFileStream.Handle);
+  Windows.FlushFileBuffers(fFileStream.handle);
 end;
 
 function TFileLogWritter.GetFileSize: Integer;
 begin
-  Result := fFileStream.Size;
+  Result := fFileStream.size;
 end;
 
 procedure TFileLogWritter.WriteAnsi(const text: RawByteString);
 var
   utf8str: UTF8String;
-  utf16str: UnicodeString;
+  utf16str: u16string;
 begin
   case Encoding of
-    teAnsi: fFileStream.write(text[1], Length(text));
+    teAnsi:
+      fFileStream.write(text[1], length(text));
     teUTF8:
       begin
-        utf8str := UTF8EncodeUStr(UnicodeString(text));
-        fFileStream.write(utf8str[1], Length(utf8str));
+        utf8str := UTF8EncodeUStr(u16string(text));
+        fFileStream.write(utf8str[1], length(utf8str));
       end;
     teUTF16:
       begin
-        utf16str := UnicodeString(text);
-        fFileStream.write(utf16str[1], Length(utf16str) * 2);
+        utf16str := u16string(text);
+        fFileStream.write(utf16str[1], length(utf16str) * 2);
       end;
   end;
 end;
 
-procedure TFileLogWritter.WriteUnicode(const text: UnicodeString);
+procedure TFileLogWritter.WriteUnicode(const text: u16string);
 var
   ansistr: RawByteString;
   utf8str: UTF8String;
@@ -8319,14 +20276,15 @@ begin
     teAnsi:
       begin
         ansistr := RawByteString(text);
-        fFileStream.write(ansistr[1], Length(ansistr));
+        fFileStream.write(ansistr[1], length(ansistr));
       end;
     teUTF8:
       begin
-        utf8str := Utf8Encode(text);
-        fFileStream.write(utf8str[1], Length(utf8str));
+        utf8str := UTF8Encode(text);
+        fFileStream.write(utf8str[1], length(utf8str));
       end;
-    teUTF16: fFileStream.write(text[1], Length(text) * 2);
+    teUTF16:
+      fFileStream.write(text[1], length(text) * 2);
   end;
 end;
 
@@ -8337,7 +20295,7 @@ begin
   System.write(text);
 end;
 
-procedure TConsoleLogWritter.WriteUnicode(const text: UnicodeString);
+procedure TConsoleLogWritter.WriteUnicode(const text: u16string);
 begin
   System.write(text);
 end;
@@ -8349,7 +20307,7 @@ begin
   OutputDebugStringA(PAnsiChar(text));
 end;
 
-procedure TDebugLogWritter.WriteUnicode(const text: UnicodeString);
+procedure TDebugLogWritter.WriteUnicode(const text: u16string);
 begin
   OutputDebugStringW(PWideChar(text));
 end;
@@ -8364,8 +20322,8 @@ begin
   fOptions := [mtServerity, mtTime];
   fLogFileDir := dir;
   fLogSeparate := dtpDay;
-  
-  if fLogFileDir[Length(fLogFileDir)] <> '\' then
+
+  if fLogFileDir[length(fLogFileDir)] <> '\' then
     fLogFileDir := fLogFileDir + '\';
 end;
 
@@ -8377,44 +20335,53 @@ end;
 
 procedure TMultiFileLogWritter.flush;
 begin
-  fWritter.flush;  
+  fWritter.flush;
 end;
 
-procedure TMultiFileLogWritter.FormatWrite(sev: TMessageLevel;
-  const fmt: UnicodeString; const args: array of const);
+procedure TMultiFileLogWritter.FormatWrite(sev: TMessageLevel; const fmt: u16string; const args: array of const );
 begin
   Self.write(sev, WideFormat(fmt, args));
 end;
 
-procedure TMultiFileLogWritter.FormatWrite(sev: TMessageLevel;
-  const fmt: RawByteString; const args: array of const);
+procedure TMultiFileLogWritter.FormatWrite(sev: TMessageLevel; const fmt: RawByteString; const args: array of const );
 begin
   Self.write(sev, RawByteString(Format(string(fmt), args)));
 end;
 
-procedure TMultiFileLogWritter.CreateFileTracer(Tick: TDateTime);
+procedure TMultiFileLogWritter.CreateFileTracer(tick: TDateTime);
 var
   FileName: string;
   Changed: Boolean;
 begin
-  if fWritter = nil then Changed := True
-  else begin
+  if fWritter = nil then
+    Changed := True
+  else
+  begin
     case fLogSeparate of
-      dtpYear: Changed := not SameYear(fLastLogTime, Tick);
-      dtpMonth: Changed := not SameMonth(fLastLogTime, Tick);
-      dtpDay: Changed := not SameDay(fLastLogTime, Tick);
-      else Changed := not SameHour(fLastLogTime, Tick);
+      dtpYear:
+        Changed := not SameYear(fLastLogTime, tick);
+      dtpMonth:
+        Changed := not SameMonth(fLastLogTime, tick);
+      dtpDay:
+        Changed := not SameDay(fLastLogTime, tick);
+    else
+      Changed := not SameHour(fLastLogTime, tick);
     end;
   end;
 
-  if not Changed then Exit;
+  if not Changed then
+    Exit;
 
-  fLastLogTime := Tick;
+  fLastLogTime := tick;
   case LogSeparate of
-    dtpYear:FileName := fLogFileDir + FormatDateTime('yyyy', Tick) + '.log';
-    dtpMonth:FileName := fLogFileDir + FormatDateTime('yyyymm', Tick) + '.log';
-    dtpDay:FileName := fLogFileDir + FormatDateTime('yyyymmdd', Tick) + '.log';
-    else FileName := fLogFileDir + FormatDateTime('yyyymmddhh', Tick) + '.log';
+    dtpYear:
+      FileName := fLogFileDir + FormatDateTime('yyyy', tick) + '.log';
+    dtpMonth:
+      FileName := fLogFileDir + FormatDateTime('yyyymm', tick) + '.log';
+    dtpDay:
+      FileName := fLogFileDir + FormatDateTime('yyyymmdd', tick) + '.log';
+  else
+    FileName := fLogFileDir + FormatDateTime('yyyymmddhh', tick) + '.log';
   end;
 
   fWritter := TFileLogWritter.Create(FileName);
@@ -8424,86 +20391,84 @@ begin
   fWritter.Verbosity := severity;
 end;
 
-procedure TMultiFileLogWritter.SetDateTimeFormat(const Value: string);
+procedure TMultiFileLogWritter.SetDateTimeFormat(const value: string);
 begin
-  DateTimeFormat := Value;
-  if fWritter <> nil then fWritter.DateTimeFormat := Value;
+  DateTimeFormat := value;
+  if fWritter <> nil then
+    fWritter.DateTimeFormat := value;
 end;
 
-procedure TMultiFileLogWritter.SetOptions(const Value: TMessageTags);
+procedure TMultiFileLogWritter.SetOptions(const value: TMessageTags);
 begin
-  options := Value;
-  if fWritter <> nil then fWritter.options := Value;
+  options := value;
+  if fWritter <> nil then
+    fWritter.options := value;
 end;
 
-procedure TMultiFileLogWritter.SetVerbosity(const Value: TMessageVerbosity);
+procedure TMultiFileLogWritter.SetVerbosity(const value: TMessageVerbosity);
 begin
-  severity := Value;
-  if fWritter <> nil then fWritter.Verbosity := Value;
+  severity := value;
+  if fWritter <> nil then
+    fWritter.Verbosity := value;
 end;
 
-procedure TMultiFileLogWritter.write(sev: TMessageLevel;
-  const Text: UnicodeString);
+procedure TMultiFileLogWritter.write(sev: TMessageLevel; const text: u16string);
 begin
   CreateFileTracer(Now);
-  fWritter.write(sev, Text);
+  fWritter.write(sev, text);
 end;
 
-procedure TMultiFileLogWritter.Writeln(sev: TMessageLevel; const Text: RawByteString);
+procedure TMultiFileLogWritter.Writeln(sev: TMessageLevel; const text: RawByteString);
 begin
   CreateFileTracer(Now);
-  fWritter.Writeln(sev, Text);
+  fWritter.Writeln(sev, text);
 end;
 
-procedure TMultiFileLogWritter.Writeln(sev: TMessageLevel; const Text: UnicodeString);
+procedure TMultiFileLogWritter.Writeln(sev: TMessageLevel; const text: u16string);
 begin
   CreateFileTracer(Now);
-  fWritter.Writeln(sev, Text);
+  fWritter.Writeln(sev, text);
 end;
 
-procedure TMultiFileLogWritter.write(sev: TMessageLevel;
-  const Text: RawByteString);
+procedure TMultiFileLogWritter.write(sev: TMessageLevel; const text: RawByteString);
 begin
   CreateFileTracer(Now);
-  fWritter.write(sev, Text);
+  fWritter.write(sev, text);
 end;
 
 { TDelayRunnableQueue }
 
 procedure TDelayRunnableQueue.clear;
 var
-  tmp: PDslDelayRunnable;
+  tmp: PDelayRunnable;
 begin
-  EnterCriticalSection(fLock);
+  while InterlockedExchange(fLockState, 1) = 1 do
+    ;
 
   try
     while Assigned(fFirstTask) do
     begin
       tmp := fFirstTask;
       fFirstTask := fFirstTask.next;
-      tmp.task.Release;
+      tmp.task.release;
       Dispose(tmp);
     end;
 
     fFirstTask := nil;
     fSize := 0;
   finally
-    LeaveCriticalSection(fLock);
+    InterlockedExchange(fLockState, 0)
   end;
-end;
-
-constructor TDelayRunnableQueue.Create;
-begin
-  InitializeCriticalSection(fLock);
 end;
 
 function TDelayRunnableQueue.pop(var delay: DWORD): TRunnable;
 var
-  node: PDslDelayRunnable;
+  node: PDelayRunnable;
   dt: TDateTime;
   flag: Boolean;
 begin
-  EnterCriticalSection(fLock);
+  while InterlockedExchange(fLockState, 1) = 1 do
+    ;
 
   flag := False;
 
@@ -8515,24 +20480,26 @@ begin
       delay := INFINITE;
       Result := nil;
     end
-    else begin
+    else
+    begin
       dt := Now;
 
       if node.runtime <= dt then
       begin
         Result := node.task;
-        FFirstTask := node.next;
+        fFirstTask := node.next;
         Dec(fSize);
         flag := True;
       end
-      else begin
+      else
+      begin
         delay := MilliSecondsBetween(dt, node.runtime);
         Result := nil;
       end;
     end;
 
   finally
-    LeaveCriticalSection(fLock);
+    InterlockedExchange(fLockState, 0);
   end;
 
   if flag then
@@ -8542,7 +20509,6 @@ end;
 destructor TDelayRunnableQueue.Destroy;
 begin
   Self.clear;
-  DeleteCriticalSection(fLock);
   inherited;
 end;
 
@@ -8556,13 +20522,15 @@ end;
 
 function TDelayRunnableQueue.push(task: TRunnable; runtime: TDateTime): Boolean;
 var
-  n1, n2, node: PDslDelayRunnable;
+  n1, n2, node: PDelayRunnable;
 begin
   New(node);
   node.task := task;
-  node.Runtime := Runtime;
+  node.runtime := runtime;
 
-  EnterCriticalSection(fLock);
+  while InterlockedExchange(fLockState, 1) = 1 do
+    ;
+
   try
     n1 := nil;
     n2 := fFirstTask;
@@ -8575,16 +20543,16 @@ begin
 
     node.next := n2;
 
-    if Assigned(n1) then n1.next := node
-    else begin
+    if Assigned(n1) then
+      n1.next := node
+    else
       fFirstTask := node;
-    end;
 
     Inc(fSize);
 
     Result := True;
   finally
-    LeaveCriticalSection(fLock);
+    InterlockedExchange(fLockState, 0)
   end;
 end;
 
@@ -8606,23 +20574,23 @@ begin
   Result := fInstance;
 end;
 
-procedure SwapCodePage(First, Second: PCodePage);
+procedure SwapCodePage(first, second: Pointer);
 var
   Temp: TCodePageInfo;
 begin
-  Temp := First^;
-  First^ := Second^;
-  Second^ := Temp;
+  Temp := PCodePageInfo(first)^;
+  PCodePageInfo(first)^ := PCodePageInfo(second)^;
+  PCodePageInfo(second)^ := Temp;
 end;
 
-function CompareCodePageByName(First, Second: PCodePage): Integer;
+function CompareCodePageByName(first, second: PCodePageInfo): Integer;
 begin
-  Result := CompareCodePageName(First^.Name, Second^.Name);
+  Result := AsciiICompare(first^.Name, second^.Name);
 end;
 
-function CompareCodePageByID(First, Second: PCodePage): Integer;
+function CompareCodePageByID(first, second: PCodePageInfo): Integer;
 begin
-  Result := First^.ID - Second^.ID;
+  Result := first^.ID - second^.ID;
 end;
 
 { TThreadFileStream }
@@ -8630,39 +20598,2613 @@ end;
 constructor TThreadFileStream.Create(const AFileName: string; Mode: Word);
 begin
   inherited;
-  fLock := TCriticalSection.Create;
+  FLock := TCriticalSection.Create;
 end;
 
 constructor TThreadFileStream.Create(const AFileName: string; Mode: Word; Rights: Cardinal);
 begin
   inherited;
-  fLock := TCriticalSection.Create;
+  FLock := TCriticalSection.Create;
 end;
 
 destructor TThreadFileStream.Destroy;
 begin
-  fLock.Free;
+  FLock.Free;
   inherited;
 end;
 
 procedure TThreadFileStream.lock;
 begin
-  fLock.Enter;
+  FLock.Enter;
 end;
 
 procedure TThreadFileStream.unlock;
 begin
-  fLock.Leave;
+  FLock.Leave;
+end;
+
+{ TVersion }
+
+function TVersion.compare(Other: TVersion): Integer;
+begin
+  if Self.Major > Other.Major then
+  begin
+    Result := 1;
+    Exit;
+  end;
+  if Self.Major < Other.Major then
+  begin
+    Result := -1;
+    Exit;
+  end;
+
+  if Self.Minor > Other.Minor then
+  begin
+    Result := 1;
+    Exit;
+  end;
+  if Self.Minor < Other.Minor then
+  begin
+    Result := -1;
+    Exit;
+  end;
+
+  if Self.release > Other.release then
+  begin
+    Result := 1;
+    Exit;
+  end;
+  if Self.release < Other.release then
+  begin
+    Result := -1;
+    Exit;
+  end;
+
+  if Self.Build > Other.Build then
+  begin
+    Result := 1;
+    Exit;
+  end;
+  if Self.Build < Other.Build then
+  begin
+    Result := -1;
+    Exit;
+  end;
+
+  Result := 0;
+end;
+
+function TVersion.toString: string;
+begin
+  Result := Format('%d.%d.%d.%d', [Major, Minor, release, Build]);
+end;
+
+type
+  TLanguageAndCodePage = packed record
+    language: Word;
+    CodePage: Word;
+  end;
+
+  PLanguageAndCodePage = ^TLanguageAndCodePage;
+
+  { TFileVersionInfo }
+
+constructor TFileVersionInfo.Create(const FileName: string);
+var
+  cbSize, handle: DWORD;
+begin
+  FProductVersion := Null;
+  FBuildString := Null;
+  FCompanyName := Null;
+  FProductName := Null;
+  FFixedInfo := Null;
+  FVersion := TVersion.Create;
+  cbSize := GetFileVersionInfoSize(PChar(FileName), handle);
+  if cbSize <= 0 then
+    RaiseLastOSError;
+  VersionBlock := System.GetMemory(cbSize);
+  if not GetFileVersionInfo(PChar(FileName), handle, cbSize, VersionBlock) then
+    RaiseLastOSError;
+  GetFixedInfo;
+end;
+
+destructor TFileVersionInfo.Destroy;
+begin
+  if Assigned(VersionBlock) then
+    System.FreeMemory(VersionBlock);
+  if Assigned(FVersion) then
+    FVersion.Free;
+  inherited;
+end;
+
+function TFileVersionInfo.GetCompanyName: string;
+begin
+  if VarIsNull(FCompanyName) then
+    FCompanyName := GetStringInfo('CompanyName');
+  Result := FCompanyName;
+end;
+
+procedure TFileVersionInfo.GetFixedInfo;
+var
+  fixedInfo: PVSFixedFileInfo;
+  cbSize: DWORD;
+begin
+  if VarIsNull(FFixedInfo) then
+  begin
+    if VerQueryValue(VersionBlock, '\', Pointer(fixedInfo), cbSize) then
+    begin
+      FFixedInfo := Integer(fixedInfo);
+      FVersion.Major := fixedInfo.dwFileVersionMS shr 16;
+      FVersion.Minor := fixedInfo.dwFileVersionMS and $FFFF;
+      FVersion.release := fixedInfo.dwFileVersionLS shr 16;
+      FVersion.Build := fixedInfo.dwFileVersionLS and $FFFF;
+    end
+    else
+      FFixedInfo := Integer(nil);
+  end;
+end;
+
+function TFileVersionInfo.GetProductName: string;
+begin
+  if VarIsNull(FProductName) then
+    FProductName := GetStringInfo('ProductName');
+  Result := FProductName;
+end;
+
+function TFileVersionInfo.GetProductVersion: string;
+begin
+  if VarIsNull(FProductVersion) then
+  begin
+    if FFixedInfo <> 0 then
+      with PVSFixedFileInfo(Integer(FFixedInfo))^ do
+      begin
+        FProductVersion := Format('%d.%d.%d.%d', [dwProductVersionMS shr 16, dwProductVersionMS and $FFFF,
+          dwProductVersionLS shr 16, dwProductVersionLS and $FFFF]);
+      end
+      else
+        FProductVersion := '';
+  end;
+
+  Result := FProductVersion;
+end;
+
+function TFileVersionInfo.GetStringInfo(const name: string): string;
+var
+  subblock: string;
+  Buffer: PChar;
+  cbSize: DWORD;
+  i: Integer;
+  transition: PLanguageAndCodePage;
+begin
+  Result := '';
+  if not VerQueryValue(VersionBlock, '\VarFileInfo\Translation', Pointer(transition), cbSize) then
+    Exit;
+  for i := 0 to cbSize div SizeOf(TLanguageAndCodePage) - 1 do
+  begin
+    subblock := Format('StringFileInfo\%.4x%.4x\%s', [transition.language, transition.CodePage, name]);
+    if VerQueryValue(VersionBlock, PChar(subblock), Pointer(Buffer), cbSize) then
+    begin
+      Result := StrPas(Buffer);
+      Break;
+    end;
+  end;
+end;
+
+{ TWebOperationResult }
+
+procedure TWebOperationResult.init;
+begin
+  code := orUnknown;
+  online := True;
+  errmsg := '';
+  ResponseText := '';
+end;
+
+{ TAnsiCharSection }
+
+function TAnsiCharSection.beginWith(const prefix: TAnsiCharSection): Boolean;
+begin
+  if (Self.length = 0) or (prefix.length = 0) then
+    Result := False
+  else
+    Result := BeginWithA(_begin, Self.length, prefix._begin, prefix.length);
+end;
+
+function TAnsiCharSection.compare(const another: RawByteString; CaseSensitive: Boolean): Integer;
+begin
+  Result := Self.compare(TAnsiCharSection.Create(another), CaseSensitive);
+end;
+
+function TAnsiCharSection.compare(const another: TAnsiCharSection; CaseSensitive: Boolean): Integer;
+begin
+  if Self.IsEmpty then
+  begin
+    if another.IsEmpty then
+      Result := 0
+    else
+      Result := -1;
+  end
+  else
+  begin
+    if another.IsEmpty then
+      Result := 1
+    else
+      Result := StrCompareA(_begin, Self.length, another._begin, another.length, CaseSensitive);
+  end;
+end;
+
+constructor TAnsiCharSection.Create(const s: RawByteString; first, last: Integer);
+begin
+  SetStr(s, first, last);
+end;
+
+function TAnsiCharSection.endWith(const prefix: TAnsiCharSection): Boolean;
+begin
+  if (Self.length = 0) or (prefix.length = 0) then
+    Result := False
+  else
+    Result := EndWithA(_begin, Self.length, prefix._begin, prefix.length);
+end;
+
+function TAnsiCharSection.GetSectionBetween(const prefix, suffix: TAnsiCharSection;
+  flags: TStringSearchFlags): TAnsiCharSection;
+var
+  L, PrefixLen, suffixLen: Integer;
+  SectionBegin, SectionEnd: PAnsiChar;
+begin
+  Result.SetEmpty;
+  L := Self.length;
+  PrefixLen := prefix.length;
+  suffixLen := suffix.length;
+
+  if L > 0 then
+  begin
+    if ssfReverse in flags then
+    begin
+      if suffixLen = 0 then
+        SectionEnd := Self._end
+      else if ssfCaseSensitive in flags then
+        SectionEnd := StrRPosA(suffix._begin, suffixLen, Self._begin, L)
+      else
+        SectionEnd := StrRIPosA(suffix._begin, suffixLen, Self._begin, L);
+
+      if Assigned(SectionEnd) then
+      begin
+        if PrefixLen = 0 then
+          SectionBegin := Self._begin
+        else if ssfCaseSensitive in flags then
+          SectionBegin := StrRPosA(prefix._begin, PrefixLen, Self._begin, SectionEnd - Self._begin)
+        else
+          SectionBegin := StrRIPosA(prefix._begin, PrefixLen, Self._begin, SectionEnd - Self._begin);
+
+        if Assigned(SectionBegin) then
+        begin
+          if not(ssfIncludePrefix in flags) then
+            Inc(SectionBegin, PrefixLen);
+
+          if ssfIncludeSuffix in flags then
+            Inc(SectionEnd, suffixLen);
+
+          Result._begin := SectionBegin;
+          Result._end := SectionEnd;
+        end;
+      end;
+    end
+    else
+    begin
+      if PrefixLen = 0 then
+        SectionBegin := Self._begin
+      else if ssfCaseSensitive in flags then
+        SectionBegin := StrPosA(prefix._begin, PrefixLen, Self._begin, L)
+      else
+        SectionBegin := StrIPosA(prefix._begin, PrefixLen, Self._begin, L);
+
+      if Assigned(SectionBegin) then
+      begin
+        Inc(SectionBegin, PrefixLen);
+
+        if suffixLen = 0 then
+          SectionEnd := Self._end
+        else if ssfCaseSensitive in flags then
+          SectionEnd := StrPosA(suffix._begin, suffixLen, SectionBegin, Self._end - SectionBegin)
+        else
+          SectionEnd := StrIPosA(suffix._begin, suffixLen, SectionBegin, Self._end - SectionBegin);
+
+        if Assigned(SectionEnd) then
+        begin
+          if ssfIncludePrefix in flags then
+            Dec(SectionBegin, PrefixLen);
+
+          if ssfIncludeSuffix in flags then
+            Inc(SectionEnd, suffixLen);
+
+          Result._begin := SectionBegin;
+          Result._end := SectionEnd;
+        end;
+      end;
+    end;
+  end;
+end;
+
+function TAnsiCharSection.GetSectionBetween2(const prefix: TAnsiCharSection; const suffix: array of AnsiChar;
+  EndingNoSuffix: Boolean; flags: TStringSearchFlags): TAnsiCharSection;
+var
+  i, L, PrefixLen: Integer;
+  SectionBegin, SectionEnd: PAnsiChar;
+  found: Boolean;
+begin
+  Result.SetEmpty;
+  L := Self.length;
+  PrefixLen := prefix.length;
+
+  if L > 0 then
+  begin
+    if PrefixLen = 0 then
+      SectionBegin := Self._begin
+    else if ssfCaseSensitive in flags then
+      SectionBegin := StrPosA(prefix._begin, PrefixLen, Self._begin, L)
+    else
+      SectionBegin := StrIPosA(prefix._begin, PrefixLen, Self._begin, L);
+
+    if Assigned(SectionBegin) then
+    begin
+      Inc(SectionBegin, PrefixLen);
+
+      if System.length(suffix) = 0 then
+      begin
+        SectionEnd := Self._end;
+        EndingNoSuffix := True;
+      end
+      else
+      begin
+        found := False;
+        SectionEnd := SectionBegin;
+
+        while SectionEnd < Self._end do
+        begin
+          for i := Low(suffix) to high(suffix) do
+          begin
+            if SectionEnd^ = suffix[i] then
+            begin
+              found := True;
+              Break;
+            end;
+          end;
+
+          if found then
+            Break;
+
+          Inc(SectionEnd);
+        end;
+      end;
+
+      (*
+        在字符串结尾允许不带suffix。比如prefix为'ab', suffix为[';', ',']时，
+        从'abcde;123'、'abcde'、'abcde,123'三个src中都能提取出'cde'
+        *)
+      if (SectionEnd < Self._end) or EndingNoSuffix then
+      begin
+        if ssfIncludePrefix in flags then
+          Dec(SectionBegin, PrefixLen);
+
+        if (ssfIncludeSuffix in flags) and (SectionEnd < Self._end) then
+          Inc(SectionEnd);
+
+        Result._begin := SectionBegin;
+        Result._end := SectionEnd;
+      end;
+    end;
+  end;
+end;
+
+function TAnsiCharSection.iBeginWith(const prefix: TAnsiCharSection): Boolean;
+begin
+  if (Self.length = 0) or (prefix.length = 0) then
+    Result := False
+  else
+    Result := IBeginWithA(_begin, Self.length, prefix._begin, prefix.length);
+end;
+
+function TAnsiCharSection.iEndWith(const prefix: TAnsiCharSection): Boolean;
+begin
+  if (Self.length = 0) or (prefix.length = 0) then
+    Result := False
+  else
+    Result := IEndWithA(_begin, Self.length, prefix._begin, prefix.length);
+end;
+
+function TAnsiCharSection.ipos(substr: TAnsiCharSection): PAnsiChar;
+begin
+  Result := StrIPosA(substr._begin, substr._end - substr._begin, _begin, _end - _begin);
+end;
+
+function TAnsiCharSection.IsEmpty: Boolean;
+begin
+  Result := Self.length = 0;
+end;
+
+function TAnsiCharSection.IsValid: Boolean;
+begin
+  Result := _end >= _begin;
+end;
+
+function TAnsiCharSection.length: Integer;
+begin
+  Result := _end - _begin;
+
+  if Result < 0 then
+    Result := 0;
+end;
+
+function TAnsiCharSection.pos(substr: TAnsiCharSection): PAnsiChar;
+begin
+  Result := StrPosA(substr._begin, substr._end - substr._begin, _begin, _end - _begin);
+end;
+
+function TAnsiCharSection.ripos(substr: TAnsiCharSection): PAnsiChar;
+begin
+  Result := StrRIPosA(substr._begin, substr._end - substr._begin, _begin, _end - _begin);
+end;
+
+function TAnsiCharSection.rpos(substr: TAnsiCharSection): PAnsiChar;
+begin
+  Result := StrRPosA(substr._begin, substr._end - substr._begin, _begin, _end - _begin);
+end;
+
+procedure TAnsiCharSection.SetEmpty;
+begin
+  Self._begin := nil;
+  Self._end := nil;
+end;
+
+procedure TAnsiCharSection.SetInvalid;
+begin
+  Self._begin := PAnsiChar(1);
+  Self._end := nil;
+end;
+
+procedure TAnsiCharSection.SetStr(const s: RawByteString; first, last: Integer);
+begin
+  if s = '' then
+    Self.SetEmpty
+  else
+  begin
+    Self._begin := PAnsiChar(s) + first - 1;
+    if (last <= 0) or (last > System.length(s)) then
+      last := System.length(s) + 1;
+    Self._end := PAnsiChar(s) + last - 1;
+  end;
+end;
+
+function TAnsiCharSection.ToFloat: Double;
+var
+  L: Integer;
+  c: PAnsiChar;
+begin
+  L := Self.length;
+  if L <= 0 then
+    Result := 0
+  else
+    Result := BufToFloatA(_begin, L, @c);
+end;
+
+function TAnsiCharSection.ToInt: Integer;
+var
+  L: Integer;
+  c: PAnsiChar;
+begin
+  L := Self.length;
+  if L <= 0 then
+    Result := 0
+  else
+    Result := BufToIntA(_begin, L, @c);
+end;
+
+function TAnsiCharSection.ToInt64: Int64;
+var
+  L: Integer;
+  c: PAnsiChar;
+begin
+  L := Self.length;
+  if L <= 0 then
+    Result := 0
+  else
+    Result := BufToInt64A(_begin, L, @c);
+end;
+
+function TAnsiCharSection.toString: RawByteString;
+var
+  L: Integer;
+begin
+  L := Self.length;
+
+  SetLength(Result, L);
+
+  if L > 0 then
+    Move(_begin^, Pointer(Result)^, _end - _begin);
+end;
+
+function TAnsiCharSection.trim: PAnsiCharSection;
+var
+  tmp: PAnsiChar;
+begin
+  if not IsEmpty and IsValid then
+  begin
+    while (_begin < _end) and (_begin^ <= #32) do
+      Inc(_begin);
+    tmp := _end - 1;
+    while (tmp >= _begin) and (tmp^ <= #32) do
+      Dec(tmp);
+    _end := tmp + 1;
+  end;
+
+  Result := @Self;
+end;
+
+function TAnsiCharSection.TrimLeft: PAnsiCharSection;
+begin
+  if not IsEmpty and IsValid then
+    while (_begin < _end) and (_begin^ <= #32) do
+      Inc(_begin);
+
+  Result := @Self;
+end;
+
+function TAnsiCharSection.TrimRight: PAnsiCharSection;
+var
+  tmp: PAnsiChar;
+begin
+  if not IsEmpty and IsValid then
+  begin
+    tmp := _end - 1;
+    while (tmp >= _begin) and (tmp^ <= #32) do
+      Dec(tmp);
+    _end := tmp + 1;
+  end;
+  Result := @Self;
+end;
+
+function TAnsiCharSection.TryToFloat(var value: Double): Boolean;
+var
+  tmp: Double;
+  L: Integer;
+  c: PAnsiChar;
+begin
+  L := Self.length;
+
+  if L <= 0 then
+    Result := False
+  else
+  begin
+    tmp := BufToFloatA(_begin, L, @c);
+
+    if Assigned(c) then
+      Result := False
+    else
+    begin
+      value := tmp;
+      Result := True;
+    end;
+  end;
+end;
+
+function TAnsiCharSection.TryToInt(var value: Integer): Boolean;
+var
+  L, tmp: Integer;
+  c: PAnsiChar;
+begin
+  L := Self.length;
+
+  if L <= 0 then
+    Result := False
+  else
+  begin
+    tmp := BufToIntA(_begin, L, @c);
+
+    if Assigned(c) then
+      Result := False
+    else
+    begin
+      value := tmp;
+      Result := True;
+    end;
+  end;
+end;
+
+function TAnsiCharSection.TryToInt64(var value: Int64): Boolean;
+var
+  tmp: Int64;
+  L: Integer;
+  c: PAnsiChar;
+begin
+  L := Self.length;
+
+  if L <= 0 then
+    Result := False
+  else
+  begin
+    tmp := BufToInt64A(_begin, L, @c);
+
+    if Assigned(c) then
+      Result := False
+    else
+    begin
+      value := tmp;
+      Result := True;
+    end;
+  end;
+end;
+
+{ TWideCharSection }
+
+constructor TWideCharSection.Create(const s: u16string; first, last: Integer);
+begin
+  SetUStr(s, first, last);
+end;
+
+constructor TWideCharSection.Create(const s: WideString; first, last: Integer);
+begin
+  SetBStr(s, first, last);
+end;
+
+function TWideCharSection.compare(const another: TWideCharSection; CaseSensitive: Boolean): Integer;
+begin
+  if Self.IsEmpty then
+  begin
+    if another.IsEmpty then
+      Result := 0
+    else
+      Result := -1;
+  end
+  else
+  begin
+    if another.IsEmpty then
+      Result := 1
+    else
+      Result := StrCompareW(_begin, Self.length, another._begin, another.length, CaseSensitive);
+  end;
+end;
+
+function TWideCharSection.beginWith(const prefix: TWideCharSection): Boolean;
+begin
+  if (Self.length = 0) or (prefix.length = 0) then
+    Result := False
+  else
+    Result := BeginWithW(_begin, Self.length, prefix._begin, prefix.length);
+end;
+
+function TWideCharSection.compare(const another: u16string; CaseSensitive: Boolean): Integer;
+begin
+  Result := Self.compare(TWideCharSection.Create(another), CaseSensitive);
+end;
+
+function TWideCharSection.ExtractXmlCDATA: PWideCharSection;
+const
+  SCDATABeginTag: u16string = '<![CDATA[';
+  SCDATAEndTag: u16string = ']]>';
+begin
+  // <![CDATA[2001]]>
+
+  if (Self.length >= 12) and IBeginWithW(Self._begin, Self.length, PWideChar(SCDATABeginTag),
+    System.length(SCDATABeginTag)) and IEndWithW(Self._begin, Self.length, PWideChar(SCDATAEndTag),
+    System.length(SCDATAEndTag)) then
+  begin
+    Inc(Self._begin, 9);
+    Dec(Self._end, 3);
+  end;
+
+  Result := @Self;
+end;
+
+function TWideCharSection.GetSectionBetween(const prefix, suffix: TWideCharSection;
+  flags: TStringSearchFlags): TWideCharSection;
+var
+  L, PrefixLen, suffixLen: Integer;
+  SectionBegin, SectionEnd: PWideChar;
+begin
+  Result.SetEmpty;
+  L := Self.length;
+  PrefixLen := prefix.length;
+  suffixLen := suffix.length;
+
+  if L > 0 then
+  begin
+    if ssfReverse in flags then
+    begin
+      if suffixLen = 0 then
+        SectionEnd := Self._end
+      else if ssfCaseSensitive in flags then
+        SectionEnd := StrRPosW(suffix._begin, suffixLen, Self._begin, L)
+      else
+        SectionEnd := StrRIPosW(suffix._begin, suffixLen, Self._begin, L);
+
+      if Assigned(SectionEnd) then
+      begin
+        if PrefixLen = 0 then
+          SectionBegin := Self._begin
+        else if ssfCaseSensitive in flags then
+          SectionBegin := StrRPosW(prefix._begin, PrefixLen, Self._begin, SectionEnd - Self._begin)
+        else
+          SectionBegin := StrRIPosW(prefix._begin, PrefixLen, Self._begin, SectionEnd - Self._begin);
+
+        if Assigned(SectionBegin) then
+        begin
+          if not(ssfIncludePrefix in flags) then
+            Inc(SectionBegin, PrefixLen);
+
+          if ssfIncludeSuffix in flags then
+            Inc(SectionEnd, suffixLen);
+
+          Result._begin := SectionBegin;
+          Result._end := SectionEnd;
+        end;
+      end;
+    end
+    else
+    begin
+      if PrefixLen = 0 then
+        SectionBegin := Self._begin
+      else if ssfCaseSensitive in flags then
+        SectionBegin := StrPosW(prefix._begin, PrefixLen, Self._begin, L)
+      else
+        SectionBegin := StrIPosW(prefix._begin, PrefixLen, Self._begin, L);
+
+      if Assigned(SectionBegin) then
+      begin
+        Inc(SectionBegin, PrefixLen);
+
+        if suffixLen = 0 then
+          SectionEnd := Self._end
+        else if ssfCaseSensitive in flags then
+          SectionEnd := StrPosW(suffix._begin, suffixLen, SectionBegin, Self._end - SectionBegin)
+        else
+          SectionEnd := StrIPosW(suffix._begin, suffixLen, SectionBegin, Self._end - SectionBegin);
+
+        if Assigned(SectionEnd) then
+        begin
+          if ssfIncludePrefix in flags then
+            Dec(SectionBegin, PrefixLen);
+
+          if ssfIncludeSuffix in flags then
+            Inc(SectionEnd, suffixLen);
+
+          Result._begin := SectionBegin;
+          Result._end := SectionEnd;
+        end;
+      end;
+    end;
+  end;
+end;
+
+function TWideCharSection.GetSectionBetween2(const prefix: TWideCharSection; const suffix: array of WideChar;
+  EndingNoSuffix: Boolean; flags: TStringSearchFlags): TWideCharSection;
+var
+  i, L, PrefixLen: Integer;
+  SectionBegin, SectionEnd: PWideChar;
+  found: Boolean;
+begin
+  Result.SetEmpty;
+  L := Self.length;
+  PrefixLen := prefix.length;
+
+  if L > 0 then
+  begin
+    if PrefixLen = 0 then
+      SectionBegin := Self._begin
+    else if ssfCaseSensitive in flags then
+      SectionBegin := StrPosW(prefix._begin, PrefixLen, Self._begin, L)
+    else
+      SectionBegin := StrIPosW(prefix._begin, PrefixLen, Self._begin, L);
+
+    if Assigned(SectionBegin) then
+    begin
+      Inc(SectionBegin, PrefixLen);
+
+      if System.length(suffix) = 0 then
+      begin
+        SectionEnd := Self._end;
+        EndingNoSuffix := True;
+      end
+      else
+      begin
+        found := False;
+        SectionEnd := SectionBegin;
+
+        while SectionEnd < Self._end do
+        begin
+          for i := Low(suffix) to high(suffix) do
+          begin
+            if SectionEnd^ = suffix[i] then
+            begin
+              found := True;
+              Break;
+            end;
+          end;
+
+          if found then
+            Break;
+
+          Inc(SectionEnd);
+        end;
+      end;
+
+      (*
+        在字符串结尾允许不带suffix。比如prefix为'ab', suffix为[';', ',']时，
+        从'abcde;123'、'abcde'、'abcde,123'三个src中都能提取出'cde'
+        *)
+      if (SectionEnd < Self._end) or EndingNoSuffix then
+      begin
+        if ssfIncludePrefix in flags then
+          Dec(SectionBegin, PrefixLen);
+
+        if (ssfIncludeSuffix in flags) and (SectionEnd < Self._end) then
+          Inc(SectionEnd);
+
+        Result._begin := SectionBegin;
+        Result._end := SectionEnd;
+      end;
+    end;
+  end;
+end;
+
+function TWideCharSection.iBeginWith(const prefix: TWideCharSection): Boolean;
+begin
+  if (Self.length = 0) or (prefix.length = 0) then
+    Result := False
+  else
+    Result := IBeginWithW(_begin, Self.length, prefix._begin, prefix.length);
+end;
+
+function TWideCharSection.iEndWith(const prefix: TWideCharSection): Boolean;
+begin
+  if (Self.length = 0) or (prefix.length = 0) then
+    Result := False
+  else
+    Result := IEndWithW(_begin, Self.length, prefix._begin, prefix.length);
+end;
+
+function TWideCharSection.endWith(const prefix: TWideCharSection): Boolean;
+begin
+  if (Self.length = 0) or (prefix.length = 0) then
+    Result := False
+  else
+    Result := EndWithW(_begin, Self.length, prefix._begin, prefix.length);
+end;
+
+function TWideCharSection.ipos(substr: TWideCharSection): PWideChar;
+begin
+  Result := StrIPosW(substr._begin, substr._end - substr._begin, _begin, _end - _begin);
+end;
+
+function TWideCharSection.IsEmpty: Boolean;
+begin
+  Result := Self.length = 0;
+end;
+
+function TWideCharSection.IsValid: Boolean;
+begin
+  Result := _end >= _begin;
+end;
+
+function TWideCharSection.length: Integer;
+begin
+  Result := _end - _begin;
+  if Result < 0 then
+    Result := 0;
+end;
+
+function TWideCharSection.pos(substr: TWideCharSection): PWideChar;
+begin
+  Result := StrPosW(substr._begin, substr._end - substr._begin, _begin, _end - _begin);
+end;
+
+function TWideCharSection.ripos(substr: TWideCharSection): PWideChar;
+begin
+  Result := StrRIPosW(substr._begin, substr._end - substr._begin, _begin, _end - _begin);
+end;
+
+function TWideCharSection.rpos(substr: TWideCharSection): PWideChar;
+begin
+  Result := StrRPosW(substr._begin, substr._end - substr._begin, _begin, _end - _begin);
+end;
+
+procedure TWideCharSection.SetUStr(const s: u16string; first, last: Integer);
+begin
+  if s = '' then
+    Self.SetEmpty
+  else
+  begin
+    Self._begin := PWideChar(s) + first - 1;
+    if (last <= 0) or (last > System.length(s)) then
+      last := System.length(s) + 1;
+    Self._end := PWideChar(s) + last - 1;
+  end;
+end;
+
+procedure TWideCharSection.SetBStr(const s: WideString; first, last: Integer);
+begin
+  if s = '' then
+    Self.SetEmpty
+  else
+  begin
+    Self._begin := PWideChar(s) + first - 1;
+    if (last <= 0) or (last > System.length(s)) then
+      last := System.length(s) + 1;
+    Self._end := PWideChar(s) + last - 1;
+  end;
+end;
+
+procedure TWideCharSection.SetEmpty;
+begin
+  _begin := nil;
+  _end := nil;
+end;
+
+procedure TWideCharSection.SetInvalid;
+begin
+  Self._begin := PWideChar(1);
+  Self._end := nil;
+end;
+
+function TWideCharSection.ToBStr: WideString;
+var
+  L: Integer;
+begin
+  L := Self.length;
+  SetLength(Result, L);
+
+  if L > 0 then
+    Move(_begin^, Pointer(Result)^, (_end - _begin) shl 1);
+end;
+
+function TWideCharSection.ToFloat: Double;
+var
+  L: Integer;
+  c: PWideChar;
+begin
+  L := Self.length;
+  if L <= 0 then
+    Result := 0
+  else
+    Result := BufToFloatW(_begin, L, @c);
+end;
+
+function TWideCharSection.ToInt: Integer;
+var
+  L: Integer;
+  c: PWideChar;
+begin
+  L := Self.length;
+  if L <= 0 then
+    Result := 0
+  else
+    Result := BufToIntW(_begin, L, @c);
+end;
+
+function TWideCharSection.ToInt64: Int64;
+var
+  L: Integer;
+  c: PWideChar;
+begin
+  L := Self.length;
+  if L <= 0 then
+    Result := 0
+  else
+    Result := BufToInt64W(_begin, L, @c);
+end;
+
+function TWideCharSection.ToUStr: u16string;
+var
+  L: Integer;
+begin
+  L := Self.length;
+  SetLength(Result, L);
+
+  if L > 0 then
+    Move(_begin^, Pointer(Result)^, (_end - _begin) shl 1);
+end;
+
+function TWideCharSection.trim: PWideCharSection;
+var
+  tmp: PWideChar;
+begin
+  if not IsEmpty and IsValid then
+  begin
+    while (_begin < _end) and (_begin^ <= #32) do
+      Inc(_begin);
+
+    tmp := _end - 1;
+    while (tmp >= _begin) and (tmp^ <= #32) do
+      Dec(tmp);
+    _end := tmp + 1;
+  end;
+
+  Result := @Self;
+end;
+
+function TWideCharSection.TrimLeft: PWideCharSection;
+begin
+  if not IsEmpty and IsValid then
+    while (_begin < _end) and (_begin^ <= #32) do
+      Inc(_begin);
+  Result := @Self;
+end;
+
+function TWideCharSection.TrimRight: PWideCharSection;
+var
+  tmp: PWideChar;
+begin
+  if not IsEmpty and IsValid then
+  begin
+    tmp := _end - 1;
+    while (tmp >= _begin) and (tmp^ <= #32) do
+      Dec(tmp);
+    _end := tmp + 1;
+  end;
+
+  Result := @Self;
+end;
+
+function TWideCharSection.TryToFloat(var value: Double): Boolean;
+var
+  tmp: Double;
+  L: Integer;
+  c: PWideChar;
+begin
+  L := Self.length;
+
+  if L <= 0 then
+    Result := False
+  else
+  begin
+    tmp := BufToFloatW(_begin, L, @c);
+
+    if Assigned(c) then
+      Result := False
+    else
+    begin
+      value := tmp;
+      Result := True;
+    end;
+  end;
+end;
+
+function TWideCharSection.TryToInt(var value: Integer): Boolean;
+var
+  L, tmp: Integer;
+  c: PWideChar;
+begin
+  L := Self.length;
+
+  if L <= 0 then
+    Result := False
+  else
+  begin
+    tmp := BufToIntW(_begin, L, @c);
+
+    if Assigned(c) then
+      Result := False
+    else
+    begin
+      value := tmp;
+      Result := True;
+    end;
+  end;
+end;
+
+function TWideCharSection.TryToInt64(var value: Int64): Boolean;
+var
+  tmp: Int64;
+  L: Integer;
+  c: PWideChar;
+begin
+  L := Self.length;
+
+  if L <= 0 then
+    Result := False
+  else
+  begin
+    tmp := BufToInt64W(_begin, L, @c);
+
+    if Assigned(c) then
+      Result := False
+    else
+    begin
+      value := tmp;
+      Result := True;
+    end;
+  end;
+end;
+
+{ TProperties }
+
+function TProperties.FindOrAdd(const key: string; value: Variant): Integer;
+var
+  i: Integer;
+begin
+  for i := Low(FItems) to High(FItems) do
+  begin
+    if SameText(key, FItems[i].key) then
+    begin
+      Result := i;
+      Exit;
+    end;
+  end;
+
+  SetLength(FItems, length(FItems) + 1);
+  Result := High(FItems);
+  FItems[Result].key := key;
+  FItems[Result].value := value;
+end;
+
+procedure TProperties.clear;
+begin
+  SetLength(FItems, 0);
+end;
+
+function TProperties.exists(const key: string): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+
+  for i := Low(FItems) to High(FItems) do
+  begin
+    if SameText(key, FItems[i].key) then
+    begin
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+function TProperties.GetCount: Integer;
+begin
+  Result := length(FItems);
+end;
+
+function TProperties.GetItem(const key: string): Variant;
+var
+  i: Integer;
+begin
+  Result := Null;
+
+  for i := Low(FItems) to High(FItems) do
+  begin
+    if SameText(key, FItems[i].key) then
+    begin
+      Result := FItems[i].value;
+      Break;
+    end;
+  end;
+end;
+
+function TProperties.GetItemAt(Index: Integer): Variant;
+begin
+  Result := FItems[Index].value;
+end;
+
+function TProperties.IndexOf(const key: string): Integer;
+var
+  i: Integer;
+begin
+  Result := -1;
+
+  for i := Low(FItems) to High(FItems) do
+  begin
+    if SameText(key, FItems[i].key) then
+    begin
+      Result := i;
+      Break;
+    end;
+  end;
+end;
+
+procedure TProperties.SetItem(const key: string; const value: Variant);
+var
+  i: Integer;
+begin
+  for i := Low(FItems) to High(FItems) do
+  begin
+    if SameText(key, FItems[i].key) then
+    begin
+      FItems[i].value := value;
+      Exit;
+    end;
+  end;
+
+  SetLength(FItems, length(FItems) + 1);
+  i := High(FItems);
+  FItems[i].key := key;
+  FItems[i].value := value;
+end;
+
+procedure TProperties.SetItemAt(Index: Integer; const value: Variant);
+begin
+  FItems[Index].value := value;
+end;
+
+{ TDispProperties }
+
+function TDispProperties.GetIDsOfNames(const IID: TGUID; Names: Pointer; NameCount, LocaleID: Integer;
+  DispIDs: Pointer): HResult;
+var
+  tmp: string;
+begin
+  if NameCount > 1 then
+    Result := E_NOTIMPL
+  else
+  begin
+    tmp := string(u16string(PPWideChar(Names)^));
+    PInteger(DispIDs)^ := FItems.FindOrAdd(tmp, Variants.Null);
+    Result := S_OK;
+  end;
+end;
+
+function TDispProperties.GetTypeInfo(Index, LocaleID: Integer; out TypeInfo): HResult;
+begin
+  Result := E_NOTIMPL;
+end;
+
+function TDispProperties.GetTypeInfoCount(out count: Integer): HResult;
+begin
+  Result := E_NOTIMPL;
+end;
+
+function TDispProperties.Invoke(DispID: Integer; const IID: TGUID; LocaleID: Integer; flags: Word; var params;
+  VarResult, ExcepInfo, ArgErr: Pointer): HResult;
+var
+  pParams: PDispParams;
+begin
+  pParams := @params;
+
+  if (DispID >= 0) and (DispID < FItems.count) then
+  begin
+    if (flags and DISPATCH_PROPERTYGET <> 0) then
+      PVariant(VarResult)^ := FItems.ItemAt[DispID]
+    else
+      FItems.ItemAt[DispID] := GetVariantArg(pParams.rgvarg^[0]);
+
+    Result := S_OK;
+  end
+  else
+    Result := S_FALSE;
+end;
+
+{ TStreamHelper }
+
+function TStreamHelper.ReadAnsiChar: AnsiChar;
+begin
+  Self.ReadBuffer(Result, SizeOf(Result));
+end;
+
+function TStreamHelper.ReadByte: Byte;
+begin
+  Self.ReadBuffer(Result, SizeOf(Result));
+end;
+
+function TStreamHelper.ReadBytes(nBytes: Integer): TBytes;
+begin
+  SetLength(Result, nBytes);
+
+  if nBytes > 0 then
+    Self.ReadBuffer(Result[0], nBytes);
+end;
+
+function TStreamHelper.ReadDword: UInt32;
+begin
+  Self.ReadBuffer(Result, SizeOf(Result));
+end;
+
+function TStreamHelper.ReadRawByteString(nChar: Integer): RawByteString;
+begin
+  SetLength(Result, nChar);
+
+  if nChar > 0 then
+    Self.ReadBuffer(Pointer(Result)^, nChar);
+end;
+
+function TStreamHelper.ReadUnicodeString(nChar: Integer): u16string;
+begin
+  SetLength(Result, nChar);
+
+  if nChar > 0 then
+    Self.ReadBuffer(Pointer(Result)^, nChar * 2);
+end;
+
+function TStreamHelper.ReadWideChar: WideChar;
+begin
+  Self.ReadBuffer(Result, SizeOf(Result));
+end;
+
+function TStreamHelper.ReadWideString(nChar: Integer): WideString;
+begin
+  SetLength(Result, nChar);
+
+  if nChar > 0 then
+    Self.ReadBuffer(Pointer(Result)^, nChar * 2);
+end;
+
+function TStreamHelper.ReadWord: Word;
+begin
+  Self.ReadBuffer(Result, SizeOf(Result));
+end;
+
+procedure TStreamHelper.WriteAnsiChar(value: AnsiChar);
+begin
+  Self.WriteBuffer(value, SizeOf(value));
+end;
+
+procedure TStreamHelper.WriteByte(value: Byte);
+begin
+  Self.WriteBuffer(value, SizeOf(value));
+end;
+
+procedure TStreamHelper.WriteBytes(const value: TBytes);
+begin
+  if length(value) > 0 then
+    Self.WriteBuffer(value[0], length(value));
+end;
+
+procedure TStreamHelper.WriteDword(value: UInt32);
+begin
+  Self.WriteBuffer(value, SizeOf(value));
+end;
+
+procedure TStreamHelper.WriteRawByteString(const value: RawByteString);
+begin
+  Self.WriteBuffer(Pointer(value)^, length(value));
+end;
+
+procedure TStreamHelper.WriteUnicodeString(const value: u16string);
+begin
+  Self.WriteBuffer(Pointer(value)^, length(value) shl 1);
+end;
+
+procedure TStreamHelper.WriteWideChar(value: WideChar);
+begin
+  Self.WriteBuffer(value, SizeOf(value));
+end;
+
+procedure TStreamHelper.WriteWideString(const value: WideString);
+begin
+  Self.WriteBuffer(Pointer(value)^, length(value) shl 1);
+end;
+
+procedure TStreamHelper.WriteWord(value: Word);
+begin
+  Self.WriteBuffer(value, SizeOf(value));
+end;
+
+{ TObjectListEx }
+
+function TObjectListEx.Clone: TObjectListEx;
+var
+  i: Integer;
+  item: TObject;
+begin
+  Result := TObjectListEx.Create(OwnsObjects);
+  Result.count := Self.count;
+
+  for i := 0 to Self.count - 1 do
+  begin
+    item := Self.items[i];
+
+    if OwnsObjects then
+      RefObject(item);
+
+    Result[i] := item;
+  end;
+end;
+
+procedure TObjectListEx.Notify(Ptr: Pointer; Action: TListNotification);
+begin
+  if OwnsObjects and (Action = lnDeleted) then
+    SmartUnrefObject(TObject(Ptr));
+end;
+
+{ TThreadObjectListEx }
+
+constructor TThreadObjectListEx.Create(AOwnsObjects: Boolean);
+begin
+  inherited Create(AOwnsObjects);
+  InitializeCriticalSection(FLock);
+end;
+
+destructor TThreadObjectListEx.Destroy;
+begin
+  DeleteCriticalSection(FLock);
+  inherited;
+end;
+
+procedure TThreadObjectListEx.LockList;
+begin
+  EnterCriticalSection(FLock);
+end;
+
+procedure TThreadObjectListEx.UnlockList;
+begin
+  LeaveCriticalSection(FLock);
+end;
+
+{ TOperationStatus }
+
+procedure TOperationStatus.init;
+begin
+  Self.Result := orUnknown;
+  Self.errmsg := '';
+  Self.SysErrorCode := 0;
+end;
+
+{ TActionStatus }
+
+procedure TActionStatus.beginExec;
+begin
+  executing := True;
+  timeBeginExecuting := GetTickCount;
+end;
+
+function TActionStatus.shouldTakeAction;
+begin
+  if executing and (GetTickCount - timeBeginExecuting > timeout) then
+    endExec;
+
+  if not executing and (GetTickCount - timeLatestExecution > interval) then
+  begin
+    beginExec;
+    Result := True;
+  end
+  else
+    Result := False;
+end;
+
+procedure TActionStatus.endExec;
+begin
+  executing := False;
+  timeLatestExecution := GetTickCount;
+end;
+
+procedure TActionStatus.init;
+begin
+  executing := False;
+  timeLatestExecution := 0;
+  timeBeginExecuting := 0;
+end;
+
+{ TBaseWorkThread }
+
+constructor TBaseWorkThread.Create(CreateSuspended: Boolean);
+begin
+  fTaskSemaphore := CreateEvent(nil, False, False, nil);
+  fTaskQueue := TFIFOQueue.Create;
+  inherited Create(CreateSuspended);
+end;
+
+destructor TBaseWorkThread.Destroy;
+begin
+  fTaskQueue.Free;
+  CloseHandle(fTaskSemaphore);
+  inherited;
+end;
+
+function TBaseWorkThread.GetPendingTaskCount: Integer;
+begin
+  Result := fTaskQueue.size;
+end;
+
+function TBaseWorkThread.QueueTask(task: Pointer): Boolean;
+begin
+  fTaskQueue.push(task);
+  SetEvent(fTaskSemaphore);
+  Result := True;
+end;
+
+function TBaseWorkThread.QueueTaskFirst(task: Pointer): Boolean;
+begin
+  fTaskQueue.PushFront(task);
+  SetEvent(fTaskSemaphore);
+  Result := True;
+end;
+
+function TBaseWorkThread.QueueTasks(tasks: TList): Boolean;
+var
+  i: Integer;
+begin
+  for i := 0 to tasks.count - 1 do
+    fTaskQueue.push(tasks[i]);
+  SetEvent(fTaskSemaphore);
+  Result := True;
+end;
+
+type
+  TTerminateRunnableQueue = class(TRunnable)
+    procedure run(context: TObject); override;
+  end;
+
+procedure TTerminateRunnableQueue.run(context: TObject);
+begin
+  TRunnableQueue(context).Terminate;
+end;
+
+{ TRunnableQueue }
+
+procedure TRunnableQueue.AfterRun;
+begin
+
+end;
+
+procedure TRunnableQueue.BeforeRun;
+begin
+
+end;
+
+procedure TRunnableQueue.clear;
+var
+  runnable: TRunnable;
+begin
+  FTaskQueue.lock;
+
+  try
+    while True do
+    begin
+      runnable := TRunnable(FTaskQueue.pop);
+
+      if Assigned(runnable) then
+        runnable.release
+      else
+        Break;
+    end;
+  finally
+    FTaskQueue.unlock;
+  end;
+end;
+
+constructor TRunnableQueue.Create;
+begin
+  inherited Create;
+  FTerminated := False;
+  FWaitingTimeout := 500;
+  FTaskSemaphore := CreateEvent(nil, False, False, nil);
+  FTaskQueue := TFIFOQueue.Create;
+  FThreadId := 0;
+end;
+
+destructor TRunnableQueue.Destroy;
+begin
+  Self.clear;
+  FTaskQueue.Free;
+  CloseHandle(FTaskSemaphore);
+  inherited;
+end;
+
+procedure TRunnableQueue.DoIdle;
+begin
+  if Assigned(FOnIdle) then
+    FOnIdle();
+end;
+
+function TRunnableQueue.getPendingRunnableCount: Integer;
+begin
+  Result := FTaskQueue.size;
+end;
+
+function TRunnableQueue.queue;
+begin
+  FTaskQueue.push(runnable);
+  SetEvent(FTaskSemaphore);
+  Result := True;
+end;
+
+function TRunnableQueue.queueAsFirst;
+begin
+  FTaskQueue.PushFront(runnable);
+  SetEvent(FTaskSemaphore);
+  Result := True;
+end;
+
+function TRunnableQueue.queueBatch;
+var
+  i: Integer;
+begin
+  for i := 0 to runnables.count - 1 do
+    FTaskQueue.push(runnables[i]);
+  SetEvent(FTaskSemaphore);
+  Result := True;
+end;
+
+function TRunnableQueue.queueProc(proc: SysUtils.TProc): Boolean;
+begin
+  Result := Self.queue(TDelegatedRunnable.Create(proc));
+end;
+
+function TRunnableQueue.queueProcAsFirst(proc: SysUtils.TProc): Boolean;
+begin
+  Result := Self.queueAsFirst(TDelegatedRunnable.Create(proc));
+end;
+
+procedure TRunnableQueue.run;
+var
+  runnable: TRunnable;
+  wr: DWORD;
+begin
+  FTerminated := False;
+  FThreadId := GetCurrentThreadId;
+  Self.BeforeRun;
+
+  try
+    while not Self.Terminated do
+    begin
+      try
+        wr := Windows.WaitForSingleObject(FTaskSemaphore, FWaitingTimeout);
+        if wr <> WAIT_OBJECT_0 then
+        begin
+          if wr = WAIT_TIMEOUT then
+            Self.DoIdle;
+          Continue;
+        end;
+
+        while not Self.Terminated do
+        begin
+          runnable := TRunnable(FTaskQueue.pop);
+
+          if not Assigned(runnable) then
+            Break;
+
+          Inc(FAlreadyRunCount);
+
+          try
+            runnable.run(Self);
+          except
+            on e: Exception do
+              DbgOutput(TRunnable.ClassName + '.run: ' + e.Message);
+          end;
+
+          runnable.release;
+        end;
+      except
+        on e: Exception do
+          DbgOutputException('TRunnableQueue.run', e);
+      end;
+    end;
+  finally
+    Self.AfterRun;
+    Self.FThreadId := 0;
+  end;
+end;
+
+procedure TRunnableQueue.Terminate;
+begin
+  Self.FTerminated := True;
+  if (FThreadId <> 0) and (GetCurrentThreadId <> FThreadId) then
+    Self.queueAsFirst(TTerminateRunnableQueue.Create);
+end;
+
+procedure unitInit;
+var
+  i: Integer;
+begin
+  SetLength(g_PasswordChars, 126 - 32);
+  for i := 0 to Length(g_PasswordChars) - 1 do
+    PWideChar(g_PasswordChars)[i] := WideChar(33 + i);
+
+  GetSystemInfo(g_SystemInfo);
+  Pointer(@InterlockedIncDWORD) := Pointer(@InterlockedIncrement);
+  Pointer(@InterlockedDecDWORD) := Pointer(@InterlockedDecrement);
+  Pointer(@InterlockedExchangeDWORD) := Pointer(@InterlockedExchange);
+  Pointer(@InterlockedCompareExchangeDWORD) := Pointer(@InterlockedCompareExchange);
+  Pointer(@InterlockedExchangeAddDWORD) := Pointer(@InterlockedExchangeAdd);
+
+  RandomStringA := RandomRBStr;
+  RandomAlphaStringA := RandomAlphaRBStr;
+  RandomDigitStringA := RandomDigitRBStr;
+  RandomAlphaDigitStringA := RandomAlphaDigitRBStr;
+
+  RandomStringW := RandomUStr;
+  RandomAlphaStringw := RandomAlphaUStr;
+  RandomDigitStringW := RandomDigitUStr;
+  RandomAlphaDigitStringW := RandomAlphaDigitUStr;
+
+  RBStrFormat := AnsiStrings.Format;
+  UStrFormat := SysUtils.Format;
+  RBStrCompareText := _RBStrCompareText;
+  UStrCompareText := SysUtils.CompareText;
+  RBStrSameText := _RBStrSameText;
+  UStrSameText := SysUtils.SameText;
+  RBStrFormatFloat := _RBStrFormatFloat;
+  UStrFormatFloat := SysUtils.FormatFloat;
+  RBStrTrim := _RBStrTrim;
+  RBStrTrimLeft := _RBStrTrimLeft;
+  RBStrTrimRight := _RBStrTrimRight;
+  UStrTrim := SysUtils.trim;
+  UStrTrimLeft := SysUtils.TrimLeft;
+  UStrTrimRight := SysUtils.TrimRight;
+  UrlGetParam := UStrUrlGetParam;
+  UrlGetFileName := UStrUrlGetFileName;
+  CharInSet := WCharInSet;
+  isInteger := UStrIsInteger;
+  IsValidEmail := UStrIsValidEmail;
+  IsQQ := UStrIsQQ;
+  IsCnIDCard := UStrIsCnIDCard;
+  Array2Str := Array2UStr;
+  StrRepeat := UStrRepeat;
+  StrSplit2 := UStrSplit2;
+  JAVA_TIME_START := EncodeDateTime(1970, 1, 1, 0, 0, 0, 0);
+
+  QuickSort(@NAME_SORTED_CODE_PAGES, SizeOf(TCodePageInfo), length(NAME_SORTED_CODE_PAGES),
+    TPointerCompareProc(@CompareCodePageByName), SwapCodePage);
+
+  QuickSort(@ID_SORTED_CODE_PAGES, SizeOf(TCodePageInfo), length(ID_SORTED_CODE_PAGES),
+    TPointerCompareProc(@CompareCodePageByID), SwapCodePage);
+
+{$IFDEF POWER10_TABLE}
+  initPower10Table;
+{$ENDIF}
+end;
+
+procedure unitCleanup;
+begin
+end;
+
+{ TInterlockSync }
+
+procedure TInterlockSync.cleanup;
+begin
+
+end;
+
+procedure TInterlockSync.init;
+begin
+  _state := 0;
+  _threadId := 0;
+  _nested := 0;
+end;
+
+procedure TInterlockSync.acquire(spinCount: Integer);
+var
+  ctid: DWORD;
+  i, n: Integer;
+  got: Boolean;
+begin
+  got := False;
+  ctid := GetCurrentThreadId;
+  if _threadId = ctid then
+    got := True
+  else
+  begin
+    while not got do
+    begin
+      if InterlockedExchange(_state, 1) = 0 then
+      begin
+{$IFDEF DSLSpinLockDebug}
+        _lockBeginTime := timeGetTime;
+{$ENDIF}
+        got := True;
+        Break;
+      end;
+
+      if g_SystemInfo.dwNumberOfProcessors > 1 then
+      begin
+        n := 1;
+
+        while n < spinCount do
+        begin
+          for i := 1 to n do
+          begin
+                  asm
+                    PAUSE
+                  end;
+          end;
+
+          if InterlockedExchange(_state, 1) = 0 then
+          begin
+{$IFDEF DSLSpinLockDebug}
+            _lockBeginTime := timeGetTime;
+{$ENDIF}
+            got := True;
+            Break;
+          end;
+
+          n := n shl 1;
+        end;
+      end;
+
+      if got then
+        Break;
+
+      Sleep(1);
+    end;
+  end;
+
+  if got then
+  begin
+    _threadId := ctid;
+    Inc(_nested);
+  end;
+end;
+
+procedure TInterlockSync.release;
+begin
+  if (_threadId = GetCurrentThreadId) and (InterlockedDecrement(_nested) = 0) then
+  begin
+    _threadId := 0;
+    InterlockedExchange(_state, 0);
+{$IFDEF DSLSpinLockDebug}
+    _lockBeginTime := timeGetTime - _lockBeginTime;
+    DbgOutput('spin-lock ' + IntToStr(_lockBeginTime) + ' ms');
+{$ENDIF}
+  end;
+end;
+
+{ TInterlockSyncObject }
+
+procedure TInterlockSyncObject.acquire;
+begin
+  inherited;
+  internal.acquire;
+end;
+
+constructor TInterlockSyncObject.Create;
+begin
+  inherited Create;
+  internal.init;
+end;
+
+procedure TInterlockSyncObject.release;
+begin
+  inherited;
+  internal.release;
+end;
+
+{ TTimeKeeper }
+
+procedure TTimeKeeper.start;
+begin
+  _beginTick := timeGetTime;
+end;
+
+function TTimeKeeper.stop: DWORD;
+begin
+  Result := timeGetTime - _beginTick;
+end;
+
+{ TTimeWheel }
+
+procedure initTimerNodes(var tv: array of TLinkListEntry);
+var
+  i: Integer;
+begin
+  for i := Low(tv) to High(tv) do
+    tv[i].SetEmpty;
+end;
+
+function TTimeWheel.addTimer;
+var
+  diff, expireAt: Int64;
+  tmp: DWORD;
+  timer: PTimerItem;
+begin
+  New(timer);
+  timer.init;
+  timer.proc := proc;
+  timer.context := context;
+  timer.setInterval(interval);
+
+  FLock.acquire;
+  tmp := timeGetTime - FCurrentTick;
+  diff := (dueTime + tmp) div FGradularity;
+
+  if diff < 0 then
+    diff := 0;
+
+  expireAt := FCurrentJiffies + diff;
+  timer.expire := expireAt;
+  _addTimer(timer);
+  FLock.release;
+  Result := timer;
+end;
+
+function TTimeWheel.cascade(var tv: TTimerVec; idx: Integer): Integer;
+var
+  entry, head: PLinkListEntry;
+  tmp: PTimerItem;
+begin
+  Result := FCurrentJiffies shr (8 + idx * 6) and 63;
+  head := @tv.vec[Result];
+  entry := head.SetEmpty;
+
+  while entry <> head do
+  begin
+    tmp := PTimerItem(entry);
+    entry := entry.next;
+    InterlockedDecrement(FItemCount);
+    Self._addTimer(tmp);
+  end;
+end;
+
+function TTimeWheel.clear: Integer;
+var
+  nowJiffy: Int64;
+begin
+  Result := 0;
+  nowJiffy := Self.getNowJiffies;
+  FLock.acquire;
+
+  try
+    Inc(Result, clearVec(tv1.vec, nowJiffy));
+    Inc(Result, clearVec(tv2.vec, nowJiffy));
+    Inc(Result, clearVec(tv3.vec, nowJiffy));
+    Inc(Result, clearVec(tv4.vec, nowJiffy));
+    Inc(Result, clearVec(tv5.vec, nowJiffy));
+  finally
+    FLock.release;
+  end;
+end;
+
+function TTimeWheel.clearVec(var vec: array of TLinkListEntry; nowJiffy: Int64): Integer;
+var
+  i: Integer;
+  entry, pList: PLinkListEntry;
+  pTimer: PTimerItem;
+{$IFDEF DSLTimeWheelDebug}
+  diff: Int64;
+{$ENDIF}
+begin
+  Result := 0;
+  for i := Low(vec) to High(vec) do
+  begin
+    entry := @vec[i];
+    pList := entry.SetEmpty;
+
+    while pList <> entry do
+    begin
+      pTimer := PTimerItem(pList);
+      pList := pList.next;
+
+      try
+        pTimer.proc(Self, pTimer, tcbCleanup);
+      except
+        on e: Exception do
+          DbgOutputException('TTimeWheel.callTimer', e);
+      end;
+{$IFDEF DSLTimeWheelDebug}
+      diff := pTimer.expire - nowJiffy;
+      if diff < FOverdueThreshold then
+      begin
+        DbgOutput(IntToStr(diff) + ' jiffies');
+        Inc(Result);
+      end;
+{$ENDIF}
+      pTimer.release;
+      InterlockedDecrement(FItemCount);
+    end;
+  end;
+end;
+
+constructor TTimeWheel.Create(_gradularity: DWORD);
+begin
+  inherited Create;
+  FLock.init;
+  initTimerNodes(tv1.vec);
+  initTimerNodes(tv2.vec);
+  initTimerNodes(tv3.vec);
+  initTimerNodes(tv4.vec);
+  initTimerNodes(tv5.vec);
+  FGradularity := _gradularity;
+  FCurrentTick := timeGetTime;
+  FCurrentJiffies := 0;
+{$IFDEF DSLTimeWheelDebug}
+  FOverdue := 0;
+  FOverdueThreshold := 5;
+{$ENDIF}
+end;
+
+destructor TTimeWheel.Destroy;
+begin
+  stop;
+  clear;
+  FLock.cleanup;
+  inherited;
+end;
+
+function TTimeWheel.getNowJiffies: Int64;
+var
+  nJiffies: DWORD;
+begin
+  nJiffies := (timeGetTime - FCurrentTick) div FGradularity;
+  Result := FCurrentJiffies + nJiffies;
+end;
+
+procedure TTimeWheel.run;
+begin
+  if not Assigned(FRollThread) then
+    FRollThread := TTimeWheelRollThread.Create(Self);
+end;
+
+procedure TTimeWheel.stop;
+begin
+  if Assigned(FRollThread) then
+  begin
+    FRollThread.StopAndWait;
+    FreeAndNil(FRollThread);
+  end;
+end;
+
+procedure TTimeWheel.checkExpired;
+var
+  nJiffies, tick, i, interval: DWORD;
+  idx: Integer;
+  entry, head: PLinkListEntry;
+  timer: PTimerItem;
+  runningTimers: TLinkListEntry;
+{$IFDEF DSLTimeWheelDebug}
+  nowJiffy, diff: Int64;
+{$ENDIF}
+begin
+  runningTimers.SetEmpty;
+  tick := timeGetTime;
+  nJiffies := (tick - FCurrentTick) div FGradularity;
+
+  for i := 1 to nJiffies do
+  begin
+    idx := FCurrentJiffies and 255;
+{$IFDEF DSLTimeWheelDebug}
+    nowJiffy := Self.getNowJiffies;
+{$ENDIF}
+    FLock.acquire;
+    if (idx = 0) and (cascade(tv2, 0) = 0) and (cascade(tv3, 1) = 0) and (cascade(tv4, 2) = 0) then
+      cascade(tv5, 3);
+
+    Inc(FCurrentJiffies);
+    Inc(FCurrentTick, FGradularity);
+    head := @tv1.vec[idx];
+    entry := head.SetEmpty;
+    FLock.release;
+
+    while entry <> head do
+    begin
+      // runningTimers.insertHead(entry);
+      timer := PTimerItem(entry);
+      entry := entry.next;
+
+      try
+        timer.proc(Self, timer, tcbExpired);
+      except
+        on e: Exception do
+          DbgOutputException('TTimeWheel.callTimer', e);
+      end;
+{$IFDEF DSLTimeWheelDebug}
+      Inc(timer.execTimes);
+      InterlockedIncrement(FExecutedItemCount);
+      diff := nowJiffy - timer.expire;
+      if absoluteValue(diff) > FOverdueThreshold then
+      begin
+        Inc(FOverdue);
+        DbgOutput('overdue ' + IntToStr(diff) + ' jiffies');
+      end;
+{$ENDIF}
+      InterlockedDecrement(FItemCount);
+      interval := timer.getInterval;
+      if (interval > 0) and timer.enabled then
+      begin
+        Inc(timer.expire, (interval + FGradularity - 1) div FGradularity);
+        FLock.acquire;
+        _addTimer(timer);
+        FLock.release;
+      end
+      else
+        timer.release;
+    end;
+  end;
+end;
+
+procedure TTimeWheel._addTimer(timer: PTimerItem);
+var
+  diff, expireAt: Int64;
+  entry: PLinkListEntry;
+begin
+  timer.enable;
+  diff := timer.expire - FCurrentJiffies;
+
+  if diff < 0 then
+    expireAt := FCurrentJiffies
+  else
+    expireAt := timer.expire;
+{$IFDEF DSLTimeWheelDebug}
+  timer.nextExecTime := IncMilliSecond(Now, (expireAt - FCurrentJiffies) * FGradularity);
+{$ENDIF}
+  if diff < 256 then
+    entry := @tv1.vec[expireAt and 255]
+  else if diff < 256 * 64 then
+    entry := @tv2.vec[expireAt shr 8 and 63]
+  else if diff < 256 * 64 * 64 then
+    entry := @tv3.vec[expireAt shr 14 and 63]
+  else if diff < 256 * 64 * 64 * 64 then
+    entry := @tv4.vec[expireAt shr 20 and 63]
+  else
+    entry := @tv5.vec[expireAt shr 26 and 63];
+
+  entry.insertHead(@timer.list);
+  InterlockedIncrement(FItemCount);
+end;
+
+{ TTimerItem }
+
+procedure TTimerItem.disable;
+begin
+  _intervalAndFlags := _intervalAndFlags and $7FFFFFFF;
+end;
+
+procedure TTimerItem.enable;
+begin
+  _intervalAndFlags := _intervalAndFlags or $80000000;
+end;
+
+function TTimerItem.enabled: Boolean;
+begin
+  Result := _intervalAndFlags and $80000000 <> 0;
+end;
+
+function TTimerItem.getInterval: DWORD;
+begin
+  Result := _intervalAndFlags and $FFFFFF;
+end;
+
+procedure TTimerItem.init;
+begin
+  _intervalAndFlags := $80000000;
+{$IFDEF DSLTimeWheelDebug}
+  execTimes := 0;
+  nextExecTime := 0;
+{$ENDIF}
+end;
+
+procedure TTimerItem.release;
+begin
+  Dispose(@Self);
+end;
+
+procedure TTimerItem.setInterval(v: DWORD);
+begin
+  _intervalAndFlags := (_intervalAndFlags or $FFFFFF) and (v or $FF000000);
+end;
+
+{ TLinkListEntry }
+
+procedure TLinkListEntry.insertHead(node: PLinkListEntry);
+begin
+  node.next := Self.next;
+  Self.next := node;
+end;
+
+function TLinkListEntry.SetEmpty: PLinkListEntry;
+begin
+  Result := Self.next;
+  Self.next := @Self;
+end;
+
+{ TDblLinkListEntry }
+
+procedure TDblLinkListEntry.insertHead(node: PDblLinkListEntry);
+begin
+  Self.next.prev := node;
+  node.next := Self.next;
+  node.prev := @Self;
+  Self.next := node;
+end;
+
+procedure TDblLinkListEntry.insertTail(node: PDblLinkListEntry);
+begin
+  Self.prev.next := node;
+  node.prev := Self.prev;
+  node.next := @Self;
+  Self.prev := node;
+end;
+
+function TDblLinkListEntry.SetEmpty: PDblLinkListEntry;
+begin
+  Result := Self.next;
+
+  Self.prev := @Self;
+  Self.next := @Self;
+end;
+
+{ TTimeWheelRollThread }
+
+constructor TTimeWheelRollThread.Create(tw: TTimeWheel);
+begin
+  FTimeWheel := tw;
+  inherited Create(False);
+end;
+
+procedure TTimeWheelRollThread.Execute;
+begin
+  inherited;
+
+  while not Self.Terminated do
+  begin
+    FTimeWheel.checkExpired;
+    if Self.WaitForStopSignal(FTimeWheel.FGradularity) then
+      Break;
+  end;
+end;
+
+{ T128BitBuf }
+
+function T128BitBuf.toHex(UpperCase: Boolean; delimiter: u16string): string;
+begin
+  Result := MemHexUStr(Self, SizeOf(Self), UpperCase, delimiter);
+end;
+
+{ TCommunicationError }
+
+procedure TCommunicationError.clear;
+begin
+  code := comerrSuccess;
+  callee := '';
+  internalErrorCode := 0;
+  msg := '';
+end;
+
+procedure TCommunicationError.init;
+begin
+  clear;
+end;
+
+function TCommunicationError.isSuccess: Boolean;
+begin
+  Result := code = comerrSuccess;
+end;
+
+procedure TCommunicationError.reset;
+begin
+  clear;
+end;
+
+{ TRunnable }
+
+constructor TDelegatedRunnable.Create(AProc: SysUtils.TProc);
+begin
+  inherited Create;
+  FProc := AProc;
+end;
+
+procedure TDelegatedRunnable.run(context: TObject);
+begin
+  FProc();
+end;
+
+{ TKMPPatternSearchAnsi }
+
+procedure TKMPPatternSearchAnsi.cleanup;
+begin
+
+end;
+
+function TKMPPatternSearchAnsi.search(AText: PAnsiChar; TextLen: Integer): PAnsiChar;
+var
+  i, j: Integer;
+begin
+  j := -1;
+  for i := 0 to TextLen - 1 do
+  begin
+    while True do
+    begin
+      if PAnsiChar(FPattern)[j + 1] <> AText[i] then
+      begin
+        if j >= 0 then j := FShiftTable[j]
+        else Break;
+      end
+      else if j = Length(FPattern) - 2 then
+      begin
+        Result := AText + (i + 1 - Length(FPattern));
+        Exit;
+      end
+      else begin
+        Inc(j);
+        Break;
+      end;
+    end;
+  end;
+  Result := nil;
+end;
+
+function TKMPPatternSearchAnsi.search(const AText: RawByteString): Integer;
+var
+  tmp: PAnsiChar;
+begin
+  tmp := search(PAnsiChar(AText), Length(AText));
+
+  if tmp = nil then
+    Result := 0
+  else
+    Result := tmp - PAnsiChar(AText) + 1;
+end;
+
+procedure TKMPPatternSearchAnsi.init(APattern: RawByteString);
+begin
+  FPattern := APattern;
+  _BuildShiftTable;
+end;
+
+procedure TKMPPatternSearchAnsi._BuildShiftTable;
+var
+  i, j: Integer;
+begin
+  SetLength(FShiftTable, Length(FPattern));
+  FShiftTable[0] := -1;
+  j := -1;
+  for i := 1 to Length(FPattern) - 1 do
+  begin
+    while True do
+    begin
+      if PAnsiChar(FPattern)[j + 1] <> PAnsiChar(FPattern)[i] then
+      begin
+        if j >= 0 then j := FShiftTable[j]
+        else begin
+          FShiftTable[i] := -1;
+          Break;
+        end;
+      end
+      else begin
+        Inc(j);
+        FShiftTable[i] := j;
+        Break;
+      end;
+    end;
+  end;
+end;
+
+procedure TKMPPatternSearchAnsi.init(APattern: PAnsiChar; PatternLen: Integer);
+begin
+  SetString(FPattern, APattern, PatternLen);
+  _BuildShiftTable;
+end;
+
+
+{ TKMPPatternSearchUCS2 }
+
+procedure TKMPPatternSearchUCS2.cleanup;
+begin
+
+end;
+
+function TKMPPatternSearchUCS2.search(AText: PWideChar; TextLen: Integer): PWideChar;
+var
+  i, j: Integer;
+begin
+  j := -1;
+  for i := 0 to TextLen - 1 do
+  begin
+    while True do
+    begin
+      if PWideChar(FPattern)[j + 1] <> AText[i] then
+      begin
+        if j >= 0 then j := FShiftTable[j]
+        else Break;
+      end
+      else if j = Length(FPattern) - 2 then
+      begin
+        Result := AText + (i + 1 - Length(FPattern));
+        Exit;
+      end
+      else begin
+        Inc(j);
+        Break;
+      end;
+    end;
+  end;
+  Result := nil;
+end;
+
+function TKMPPatternSearchUCS2.search(const AText: u16string): Integer;
+var
+  tmp: PWideChar;
+begin
+  tmp := search(PWideChar(AText), Length(AText));
+
+  if tmp = nil then
+    Result := 0
+  else
+    Result := tmp - PWideChar(AText) + 1;
+end;
+
+procedure TKMPPatternSearchUCS2.init(APattern: u16string);
+begin
+  FPattern := APattern;
+  _BuildShiftTable;
+end;
+
+procedure TKMPPatternSearchUCS2._BuildShiftTable;
+var
+  i, j: Integer;
+begin
+  SetLength(FShiftTable, Length(FPattern));
+  FShiftTable[0] := -1;
+  j := -1;
+  for i := 1 to Length(FPattern) - 1 do
+  begin
+    while True do
+    begin
+      if PWideChar(FPattern)[j + 1] <> PWideChar(FPattern)[i] then
+      begin
+        if j >= 0 then j := FShiftTable[j]
+        else begin
+          FShiftTable[i] := -1;
+          Break;
+        end;
+      end
+      else begin
+        Inc(j);
+        FShiftTable[i] := j;
+        Break;
+      end;
+    end;
+  end;
+end;
+
+procedure TKMPPatternSearchUCS2.init(APattern: PWideChar; PatternLen: Integer);
+begin
+  SetString(FPattern, APattern, PatternLen);
+  _BuildShiftTable;
+end;
+
+{ TBoyerMoorePatternSearchAnsi }
+
+procedure TBoyerMoorePatternSearchAnsi.cleanup;
+begin
+
+end;
+
+procedure TBoyerMoorePatternSearchAnsi.init(APattern: RawByteString);
+begin
+  FPattern := APattern;
+  _BuildShiftTable;
+end;
+
+procedure TBoyerMoorePatternSearchAnsi.init(APattern: PAnsiChar; PatternLen: Integer);
+begin
+  SetString(FPattern, APattern, PatternLen);
+  _BuildShiftTable;
+end;
+
+function TBoyerMoorePatternSearchAnsi.search(AText: PAnsiChar; TextLen: Integer): PAnsiChar;
+var
+  i, j, k, patlen, offset: Integer;
+  pat: PAnsiChar;
+begin
+  Result := nil;
+  pat := PAnsiChar(Pointer(FPattern));
+  patlen := Length(FPattern);
+  if TextLen < patlen then Exit;
+  i := patlen - 1;
+  j := patlen - 1;
+  while True do
+  begin
+    for k := 0 to patlen - 1 do
+    begin
+      if AText[i] = pat[j] then
+      begin
+        Dec(i);
+        Dec(j);
+      end
+      else begin
+        offset := FBadCharShift[AText[i]];
+        if offset < FGoodSuffixShift[j]  then
+          offset := FGoodSuffixShift[j];
+        //DbgOutput('offset: ' + IntToStr(offset));
+        Inc(i, offset);
+        if i >= TextLen then Exit;
+        j := patlen - 1;
+      end;
+    end;
+    if j = -1 then
+    begin
+      Result := AText + i + 1;
+      Break;
+    end;
+  end;
+end;
+
+function TBoyerMoorePatternSearchAnsi.search(const AText: RawByteString): Integer;
+var
+  tmp: PAnsiChar;
+begin
+  tmp := search(PAnsiChar(AText), Length(AText));
+
+  if tmp = nil then
+    Result := 0
+  else
+    Result := tmp - PAnsiChar(AText) + 1;
+end;
+
+procedure TBoyerMoorePatternSearchAnsi._BuildShiftTable;
+var
+  i, patlen: Integer;
+  c: AnsiChar;
+begin
+  patlen := Length(FPattern);
+  for c := Low(FBadCharShift) to High(FBadCharShift) do
+    FBadCharShift[c] := patlen;
+  for i := 0 to patlen - 1 do
+    FBadCharShift[PAnsiChar(FPattern)[i]] := patlen - 1 - i;
+  _CalcGoodSuffixTable;
+end;
+
+procedure TBoyerMoorePatternSearchAnsi._CalcGoodSuffixTable;
+var
+  i, j, sublen, len: Integer;
+  pat, p1, p2: PAnsiChar;
+  last: AnsiChar;
+  flag: Boolean;
+begin
+  pat := PAnsiChar(FPattern);
+  len := Length(FPattern);
+  SetLength(FGoodSuffixShift, len);
+  FGoodSuffixShift[len - 1] := 1;
+  last := pat[len - 1];
+  for i := len - 2 downto 0 do
+  begin
+    sublen := len - 1 - i;
+    p1 := pat + len - 2;
+    while True do
+    begin
+      while (p1 >= pat) and (p1^ <> last) do Dec(p1);
+      p2 := p1 + 1 - sublen;
+      if (p2 - 1 >= pat) and ((p2 -1)^ = pat[i]) then
+      begin
+        Dec(p1);
+        Continue;
+      end;
+
+      flag := True;
+      for j := 0 to sublen - 1 do
+      begin
+        if ((p2 + j) >= pat) and ((p2 + j)^ <> pat[i + 1 + j]) then
+        begin
+          Dec(p1);
+          flag := False;
+          Break;
+        end;
+      end;
+
+      if flag then
+      begin
+        FGoodSuffixShift[i] := pat  + len  - p2;
+        Break;
+      end;
+    end;
+  end;
+end;
+
+{ TBigEndianDword }
+
+procedure TBigEndianDword.setValue(newValue: UInt32);
+begin
+  data.value := ReverseByteOrder32(newValue);
+end;
+
+function TBigEndianDword.value: UInt32;
+begin
+  Result := ReverseByteOrder32(data.value);
+end;
+
+{ TBigEndianWord }
+
+procedure TBigEndianWord.setValue(newValue: Word);
+begin
+  bytes := ReverseByteOrder16(newValue);
+end;
+
+function TBigEndianWord.value: Word;
+begin
+  Result := ReverseByteOrder16(bytes);
 end;
 
 initialization
-  JAVA_TIME_START := EncodeDateTime(1970, 1, 1, 0, 0, 0, 0);
+  unitInit;
 
-  QuickSort(@NAME_SORTED_CODE_PAGES, SizeOf(TCodePageInfo), Length(NAME_SORTED_CODE_PAGES),
-    @CompareCodePageByName, @SwapCodePage);
-
-  QuickSort(@ID_SORTED_CODE_PAGES, SizeOf(TCodePageInfo), Length(ID_SORTED_CODE_PAGES),
-    @CompareCodePageByID, @SwapCodePage);
+finalization
+  unitCleanup;
 
 end.
 
