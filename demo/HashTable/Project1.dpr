@@ -7,7 +7,13 @@ uses
   Classes,
   Windows,
   DSLUtils,
-  DSLHashTable;
+  DSLHashTable,
+  DSLArray in '..\..\src\DSLArray.pas',
+  DSLCircularList in '..\..\src\DSLCircularList.pas',
+  DSLHashMap in '..\..\src\DSLHashMap.pas',
+  DSLHashUtils in '..\..\src\DSLHashUtils.pas',
+  DSLRttiUtils in '..\..\src\DSLRttiUtils.pas',
+  DSLCore in '..\..\src\DSLCore.pas';
 
 function StringComparer(const left, right: string): Integer;
 begin
@@ -22,7 +28,7 @@ end;
 procedure TestStringHash;
 var
   table: THashTable<string, Integer>;
-  iterator: TIterator<string, Integer>;
+  iterator: THashTable<string, Integer>.TIterator;
   i, len: Integer;
   a, b: array of Integer;
 begin

@@ -7558,12 +7558,15 @@ procedure SBC2DBCW(str: PWideChar; len: Integer);
 var
   i: Integer;
 begin
+  // $ff10 ~ $ff09:  1-9
+  // $ff21 ~ $ff3a  A-Z
+  // $ff41 ~ $ff5a  a-z
   for i := 0 to len - 1 do
   begin
-    if PWord(str + i)^ = 12288 then
+    if PWord(str + i)^ = $3000 then
       PWord(str + i)^ := 32
-    else if (PWord(str + i)^ > 65280) and (PWord(str + i)^ < 65375) then
-      PWord(str + i)^ := PWord(str + i)^ - 65248;
+    else if (PWord(str + i)^ > $ff00) and (PWord(str + i)^ < $ff5f) then
+      PWord(str + i)^ := PWord(str + i)^ - ($ff00-$20);
   end;
 end;
 
