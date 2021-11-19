@@ -3,7 +3,7 @@ unit DSLApp;
 interface
 
 uses
-  SysUtils, Classes, IniFiles, ActiveX, Windows, WinSvc, DSLUtils;
+  SysUtils, Classes, IniFiles, ActiveX, Windows, WinSvc, DSLUtils, DSLThread;
 
 type
   TNTSvcCtrlHandler = function: Boolean;
@@ -42,7 +42,7 @@ procedure userIniWriteString(const section, key, value: string);
 
 procedure initApp(const name: string; const iniFileName: string = ''; const displayName: string = '');
 procedure initUser(const username: string);
-function getServiceMainThread: TRunnableQueue;
+function getServiceMainThread: TTaskQueue;
 procedure RunNTService(handlers: TNTSvcCtrlCmdHandlers);
 
 procedure writeEventLog(const msg: string; EventType: TEventLogType = eltError;
@@ -71,9 +71,9 @@ var
   g_startType: TNTServiceStartType = sstAuto;
   g_serviceType: TNTServiceType = stWin32;
   g_errorSeverity: TErrorSeverity = esNormal;
-  g_svcMainThread: TRunnableQueue;
+  g_svcMainThread: TTaskQueue;
 
-function getServiceMainThread: TRunnableQueue;
+function getServiceMainThread: TTaskQueue;
 begin
   Result := g_svcMainThread;
 end;
@@ -260,7 +260,7 @@ const
   ON_PAUSE_SIGNAL = WAIT_OBJECT_0 + 1;
   ON_RESUME_SIGNAL = WAIT_OBJECT_0 + 2;
 begin
-  g_svcMainThread := TRunnableQueue.Create;
+  g_svcMainThread := TTaskQueue.Create;
   if Assigned(g_svcHandlers.onIdle) then
   begin
     g_svcMainThread.WaitingTimeout := 500;

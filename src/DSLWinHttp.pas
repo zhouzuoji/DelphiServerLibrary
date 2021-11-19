@@ -445,7 +445,7 @@ function TWinHttpIOHandler.read;
 var
   BytesWritten: DWORD;
 begin
-  if WinHttpReadData(FWinHttpRequest, @buf, BufLen, @BytesWritten) then
+  if WinHttpReadData(FWinHttpRequest, @buf, BufLen, BytesWritten) then
   begin
     if BytesWritten = 0 then
     begin

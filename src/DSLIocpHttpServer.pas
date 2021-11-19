@@ -4,7 +4,7 @@ interface
 
 uses
   SysUtils, Classes, DateUtils, Windows, Generics.Collections,
-  DSLUtils, DSLGenerics, DSLWinsock2, DSLHttp, DSLSocket, DSLAsyncSocket, DSLIocp;
+  DSLUtils, DSLTimer, DSLGenerics, DSLWinsock2, DSLHttp, DSLSocket, DSLAsyncSocket, DSLIocp;
 
 type
   TIocpHttpServer = class;
