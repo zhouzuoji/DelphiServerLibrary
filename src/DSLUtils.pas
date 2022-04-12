@@ -1557,6 +1557,9 @@ function BStrGetIntegerBefore(const s, suffix: WideString; var value: Integer): 
 function GetIntegerBefore(const s, suffix: RawByteString; var value: Integer): Boolean; overload;
 function GetIntegerBefore(const s, suffix: u16string; var value: Integer): Boolean; overload;
 function GetIntegerBefore(const s, suffix: WideString; var value: Integer): Boolean; overload;
+
+function ExcludePrefix(const s, prefix: string): string;
+
 {$ENDREGION}
 {$REGION '格式验证'}
 function PasswordScore(const password: RawByteString): Integer;
@@ -12405,7 +12408,7 @@ var
 begin
   if Length(Format) > Length(Buffer) - 32 then
     ConvertError(PResStringRec(@SFormatTooLong));
-  SetString(Result, Buffer, FloatToTextFmt(Buffer, Value, fvExtended,
+  SetString(Result, Buffer, SysUtils.FloatToTextFmt(Buffer, Value, fvExtended,
     PAnsiChar(Format)));
 end;
 
@@ -12416,7 +12419,7 @@ var
 begin
   if Length(Format) > Length(Buffer) - 32 then
     ConvertError(PResStringRec(@SFormatTooLong));
-  SetString(Result, Buffer, FloatToTextFmt(Buffer, Value, fvExtended,
+  SetString(Result, Buffer, SysUtils.FloatToTextFmt(Buffer, Value, fvExtended,
     PAnsiChar(Format), FormatSettings));
 end;
 
@@ -16884,6 +16887,16 @@ begin
       Dec(t2, 32);
     Result := t2 - t1;
   end;
+end;
+
+function ExcludePrefix(const s, prefix: string): string;
+var
+  P: Integer;
+begin
+  if s.StartsWith(prefix) then
+    Result := Copy(s, Length(prefix) + 1)
+  else
+    Result := '';
 end;
 
 function PasswordScore(const password: RawByteString): Integer;

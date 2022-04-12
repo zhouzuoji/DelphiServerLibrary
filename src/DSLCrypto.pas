@@ -26,7 +26,7 @@ const
 function Base64Encode(input: Pointer; InputSize: Integer; output: Pointer;
   const CharTable: RawByteString = BASE64_ALPHABETS_STD): Integer; overload;
 function Base64Encode(input: Pointer; InputSize: Integer): RawByteString; overload;
-function Base64Encode(const input: RawByteString): RawByteString; overload;
+function Base64Encode(const input: RawByteString; const CharTable: RawByteString = BASE64_ALPHABETS_STD): RawByteString; overload;
 function Base64Decode(input: Pointer; InputSize: Integer; output: Pointer;
   const CharTable: RawByteString = BASE64_ALPHABETS_STD): Integer; overload;
 function Base64Decode(const input: RawByteString; output: Pointer): Integer; overload;
@@ -1077,10 +1077,10 @@ begin
   Base64Encode(input, InputSize, Pointer(Result));
 end;
 
-function Base64Encode(const input: RawByteString): RawByteString; overload;
+function Base64Encode(const input: RawByteString; const CharTable: RawByteString): RawByteString; overload;
 begin
   SetLength(Result, (Length(input) + 2) div 3 * 4);
-  Base64Encode(Pointer(input), Length(input), Pointer(Result));
+  Base64Encode(Pointer(input), Length(input), Pointer(Result), CharTable);
 end;
 
 function Base64DecodeResultLen(input: Pointer; InputSize: Integer): Integer;

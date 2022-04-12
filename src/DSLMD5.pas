@@ -55,6 +55,7 @@ procedure MD5Final(var context: TMD5Context; var digest: TMD5Digest);
 procedure MD5Calc(const buffer; Size: Integer; out digest: TMD5Digest); overload;
 function MD5Calc(const str: RawByteString; UpperCase: Boolean = True): RawByteString; overload;
 function MD5Calc(const str: WideString; UpperCase: Boolean = True): RawByteString; overload;
+function MD5Calc(const str: UnicodeString; UpperCase: Boolean = True): RawByteString; overload;
 function MD5String(const str: string; UpperCase: Boolean = True): RawByteString;
 procedure MD5Stream(out digest: TMD5Digest; const stream: TStream; Len: Int64 = 0);
 procedure MD5File(const FileName: string; out digest: TMD5Digest);
@@ -164,6 +165,14 @@ begin
 end;
 
 function MD5Calc(const str: WideString; UpperCase: Boolean = True): RawByteString;
+var
+  digest: TMD5Digest;
+begin
+  MD5Calc(Pointer(str)^, Length(str) * 2, digest);
+  Result := MemHex(digest, SizeOf(digest), UpperCase);
+end;
+
+function MD5Calc(const str: UnicodeString; UpperCase: Boolean = True): RawByteString; overload;
 var
   digest: TMD5Digest;
 begin
