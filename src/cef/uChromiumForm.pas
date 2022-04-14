@@ -64,23 +64,6 @@ type
     procedure ChromiumAfterCreated(Sender: TObject; const browser: ICefBrowser);
     procedure ChromiumClose(Sender: TObject; const browser: ICefBrowser; var aAction: TCefCloseBrowserAction);
     procedure ChromiumBeforeClose(Sender: TObject; const browser: ICefBrowser);
-    procedure ChromiumMainFrameChanged(Sender: TObject;
-      const browser: ICefBrowser; const old_frame, new_frame: ICefFrame);
-    procedure ChromiumAddressChange(Sender: TObject;
-      const browser: ICefBrowser; const frame: ICefFrame; const url: ustring);
-    procedure ChromiumLoadEnd(Sender: TObject; const browser: ICefBrowser;
-      const frame: ICefFrame; httpStatusCode: Integer);
-    procedure ChromiumJsdialog(Sender: TObject; const browser: ICefBrowser;
-      const originUrl: ustring; dialogType: TCefJsDialogType; const messageText,
-      defaultPromptText: ustring; const callback: ICefJsDialogCallback;
-      out suppressMessage, Result: Boolean);
-    procedure ChromiumConsoleMessage(Sender: TObject;
-      const browser: ICefBrowser; level: Cardinal; const msg,
-      source: ustring; line: Integer; out Result: Boolean);
-    procedure ChromiumFrameDetached(Sender: TObject;
-      const browser: ICefBrowser; const frame: ICefFrame);
-    procedure ChromiumFrameAttached(Sender: TObject;
-      const browser: ICefBrowser; const frame: ICefFrame; reattached: Boolean);
   end;
 
 { TCustomChromiumForm }
@@ -127,7 +110,6 @@ begin
   _Chromium.OnAfterCreated := tab.ChromiumAfterCreated;
   _Chromium.OnClose := tab.ChromiumClose;
   _Chromium.OnBeforeClose := tab.ChromiumBeforeClose;
-  _Chromium.OnFrameDetached := tab.ChromiumFrameDetached;
   tab.State := cbsCreating;
   _Chromium.CreateBrowser(_Window, _WindowName, _Context, _ExtraInfo);
 end;
@@ -278,12 +260,6 @@ end;
 
 { TChromiumTab }
 
-procedure TChromiumTab.ChromiumAddressChange(Sender: TObject;
-  const browser: ICefBrowser; const frame: ICefFrame; const url: ustring);
-begin
-
-end;
-
 procedure TChromiumTab.ChromiumAfterCreated(Sender: TObject; const browser: ICefBrowser);
 begin
   State := cbsCreated;
@@ -301,45 +277,6 @@ procedure TChromiumTab.ChromiumClose(Sender: TObject; const browser: ICefBrowser
 begin
   PostMessage(Form.Handle, CEF_DESTROY, 0, LPARAM(Self));
   aAction := cbaDelay;
-end;
-
-procedure TChromiumTab.ChromiumConsoleMessage(Sender: TObject;
-  const browser: ICefBrowser; level: Cardinal; const msg, source: ustring;
-  line: Integer; out Result: Boolean);
-begin
-
-end;
-
-procedure TChromiumTab.ChromiumFrameAttached(Sender: TObject;
-  const browser: ICefBrowser; const frame: ICefFrame; reattached: Boolean);
-begin
-
-end;
-
-procedure TChromiumTab.ChromiumFrameDetached(Sender: TObject;
-  const browser: ICefBrowser; const frame: ICefFrame);
-begin
-
-end;
-
-procedure TChromiumTab.ChromiumJsdialog(Sender: TObject;
-  const browser: ICefBrowser; const originUrl: ustring;
-  dialogType: TCefJsDialogType; const messageText, defaultPromptText: ustring;
-  const callback: ICefJsDialogCallback; out suppressMessage, Result: Boolean);
-begin
-
-end;
-
-procedure TChromiumTab.ChromiumLoadEnd(Sender: TObject;
-  const browser: ICefBrowser; const frame: ICefFrame; httpStatusCode: Integer);
-begin
-
-end;
-
-procedure TChromiumTab.ChromiumMainFrameChanged(Sender: TObject;
-  const browser: ICefBrowser; const old_frame, new_frame: ICefFrame);
-begin
-
 end;
 
 procedure OnCEFInitialized;

@@ -16890,8 +16890,6 @@ begin
 end;
 
 function ExcludePrefix(const s, prefix: string): string;
-var
-  P: Integer;
 begin
   if s.StartsWith(prefix) then
     Result := Copy(s, Length(prefix) + 1)

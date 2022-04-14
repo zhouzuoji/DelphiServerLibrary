@@ -10,13 +10,18 @@ uses
   Generics.Collections,
   Generics.Defaults,
   uCEFTypes,
+  uCEFConstants,
   uCEFInterfaces,
   uCEFMiscFunctions,
   uCEFRequestContext,
-  uCEFJson;
+  uCEFJson,
+  superobject;
 
 function ValueToString(const v: ICefValue): string; overload;
 function ValueToString(const v: ICefv8Value): string; overload;
+function DumpStringMultimap(const m: ICefStringMultimap): string;
+function DumpRequest(const r: ICefRequest): string;
+function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
 procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string;
   _OnComplete: TProc);
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
@@ -24,6 +29,7 @@ procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
   const _Names: array of string; _OnComplete: TProc < TDictionary < string,
   string >> ); overload;
+procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComplete: TProc<TList<TCookie>>); overload;
 procedure SetCookie(const _Ctx: ICefRequestContext;
   const _Url, _Name, _Value: string; cb: TCefSetCookieCallbackProc = nil;
   const _Path: string = '/');
@@ -41,6 +47,8 @@ procedure OnCEFInitiaized;
 implementation
 
 uses
+  DateUtils,
+  uCefStringMultimap,
   uCefRequestContextHandler;
 
 var
@@ -163,6 +171,36 @@ begin
     end);
 end;
 
+const
+  SAME_SITE_STRINGS: array [TCefCookieSameSite] of string =
+    ('', 'none', 'Lax', 'Strict');
+
+function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
+var
+  arr: TSuperArray;
+  o: ISuperObject;
+  i: Integer;
+begin
+  Result := TSuperObject.Create(stArray);
+  arr := Result.AsArray;
+  for i := 0 to _Cookies.Count - 1 do
+  begin
+    with _Cookies[i] do
+    begin
+      o := TSuperObject.Create(stObject);
+      o.S['name'] := name;
+      o.S['value'] := value;
+      o.S['domain'] := domain;
+      o.S['path'] := path;
+      o.I['expires'] := DateTimeToUnix(expires);
+      o.B['httponly'] := httponly;
+      o.B['secure'] := secure;
+      o.I['same_site'] := Ord(same_site);
+      arr.Add(o);
+    end;
+  end;
+end;
+
 procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string;
 _OnComplete: TProc);
 var
@@ -212,6 +250,52 @@ begin
           out deleteCookie: Boolean): Boolean
         begin
           LCookies.Add(TPair<string, string>.Create(name, value));
+          if count + 1 = total then
+            try
+              _OnComplete(LCookies);
+            finally
+              LCookies.Free;
+            end;
+          Result := True;
+        end);
+    end);
+end;
+
+procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComplete: TProc<TList<TCookie>>);
+var
+  LCookieMgr: ICefCookieManager;
+begin
+  LCookieMgr := _Ctx.GetCookieManager(nil);
+  AddHackCookie(LCookieMgr, _Url,
+    procedure(_: Boolean)
+    var
+      LCookies: TList<TCookie>;
+    begin
+      LCookies := TList<TCookie>.Create;
+      LCookieMgr.VisitUrlCookiesProc(_Url, True,
+        function(const _name, _value, _domain, _path: ustring;
+          _secure, _httponly, _hasExpires: Boolean;
+          const _creation, _lastAccess, _expires: TDateTime; count, total: Integer;
+          _same_site: TCefCookieSameSite; _priority: TCefCookiePriority;
+          out deleteCookie: Boolean): Boolean
+        begin
+          if count = 0 then
+            LCookies.Count := total;
+          with LCookies.List[count] do
+          begin
+            name        := _name;
+            value       := _value;
+            domain      := _domain;
+            path        := _domain;
+            creation    := _creation;
+            last_access := _lastAccess;
+            expires     := _expires;
+            secure      := _secure;
+            httponly    := _httponly;
+            has_expires := _hasExpires;
+            same_site   := _same_site;
+            priority    := _priority;
+          end;
           if count + 1 = total then
             try
               _OnComplete(LCookies);
@@ -311,6 +395,45 @@ begin
     Ord(_CookieableSchemesExcludeDefaults);
 
   TCefRequestContextRef.New(@LSettings, TCustomRequestContextHandler.Create(cb));
+end;
+
+function DumpStringMultimap(const m: ICefStringMultimap): string;
+var
+  i: Integer;
+begin
+  Result := '';
+  for i := 0 to m.Size - 1 do
+    Result := Result + m.Key[i] + ': ' + m.Value[i] + #13#10;
+end;
+
+function DumpRequest(const r: ICefRequest): string;
+var
+  i: Integer;
+  LHeaders: ICefStringMultimap;
+  LPostData: ICefPostData;
+  LElements: TCefPostDataElementArray;
+  LElement: ICefPostDataElement;
+  u8s: UTF8String;
+begin
+  LHeaders := TCefStringMultimapOwn.Create;
+  r.GetHeaderMap(LHeaders);
+  Result := r.Method + ' ' + r.Url;
+  for i := 0 to LHeaders.Size - 1 do
+    Result := #13#10 + Result + LHeaders.Key[i] + ': ' + LHeaders.Value[i];
+  LPostData := r.PostData;
+  if LPostData <> nil then
+  begin
+    LPostData.GetElements(LPostData.GetElementCount, LElements);
+    for LElement in LElements do
+    begin
+      if LElement.GetType = PDE_TYPE_BYTES then
+      begin
+        SetLength(u8s, LElement.GetBytesCount);
+        LElement.GetBytes(Length(u8s), Pointer(u8s));
+        Result := Result + #13#10 + UTF8ToString(u8s);
+      end;
+    end;
+  end;
 end;
 
 { TCustomRequestContextHandler }
