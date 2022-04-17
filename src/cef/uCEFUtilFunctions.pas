@@ -420,7 +420,7 @@ begin
   r.GetHeaderMap(LHeaders);
   Result := r.Method + ' ' + r.Url;
   for i := 0 to LHeaders.Size - 1 do
-    Result := #13#10 + Result + LHeaders.Key[i] + ': ' + LHeaders.Value[i];
+    Result := Result + #13#10 + LHeaders.Key[i] + ': ' + LHeaders.Value[i];
   LPostData := r.PostData;
   if LPostData <> nil then
   begin

@@ -104,7 +104,6 @@ object SimpleBrowserFrame: TSimpleBrowserFrame
     TabOrder = 3
   end
   object Chromium1: TChromium
-    OnZoomPctAvailable = Chromium1ZoomPctAvailable
     OnAddressChange = Chromium1AddressChange
     OnConsoleMessage = Chromium1ConsoleMessage
     Left = 384

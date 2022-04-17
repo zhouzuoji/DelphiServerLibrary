@@ -30,7 +30,6 @@ type
       const browser: ICefBrowser; const frame: ICefFrame; const url: ustring);
     procedure Button4Click(Sender: TObject);
     procedure Button5Click(Sender: TObject);
-    procedure Chromium1ZoomPctAvailable(Sender: TObject; const aZoomPct: Double);
   private
     { Private declarations }
   public
@@ -43,15 +42,6 @@ uses
   StrUtils, uCEFExtPolyfill, uFrmScripts;
 
 {$R *.dfm}
-
-function DbgOutput(const s: string): Boolean;
-begin
-  if GetCurrentThreadId <> MainThreadID then
-    OutputDebugString(PChar('[' + IntToStr(GetCurrentThreadId) + '<>' + IntToStr(MainThreadID) + ']' + s))
-  else
-    OutputDebugString(PChar(s));
-  Result := True;
-end;
 
 { TSimpleBrowserFrame }
 
@@ -92,14 +82,8 @@ end;
 
 procedure TSimpleBrowserFrame.Chromium1ConsoleMessage;
 begin
-  DbgOutput('ConsoleMessage: ' + source + ' => ' + msg);
   txtConsole.Lines.Add(msg);
   FilterConsoleMessage(browser, msg);
-end;
-
-procedure TSimpleBrowserFrame.Chromium1ZoomPctAvailable(Sender: TObject; const aZoomPct: Double);
-begin
-  DbgOutput(Format('zoom percent: %f, level:%f', [aZoomPct, Chromium1.ZoomLevel]));
 end;
 
 end.

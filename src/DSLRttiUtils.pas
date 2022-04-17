@@ -154,11 +154,10 @@ var
   tmp: TCustomClassTrait;
 begin
   G_ClassTraitCacheLock.Acquire;
-  if G_ClassTraitCache.TryGetValue(_Class, Result) then
-  begin
-    G_ClassTraitCacheLock.Release;
+  G_ClassTraitCache.TryGetValue(_Class, Result);
+  G_ClassTraitCacheLock.Release;
+  if Result <> nil then
     Exit;
-  end;
   Result := TCustomClassTrait.CreateTrait(_Class);
   G_ClassTraitCacheLock.Acquire;
   if G_ClassTraitCache.TryGetValue(_Class, tmp) then
