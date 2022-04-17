@@ -25,7 +25,7 @@ object SimpleBrowserFrame: TSimpleBrowserFrame
     object edtURL: TLabeledEdit
       Left = 41
       Top = 8
-      Width = 610
+      Width = 437
       Height = 27
       Anchors = [akLeft, akTop, akRight]
       EditLabel.Width = 35
@@ -35,12 +35,12 @@ object SimpleBrowserFrame: TSimpleBrowserFrame
       TabOrder = 0
     end
     object Button1: TButton
-      Left = 657
+      Left = 621
       Top = 1
-      Width = 36
+      Width = 72
       Height = 39
       Align = alRight
-      Caption = 'GO'
+      Caption = 'ZoomIn'
       TabOrder = 1
       OnClick = Button1Click
     end
@@ -64,6 +64,26 @@ object SimpleBrowserFrame: TSimpleBrowserFrame
       TabOrder = 3
       OnClick = Button2Click
     end
+    object Button4: TButton
+      Left = 484
+      Top = 1
+      Width = 36
+      Height = 39
+      Align = alRight
+      Caption = 'GO'
+      TabOrder = 4
+      OnClick = Button4Click
+    end
+    object Button5: TButton
+      Left = 520
+      Top = 1
+      Width = 101
+      Height = 39
+      Align = alRight
+      Caption = 'ZoomOut'
+      TabOrder = 5
+      OnClick = Button5Click
+    end
   end
   object txtConsole: TMemo
     Left = 0
@@ -84,6 +104,7 @@ object SimpleBrowserFrame: TSimpleBrowserFrame
     TabOrder = 3
   end
   object Chromium1: TChromium
+    OnZoomPctAvailable = Chromium1ZoomPctAvailable
     OnAddressChange = Chromium1AddressChange
     OnConsoleMessage = Chromium1ConsoleMessage
     Left = 384

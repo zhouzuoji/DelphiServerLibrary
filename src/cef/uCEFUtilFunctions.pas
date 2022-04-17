@@ -21,6 +21,7 @@ function ValueToString(const v: ICefValue): string; overload;
 function ValueToString(const v: ICefv8Value): string; overload;
 function DumpStringMultimap(const m: ICefStringMultimap): string;
 function DumpRequest(const r: ICefRequest): string;
+function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
 function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
 procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string;
   _OnComplete: TProc);
@@ -431,6 +432,28 @@ begin
         SetLength(u8s, LElement.GetBytesCount);
         LElement.GetBytes(Length(u8s), Pointer(u8s));
         Result := Result + #13#10 + UTF8ToString(u8s);
+      end;
+    end;
+  end;
+end;
+
+function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
+var
+  LElements: TCefPostDataElementArray;
+  LElement: ICefPostDataElement;
+  u8s: UTF8String;
+begin
+  Result := '';
+  if _PostData <> nil then
+  begin
+    _PostData.GetElements(_PostData.GetElementCount, LElements);
+    for LElement in LElements do
+    begin
+      if LElement.GetType = PDE_TYPE_BYTES then
+      begin
+        SetLength(u8s, LElement.GetBytesCount);
+        LElement.GetBytes(Length(u8s), Pointer(u8s));
+        Result := Result + UTF8ToString(u8s);
       end;
     end;
   end;

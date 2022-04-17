@@ -3,16 +3,89 @@ unit DSLRttiUtils;
 interface
 
 uses
-  SysUtils, Classes, rtti, TypInfo, Generics.Collections, Generics.Defaults,
+  SysUtils,
+  Classes,
+  Rtti,
+  TypInfo,
+  Generics.Collections,
+  Generics.Defaults,
   DSLArray;
+
+{
+构造函数第二个参数flag为标记,
+  flag=0时, 第1个参数为已分配的对象地址,
+  flag=0时, 第1个参数为ClassType
+其它参数就是构造函数原型声明的参数
+}
+type
+  TParamlessConstructor = function(vmt: TClass; flag: Shortint): TObject;
+  TObjectListConstructor = function(vmt: TClass; flag: Shortint; AOwnsObjects: Boolean): TObject;
+  TListSetCountProc = procedure(_Self: TObject; Value: Integer);
+  TListGetListProc = function(_Self: TObject): TArray<Byte>;
 
 // get element type of generic TList<T> or TObjectList<T>
 function getGenericListElementType(var avContext: TRttiContext;
   avListClass: TClass): TRttiType; overload;
 function getGenericListElementType(avListClass: TClass): PTypeInfo; overload;
+function GetParamlessConstructor(t: TRttiInstanceType): TParamlessConstructor;
+function GetObjectListConstructor(t: TRttiInstanceType): TObjectListConstructor;
 
 type
-  TdslGenericList = record
+  TRTTIAttributeClass = class of TCustomAttribute;
+  CalleeOwnsRetValue = class(TCustomAttribute);
+  TCustomClassTrait = class
+  private
+    FParamlessCtor: TParamlessConstructor;
+    FMetaClass: TClass;
+  protected
+    procedure Init(t: TRttiInstanceType); virtual;
+  public
+    constructor Create(_MetaClass: TClass); virtual;
+    class function CreateTrait(_Class: TClass): TCustomClassTrait; static;
+    function CreateObject: TObject; virtual;
+    property MetaClass: TClass read FMetaClass;
+  end;
+
+  TClassField = record
+    Name: string;
+    Offset: Integer;
+    _Type: PTypeInfo;
+  end;
+
+  TDataClassTrait = class(TCustomClassTrait)
+  private
+    FFields: TArray<TClassField>;
+  protected
+    procedure Init(t: TRttiInstanceType); override;
+  public
+    property Fields: TArray<TClassField> read FFields;
+  end;
+
+  TGenericListTrait = class(TCustomClassTrait)
+  private
+    FObjectListCtor: TObjectListConstructor;
+    FElementType: PTypeInfo;
+    FElementTypeData: PTypeData;
+    FMethodAdd: Pointer;
+    FCountOffset: NativeInt;
+    FMethodSetCount: TListSetCountProc;
+    FMethodGetList: TListGetListProc;
+    FIsObjectList: Boolean;
+    procedure FindMethods(t: TRttiType);
+    procedure FindProperties(t: TRttiInstanceType);
+  protected
+    procedure Init(t: TRttiInstanceType); override;
+  public
+    function CreateObject: TObject; override;
+    procedure SetCount(_List: TObject; _Count: Integer);
+    function GetCount(_List: TObject): Integer;
+    function GetInternalArray(_List: TObject): TArray<Byte>;
+    property IsObjectList: Boolean read FIsObjectList;
+    property ElementType: PTypeInfo read FElementType;
+    property ElementTypeData: PTypeData read FElementTypeData;
+  end;
+
+  TdslGenericList = class
   private
     tvListType: TRttiType;
     tvListConstructor: Pointer;
@@ -54,7 +127,49 @@ type
     property ElementTypeSize: Integer read tvTypeSize;          // SizeOf(元素类型)
   end;
 
+function GetClassTrait(_Class: TClass): TCustomClassTrait;
+function FindRttiAttribute(const _Attrs: TArray<TCustomAttribute>; _AttrClass: TRTTIAttributeClass): TCustomAttribute;
+
 implementation
+
+uses
+  SyncObjs;
+
+function FindRttiAttribute(const _Attrs: TArray<TCustomAttribute>; _AttrClass: TRTTIAttributeClass): TCustomAttribute;
+var
+  LAttr: TCustomAttribute;
+begin
+  Result := nil;
+  for LAttr in _Attrs do
+    if LAttr.InheritsFrom(_AttrClass) then
+      Exit(LAttr);
+end;
+
+var
+  G_ClassTraitCacheLock: TSynchroObject;
+  G_ClassTraitCache: TDictionary<TClass, TCustomClassTrait>;
+
+function GetClassTrait(_Class: TClass): TCustomClassTrait;
+var
+  tmp: TCustomClassTrait;
+begin
+  G_ClassTraitCacheLock.Acquire;
+  if G_ClassTraitCache.TryGetValue(_Class, Result) then
+  begin
+    G_ClassTraitCacheLock.Release;
+    Exit;
+  end;
+  Result := TCustomClassTrait.CreateTrait(_Class);
+  G_ClassTraitCacheLock.Acquire;
+  if G_ClassTraitCache.TryGetValue(_Class, tmp) then
+  begin
+    Result.Free;
+    Result := tmp;
+  end
+  else
+    G_ClassTraitCache.Add(_Class, Result);
+  G_ClassTraitCacheLock.Release;
+end;
 
 type
   T3Bytes = array [0 .. 2] of Byte;
@@ -100,6 +215,54 @@ begin
   tvMethodAdd := lvType.GetMethod('GetItem');
   if Assigned(tvMethodAdd) then
     Result := tvMethodAdd.ReturnType.Handle;
+end;
+
+function GetParamlessConstructor(t: TRttiInstanceType): TParamlessConstructor;
+var
+  LHasOtherConstructor: Boolean;
+  LMethod: TRttiMethod;
+begin
+  Result := nil;
+  while Assigned(t) do
+  begin
+    LHasOtherConstructor := False;
+    for LMethod in t.GetDeclaredMethods do
+    begin
+      if LMethod.IsConstructor then
+      begin
+        LHasOtherConstructor := True;
+        if LMethod.GetParameters = nil then
+          Exit(@TParamlessConstructor(LMethod.CodeAddress));
+      end;
+    end;
+    if LHasOtherConstructor then Exit;
+    t := t.BaseType;
+  end;
+end;
+
+function GetObjectListConstructor(t: TRttiInstanceType): TObjectListConstructor;
+var
+  LHasOtherConstructor: Boolean;
+  LMethod: TRttiMethod;
+  LParams: TArray<TRttiParameter>;
+begin
+  Result := nil;
+  while Assigned(t) do
+  begin
+    LHasOtherConstructor := False;
+    for LMethod in t.GetDeclaredMethods do
+    begin
+      if LMethod.IsConstructor then
+      begin
+        LHasOtherConstructor := True;
+        LParams := LMethod.GetParameters;
+        if (Length(LParams) = 1) and (LParams[0].ParamType.Handle = TypeInfo(Boolean)) then
+          Exit(@TObjectListConstructor(LMethod.CodeAddress));
+      end;
+    end;
+    if LHasOtherConstructor then Exit;
+    t := t.BaseType;
+  end;
 end;
 
 { TdslGenericList }
@@ -297,16 +460,6 @@ begin
   end;
 end;
 
-{
-构造函数第二个参数flag为标记,
-  flag=0时, 第1个参数为已分配的对象地址,
-  flag=0时, 第1个参数为ClassType
-其它参数就是构造函数原型声明的参数
-}
-type
-  TDefaultConstructor = function(vmt: TClass; flag: Shortint): TObject;
-  TObjectListDefaultConstructor = function(vmt: TClass; flag: Shortint; AOwnsObjects: Boolean): TObject;
-
 function TdslGenericList.NewList: TObject;
 var
   lvMetaClass: TClass;
@@ -315,9 +468,9 @@ begin
   begin
     lvMetaClass := TRttiInstanceType(tvListType).MetaclassType;
     if tvIsObjectList then
-      Result := TObjectListDefaultConstructor(tvListConstructor)(lvMetaClass, 1, True)
+      Result := TObjectListConstructor(tvListConstructor)(lvMetaClass, 1, True)
     else
-      Result := TDefaultConstructor(tvListConstructor)(lvMetaClass, 1);
+      Result := TParamlessConstructor(tvListConstructor)(lvMetaClass, 1);
   end
   else
     Result := nil;
@@ -330,7 +483,7 @@ begin
   if (tvConstructors.Count > 0) and Assigned(tvConstructors[0]) then
   begin
     lvMetaClass := TRttiInstanceType(tvElementType).MetaclassType;
-    Result := TDefaultConstructor(tvConstructors[0].CodeAddress)(lvMetaClass, 1);
+    Result := TParamlessConstructor(tvConstructors[0].CodeAddress)(lvMetaClass, 1);
   end
   else
     Result := nil;
@@ -340,5 +493,189 @@ function TdslGenericList.ValuePointer: Pointer;
 begin
   Result := tvValue.GetReferenceToRawData;
 end;
+
+{ TCustomClassTrait }
+
+constructor TCustomClassTrait.Create(_MetaClass: TClass);
+var
+  LRttiCtx: TRttiContext;
+  LType: TRttiInstanceType;
+begin
+  inherited Create;
+  FMetaClass := _MetaClass;
+  LType := LRttiCtx.GetType(_MetaClass) as TRttiInstanceType;
+  FParamlessCtor := GetParamlessConstructor(LType);
+  Init(LType);
+end;
+
+function TCustomClassTrait.CreateObject: TObject;
+begin
+  if Assigned(FParamlessCtor) then
+    Result := FParamlessCtor(FMetaClass, 1)
+  else
+    Result := nil;
+end;
+
+class function TCustomClassTrait.CreateTrait(_Class: TClass): TCustomClassTrait;
+var
+  LClassName: string;
+begin
+  LClassName := _Class.ClassName;
+  if LClassName.StartsWith('TList<') or LClassName.StartsWith('TObjectList<') then
+    Result := TGenericListTrait.Create(_Class)
+  else
+    Result := TDataClassTrait.Create(_Class);
+end;
+
+procedure TCustomClassTrait.Init(t: TRttiInstanceType);
+begin
+
+end;
+
+{ TDataClassTrait }
+
+procedure TDataClassTrait.Init(t: TRttiInstanceType);
+var
+  LFields: TArray<TRttiField>;
+  i, n: Integer;
+begin
+  inherited;
+  LFields := t.GetFields;
+  n := 0;
+  SetLength(FFields, Length(LFields));
+  for i := Low(LFields) to High(LFields) do
+  begin
+    if LFields[i].Visibility = mvPublic then
+    begin
+      FFields[n].Name := LFields[i].Name;
+      FFields[n].Offset := LFields[i].Offset;
+      FFields[n]._Type := LFields[i].FieldType.Handle;
+      Inc(n);
+    end;
+  end;
+  SetLength(FFields, n);
+end;
+
+{ TGenericListTrait }
+
+function TGenericListTrait.CreateObject: TObject;
+begin
+  if Assigned(FObjectListCtor) then
+    Result := FObjectListCtor(MetaClass, 1, True)
+  else
+    Result := inherited CreateObject;
+end;
+
+procedure TGenericListTrait.FindMethods(t: TRttiType);
+var
+  LMethod: TRttiMethod;
+  LKind: TMethodKind;
+  LHasCtor: Boolean;
+  LParams: TArray<TRttiParameter>;
+  LRetType: TRttiType;
+  LMethodName: string;
+begin
+  while Assigned(t) do
+  begin
+    LHasCtor := False;
+    for LMethod in t.GetDeclaredMethods do
+    begin
+      LKind := LMethod.MethodKind;
+      if LKind = mkFunction then
+      begin
+        LMethodName := LMethod.Name;
+        if 'Add' = LMethodName then
+        begin
+          if FElementType = nil then
+          begin
+            LRetType := LMethod.ReturnType;
+            if (LRetType <> nil) and (LRetType.TypeKind in [tkInteger, tkInt64]) then
+            begin
+              LParams := LMethod.GetParameters;
+              if (Length(LParams) = 1) and (pfConst in LParams[0].Flags) then
+              begin
+                FElementType := LParams[0].ParamType.Handle;
+                FElementTypeData := GetTypeData(FElementType);
+                FMethodAdd := LMethod.CodeAddress;
+              end;
+            end;
+          end;
+        end
+      end
+      else if (LKind = mkConstructor) and FIsObjectList then
+      begin
+        LHasCtor := True;
+        LParams := LMethod.GetParameters;
+        if (Length(LParams) = 1) and (LParams[0].ParamType.Handle = TypeInfo(Boolean)) then
+          FObjectListCtor := @TObjectListConstructor(LMethod.CodeAddress);
+      end;
+    end;
+    if FIsObjectList and LHasCtor and not Assigned(FObjectListCtor) then
+      raise Exception.CreateFmt('constructor of %s not found', [t.Name]);
+    t := t.BaseType;
+  end;
+end;
+
+procedure TGenericListTrait.FindProperties(t: TRttiInstanceType);
+var
+  LProperty: TRttiProperty;
+  LPropInfo: PPropInfo;
+begin
+  while Assigned(t) and not (Assigned(FMethodSetCount) and Assigned(FMethodGetList)) do
+  begin
+    for LProperty in t.GetDeclaredProperties do
+    begin
+      if (LProperty.Name = 'Count') then
+      begin
+        if LProperty.PropertyType.Handle = TypeInfo(Integer) then
+        begin
+          LPropInfo := TRttiInstanceProperty(LProperty).PropInfo;
+          @FMethodSetCount := LPropInfo.SetProc;
+          FCountOffset := NativeInt(LPropInfo.GetProc) and not PROPSLOT_MASK;
+        end;
+      end
+      else if (LProperty.Name = 'List') then
+      begin
+        if LProperty.PropertyType.Handle.Kind = tkDynArray then
+        begin
+          LPropInfo := TRttiInstanceProperty(LProperty).PropInfo;
+          @FMethodGetList := LPropInfo.GetProc;
+        end;
+      end;
+    end;
+    t := t.BaseType;
+  end;
+end;
+
+function TGenericListTrait.GetCount(_List: TObject): Integer;
+begin
+  Result := PInteger(PAnsiChar(_List) + FCountOffset)^;
+end;
+
+function TGenericListTrait.GetInternalArray(_List: TObject): TArray<Byte>;
+begin
+  Result := FMethodGetList(_List);
+end;
+
+procedure TGenericListTrait.Init(t: TRttiInstanceType);
+begin
+  inherited;
+  FIsObjectList := t.Name.StartsWith('TObjectList<', True);
+  FindMethods(t);
+  FindProperties(t);
+end;
+
+procedure TGenericListTrait.SetCount(_List: TObject; _Count: Integer);
+begin
+  FMethodSetCount(_List, _Count);
+end;
+
+initialization
+  G_ClassTraitCacheLock := TCriticalSection.Create;
+  G_ClassTraitCache := TDictionary<TClass, TCustomClassTrait>.Create;
+
+finalization
+  G_ClassTraitCache.Free;
+  G_ClassTraitCacheLock.Free;
 
 end.
