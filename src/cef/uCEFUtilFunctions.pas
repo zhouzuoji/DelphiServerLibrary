@@ -22,6 +22,7 @@ function ValueToString(const v: ICefv8Value): string; overload;
 function DumpStringMultimap(const m: ICefStringMultimap): string;
 function DumpRequest(const r: ICefRequest): string;
 function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
+function PostDataToByteArray(_PostData: ICefPostData): RawByteString;
 function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
 procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string;
   _OnComplete: TProc);
@@ -438,22 +439,34 @@ begin
 end;
 
 function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
+begin
+  Result := UTF8ToString(PostDataToByteArray(_PostData));
+end;
+
+function PostDataToByteArray(_PostData: ICefPostData): RawByteString;
 var
   LElements: TCefPostDataElementArray;
   LElement: ICefPostDataElement;
-  u8s: UTF8String;
+  n, LOffset: NativeInt;
 begin
   Result := '';
   if _PostData <> nil then
   begin
+    n := 0;
+    LOffset := 0;
     _PostData.GetElements(_PostData.GetElementCount, LElements);
     for LElement in LElements do
     begin
       if LElement.GetType = PDE_TYPE_BYTES then
+        Inc(n, LElement.GetBytesCount)
+    end;
+    SetLength(Result, n);
+    for LElement in LElements do
+    begin
+      if LElement.GetType = PDE_TYPE_BYTES then
       begin
-        SetLength(u8s, LElement.GetBytesCount);
-        LElement.GetBytes(Length(u8s), Pointer(u8s));
-        Result := Result + UTF8ToString(u8s);
+        LElement.GetBytes(LElement.GetBytesCount, PAnsiChar(Pointer(Result)) + LOffset);
+        Inc(LOffset, LElement.GetBytesCount);
       end;
     end;
   end;

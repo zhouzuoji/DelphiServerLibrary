@@ -47,7 +47,7 @@ uses
 
 procedure TSimpleBrowserFrame.Button1Click(Sender: TObject);
 begin
-  Chromium1.ZoomStep := ZOOM_STEP_MAX;
+  Chromium1.DecZoomStep;
 end;
 
 procedure TSimpleBrowserFrame.Button2Click(Sender: TObject);
@@ -71,7 +71,7 @@ end;
 
 procedure TSimpleBrowserFrame.Button5Click(Sender: TObject);
 begin
-  Chromium1.ZoomStep := ZOOM_STEP_MIN;
+  Chromium1.IncZoomStep;
 end;
 
 procedure TSimpleBrowserFrame.Chromium1AddressChange(Sender: TObject;
