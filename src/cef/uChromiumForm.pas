@@ -3,16 +3,27 @@ unit uChromiumForm;
 interface
 
 uses
-  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, Contnrs, SyncObjs, Generics.Collections, Generics.Defaults,
-  uCEFWinControl, uCEFWindowParent, uCEFChromiumCore, uCEFChromium, uCEFStringMultimap,
-  uCEFInterfaces, uCEFTypes, uCEFConstants, uCEFApplication, uCEFRequest, uCEFResponse,
-  uCEFRequestContext, uCEFMiscFunctions, uCefv8Value, uCefV8Accessor, uCEFChromiumEvents;
+  SysUtils,
+  Classes,
+  Generics.Collections,
+  Windows,
+  Messages,
+  Variants,
+  Controls,
+  Forms,
+  uCEFWinControl,
+  uCEFWindowParent,
+  uCEFChromiumCore,
+  uCEFChromium,
+  uCEFInterfaces,
+  uCEFTypes,
+  uCEFConstants,
+  uCEFApplication,
+  uCEFRequest,
+  uCEFRequestContext,
+  superobject;
 
 const
-  UM_WINDOW_CLOSED = WM_USER + 2;
-  UM_CHROMIUM_CLOSED = WM_USER + 3;
-
   BLANK_URL = 'about:blank';
 
 type
@@ -34,9 +45,6 @@ type
     procedure WMMoving(var aMessage : TMessage); message WM_MOVING;
     procedure WMEnterMenuLoop(var aMessage: TMessage); message WM_ENTERMENULOOP;
     procedure WMExitMenuLoop(var aMessage: TMessage); message WM_EXITMENULOOP;
-    procedure UMWindowClosed(var msgr: TMessage); message UM_WINDOW_CLOSED;
-    procedure UMChromiumClosed(var msgr: TMessage); message UM_CHROMIUM_CLOSED;
-    procedure CEFDestroy(var msgr: TMessage); message CEF_DESTROY;
   protected
     procedure DoClose(var Action: TCloseAction); override;
     procedure DoShow; override;
@@ -45,15 +53,26 @@ type
   public
     destructor Destroy; override;
     procedure CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent;
+      const _TagData: UTF8String = '';
       const _WindowName : ustring = '';
       const _Context : ICefRequestContext = nil;
       const _ExtraInfo : ICefDictionaryValue = nil);
+    procedure CloseBrowser(_Chromium: TChromium);
   end;
+
+function GetBrowserTagData(const _Browser: ICefBrowser): UTF8String;
+procedure SetBrowserTagData(const _Browser: ICefBrowser; const _TagData: UTF8String);
 
 implementation
 
 uses
-  uCEFUtilFunctions, DSLVclApp;
+  SyncObjs,
+  DSLVclApp,
+  uCEFUtilFunctions;
+
+var
+  G_TagDataLock: TSynchroObject;
+  G_TagDataMap: TDictionary<Integer, UTF8String>;
 
 type
   TChromiumTab = class
@@ -61,16 +80,56 @@ type
     Chromium: TChromium;
     Window: TCEFWindowParent;
     Form: TCustomChromiumForm;
+    TagData: UTF8String;
     procedure ChromiumAfterCreated(Sender: TObject; const browser: ICefBrowser);
     procedure ChromiumClose(Sender: TObject; const browser: ICefBrowser; var aAction: TCefCloseBrowserAction);
     procedure ChromiumBeforeClose(Sender: TObject; const browser: ICefBrowser);
   end;
 
+function GetBrowserTagData(const _Browser: ICefBrowser): UTF8String;
+begin
+  G_TagDataLock.Acquire;
+  try
+    G_TagDataMap.TryGetValue(_Browser.Identifier, Result);
+  finally
+    G_TagDataLock.Release;
+  end;
+  if Result = '' then
+    Result := 'null';
+end;
+
+procedure SetBrowserTagData(const _Browser: ICefBrowser; const _TagData: UTF8String);
+begin
+  G_TagDataLock.Acquire;
+  try
+    G_TagDataMap.AddOrSetValue(_Browser.Identifier, _TagData);
+  finally
+    G_TagDataLock.Release;
+  end;
+end;
+
 { TCustomChromiumForm }
 
-procedure TCustomChromiumForm.CEFDestroy(var msgr: TMessage);
+procedure TCustomChromiumForm.CloseBrowser(_Chromium: TChromium);
+var
+  i: Integer;
+  tab: TChromiumTab;
 begin
-  FreeAndNil(TChromiumTab(msgr.LParam).Window);
+  if FBrowserList = nil then Exit;
+
+  for i := 0 to FBrowserList.Count - 1 do
+  begin
+    tab := TChromiumTab(FBrowserList[i]);
+    if tab.Chromium = _Chromium then
+    begin
+      if tab.State = cbsCreated then
+      begin
+        tab.State := cbsDestroying;
+        _Chromium.CloseBrowser(True);
+      end;
+      Break;
+    end;
+  end;
 end;
 
 function TCustomChromiumForm.CloseBrowsers: Boolean;
@@ -104,6 +163,7 @@ begin
   tab.Chromium := _Chromium;
   tab.Window := _Window;
   tab.Form := Self;
+  tab.TagData := _TagData;
   if FBrowserList = nil then
     FBrowserList := TList.Create;
   FBrowserList.Add(tab);
@@ -215,25 +275,6 @@ begin
   end;
 end;
 
-procedure TCustomChromiumForm.UMChromiumClosed(var msgr: TMessage);
-begin
-  if (FClosing or TCustomChromiumForm(Application.MainForm).FClosing) and PrepareClose then
-  begin
-    if Self = Application.MainForm then
-      Application.Terminate
-    else
-      PostMessage(Application.MainForm.Handle, UM_WINDOW_CLOSED, 0, 0);
-  end;
-end;
-
-procedure TCustomChromiumForm.UMWindowClosed(var msgr: TMessage);
-begin
-  if not FClosing then Exit;
-
-  if (Application.MainForm = Self) and PrepareClose then
-    Application.Terminate;
-end;
-
 procedure TCustomChromiumForm.WMEnterMenuLoop(var aMessage: TMessage);
 begin
   inherited;
@@ -262,21 +303,75 @@ end;
 
 procedure TChromiumTab.ChromiumAfterCreated(Sender: TObject; const browser: ICefBrowser);
 begin
+  G_TagDataLock.Acquire;
+  try
+    G_TagDataMap.Add(browser.Identifier, TagData);
+  finally
+    G_TagDataLock.Release;
+  end;
   State := cbsCreated;
+end;
+
+procedure OnBrowserClosed(_Form: TCustomChromiumForm; _Tab: TChromiumTab; const _Browser: ICefBrowser);
+var
+  i: Integer;
+  LMainForm: TCustomChromiumForm;
+begin
+  G_TagDataLock.Acquire;
+  try
+    G_TagDataMap.Remove(_Browser.Identifier);
+  finally
+    G_TagDataLock.Release;
+  end;
+
+  for i := 0 to _Form.FBrowserList.Count - 1 do
+  begin
+    if _Form.FBrowserList[i] = _Tab then
+    begin
+      _Tab.Chromium.OnAfterCreated := nil;
+      _Tab.Chromium.OnClose := nil;
+      _Tab.Chromium.OnBeforeClose := nil;
+      _Form.FBrowserList.Delete(i);
+      _Tab.Free;
+      Break;
+    end;
+  end;
+
+  LMainForm := Application.MainForm as TCustomChromiumForm;
+  if (_Form.FClosing or LMainForm.FClosing) and _Form.PrepareClose then
+  begin
+    if _Form = LMainForm then
+      Application.Terminate
+    else if LMainForm.FClosing and LMainForm.PrepareClose then
+      Application.Terminate;
+  end;
 end;
 
 procedure TChromiumTab.ChromiumBeforeClose(Sender: TObject; const browser: ICefBrowser);
 begin
   Self.State := cbsDestroyed;
-  if Form.FClosing or TCustomChromiumForm(Application.MainForm).FClosing then
-    PostMessage(Form.Handle, UM_CHROMIUM_CLOSED, 0, LPARAM(Self));
+  ExecOnMainThread(
+    procedure
+    begin
+      OnBrowserClosed(Form, Self, browser);
+    end
+  );
 end;
 
 procedure TChromiumTab.ChromiumClose(Sender: TObject; const browser: ICefBrowser;
   var aAction: TCefCloseBrowserAction);
 begin
-  PostMessage(Form.Handle, CEF_DESTROY, 0, LPARAM(Self));
-  aAction := cbaDelay;
+  if Self.Window <> nil then
+    aAction := cbaDelay;
+  ExecOnMainThread(
+    procedure
+    begin
+      if Self.Window = nil then
+        OnBrowserClosed(Form, Self, browser)
+      else
+        FreeAndNil(Self.Window);
+    end
+  );
 end;
 
 procedure OnCEFInitialized;
@@ -301,5 +396,11 @@ end;
 
 initialization
   ExecWhenCEFInitiaized(OnCEFInitialized);
+  G_TagDataLock := TCriticalSection.Create;
+  G_TagDataMap := TDictionary<Integer, UTF8String>.Create;
+
+finalization
+  G_TagDataMap.Free;
+  G_TagDataLock.Free;
 
 end.

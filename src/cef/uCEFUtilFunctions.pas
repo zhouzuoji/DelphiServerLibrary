@@ -24,17 +24,15 @@ function DumpRequest(const r: ICefRequest): string;
 function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
 function PostDataToByteArray(_PostData: ICefPostData): RawByteString;
 function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
-procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string;
-  _OnComplete: TProc);
+procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string; _OnComplete: TProc);
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
-  _OnComplete: TProc < TList < TPair<string, string> >> ); overload;
+  _OnComplete: TProc<TList<TPair<string,string>>>); overload;
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
-  const _Names: array of string; _OnComplete: TProc < TDictionary < string,
-  string >> ); overload;
+  const _Names: array of string; _OnComplete: TProc<TDictionary<string,string>>); overload;
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComplete: TProc<TList<TCookie>>); overload;
 procedure SetCookie(const _Ctx: ICefRequestContext;
   const _Url, _Name, _Value: string; cb: TCefSetCookieCallbackProc = nil;
-  const _Path: string = '/');
+  const _Path: string = '/'; const _Domain: string = '');
 procedure CreateRequestContext(const _CachePath: ustring;
   const _AcceptLanguageList: ustring; const _CookieableSchemesList: ustring;
   const _CookieableSchemesExcludeDefaults: Boolean;
@@ -50,8 +48,21 @@ implementation
 
 uses
   DateUtils,
+  uCEFBaseRefCounted,
   uCefStringMultimap,
   uCefRequestContextHandler;
+
+type
+  TCustomCookieVisitor = class(TCefBaseRefCountedOwn, ICefCookieVisitor)
+  private
+    FVisitProc: TCefCookieVisitorProc;
+    FOnFinished: TProc;
+  protected
+    function visit(const name, value, domain, path: ustring; secure, httponly, hasExpires: Boolean; const creation, lastAccess, expires: TDateTime; count, total: Integer; same_site : TCefCookieSameSite; priority : TCefCookiePriority; out deleteCookie: Boolean): Boolean;
+  public
+    constructor Create(_VisitProc: TCefCookieVisitorProc; _OnFinished: TProc);
+    destructor Destroy; override;
+  end;
 
 var
   EMPTY_SET_COOKIE_CALLBACK: TCefSetCookieCallbackProc;
@@ -154,23 +165,24 @@ begin
   Result := Copy(_Url, P1, P2 - P1);
 end;
 
-procedure AddHackCookie(_CookieMgr: ICefCookieManager; const _Url: string;
-  cb: TCefSetCookieCallbackProc);
-begin
-  _CookieMgr.SetCookieProc(_Url, 'cef_hack', '1', GetHost(_Url), '/', False,
-    True, True, Now, Now, Now + 30, CEF_COOKIE_SAME_SITE_STRICT_MODE, 0, cb);
-end;
-
 procedure SetCookie(const _Ctx: ICefRequestContext;
   const _Url, _Name, _Value: string; cb: TCefSetCookieCallbackProc;
-  const _Path: string);
+  const _Path, _Domain: string);
+var
+  LDomain, LPath: string;
 begin
-  _Ctx.GetCookieManager(nil).SetCookieProc(_Url, _Name, _Value, GetHost(_Url),
-    _Path, False, True, True, Now, Now, Now + 30,
+  LDomain := _Domain;
+  if LDomain = '' then
+    LDomain := GetHost(_Url);
+  LPath := _Path;
+  if LPath = '' then
+    LPath := '/';
+  if not Assigned(cb) then
+    cb := EMPTY_SET_COOKIE_CALLBACK;
+  _Ctx.GetCookieManager(nil).SetCookieProc(_Url, _Name, _Value, LDomain,
+    LPath, False, False, True, Now, Now, Now + 30,
     CEF_COOKIE_SAME_SITE_STRICT_MODE, 0,
-    procedure(success: Boolean)
-    begin
-    end);
+    cb);
 end;
 
 const
@@ -203,8 +215,7 @@ begin
   end;
 end;
 
-procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string;
-_OnComplete: TProc);
+procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string; _OnComplete: TProc);
 var
   LSrc, LDest: ICefCookieManager;
 begin
@@ -212,83 +223,71 @@ begin
     [_Src.CachePath, _Dest.CachePath]));
   LSrc := _Src.GetCookieManager(nil);
   LDest := _Dest.GetCookieManager(nil);
-  AddHackCookie(LSrc, _Url,
-    procedure(_: Boolean)
-    begin
-      LSrc.VisitUrlCookiesProc(_Url, True,
-        function(const name, value, domain, path: ustring;
-          secure, httponly, hasExpires: Boolean;
-          const creation, lastAccess, expires: TDateTime; count, total: Integer;
-          same_site: TCefCookieSameSite; priority: TCefCookiePriority;
-          out deleteCookie: Boolean): Boolean
+  LSrc.VisitUrlCookies(_Url, True,
+    TCustomCookieVisitor.Create(
+      function(const name, value, domain, path: ustring;
+        secure, httponly, hasExpires: Boolean;
+        const creation, lastAccess, expires: TDateTime; count, total: Integer;
+        same_site: TCefCookieSameSite; priority: TCefCookiePriority;
+        out deleteCookie: Boolean): Boolean
         begin
           LDest.SetCookieProc(_Url, name, value, domain, path, secure, httponly,
             hasExpires, creation, lastAccess, expires, same_site,
             priority, EMPTY_SET_COOKIE_CALLBACK);
-          if (count + 1 = total) and Assigned(_OnComplete) then
-            _OnComplete();
           Result := True;
-        end);
-    end);
+        end,
+      _OnComplete
+    )
+  );
 end;
 
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
-_OnComplete: TProc < TList < TPair<string, string> >> );
+  _OnComplete: TProc<TList<TPair<string,string>>>);
 var
   LCookieMgr: ICefCookieManager;
+  LCookies: TList<TPair<string, string>>;
 begin
   LCookieMgr := _Ctx.GetCookieManager(nil);
-  AddHackCookie(LCookieMgr, _Url,
-    procedure(_: Boolean)
-    var
-      LCookies: TList<TPair<string, string>>;
-    begin
-      LCookies := TList < TPair < string, string >>.Create;
-      LCookieMgr.VisitUrlCookiesProc(_Url, True,
-        function(const name, value, domain, path: ustring;
-          secure, httponly, hasExpires: Boolean;
-          const creation, lastAccess, expires: TDateTime; count, total: Integer;
-          same_site: TCefCookieSameSite; priority: TCefCookiePriority;
-          out deleteCookie: Boolean): Boolean
+  LCookies := TList < TPair < string, string >>.Create;
+  LCookieMgr.VisitUrlCookies(_Url, True,
+    TCustomCookieVisitor.Create(
+      function(const name, value, domain, path: ustring;
+        secure, httponly, hasExpires: Boolean;
+        const creation, lastAccess, expires: TDateTime; count, total: Integer;
+        same_site: TCefCookieSameSite; priority: TCefCookiePriority;
+        out deleteCookie: Boolean): Boolean
         begin
           LCookies.Add(TPair<string, string>.Create(name, value));
-          if count + 1 = total then
-            try
-              _OnComplete(LCookies);
-            finally
-              LCookies.Free;
-            end;
           Result := True;
-        end);
-    end);
+        end,
+      procedure begin _OnComplete(LCookies); end
+    )
+  );
 end;
 
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComplete: TProc<TList<TCookie>>);
 var
   LCookieMgr: ICefCookieManager;
+  LCookies: TList<TCookie>;
 begin
   LCookieMgr := _Ctx.GetCookieManager(nil);
-  AddHackCookie(LCookieMgr, _Url,
-    procedure(_: Boolean)
-    var
-      LCookies: TList<TCookie>;
-    begin
-      LCookies := TList<TCookie>.Create;
-      LCookieMgr.VisitUrlCookiesProc(_Url, True,
-        function(const _name, _value, _domain, _path: ustring;
-          _secure, _httponly, _hasExpires: Boolean;
-          const _creation, _lastAccess, _expires: TDateTime; count, total: Integer;
-          _same_site: TCefCookieSameSite; _priority: TCefCookiePriority;
-          out deleteCookie: Boolean): Boolean
+  LCookies := TList<TCookie>.Create;
+  LCookieMgr.VisitUrlCookies(_Url, True,
+    TCustomCookieVisitor.Create(
+      function(const _name, _value, _domain, _path: ustring;
+        _secure, _httponly, _hasExpires: Boolean;
+        const _creation, _lastAccess, _expires: TDateTime; _count, _total: Integer;
+        _same_site: TCefCookieSameSite; _priority: TCefCookiePriority;
+        out _deleteCookie: Boolean): Boolean
         begin
-          if count = 0 then
-            LCookies.Count := total;
-          with LCookies.List[count] do
+          if _count = 0 then
+            LCookies.Count := _total;
+          with LCookies.List[_count] do
           begin
             name        := _name;
             value       := _value;
             domain      := _domain;
-            path        := _domain;
+            path        := _path;
             creation    := _creation;
             last_access := _lastAccess;
             expires     := _expires;
@@ -298,75 +297,43 @@ begin
             same_site   := _same_site;
             priority    := _priority;
           end;
-          if count + 1 = total then
-            try
-              _OnComplete(LCookies);
-            finally
-              LCookies.Free;
-            end;
           Result := True;
-        end);
-    end);
+        end,
+      procedure begin _OnComplete(LCookies); end
+    )
+  );
 end;
 
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
-const _Names: array of string; _OnComplete: TProc < TDictionary < string,
-  string >> );
+  const _Names: array of string; _OnComplete: TProc<TDictionary<string,string>>);
 var
   LCookieMgr: ICefCookieManager;
   LCookieMap: TDictionary<string, string>;
   LName: string;
+  n: Integer;
 begin
   LCookieMap := TDictionary<string, string>.Create;
   for LName in _Names do
     LCookieMap.Add(LName, '');
   LCookieMgr := _Ctx.GetCookieManager(nil);
-  AddHackCookie(LCookieMgr, _Url,
-    procedure(success: Boolean)
-    var
-      n: Integer;
-    begin
-      LCookieMgr.VisitUrlCookiesProc(_Url, True,
-        function(const name, value, domain, path: ustring;
-          secure, httponly, hasExpires: Boolean;
-          const creation, lastAccess, expires: TDateTime; count, total: Integer;
-          same_site: TCefCookieSameSite; priority: TCefCookiePriority;
-          out deleteCookie: Boolean): Boolean
+  LCookieMgr.VisitUrlCookies(_Url, True,
+    TCustomCookieVisitor.Create(
+      function(const _name, _value, _domain, _path: ustring;
+        _secure, _httponly, _hasExpires: Boolean;
+        const _creation, _lastAccess, _expires: TDateTime; _count, _total: Integer;
+        _same_site: TCefCookieSameSite; _priority: TCefCookiePriority;
+        out _deleteCookie: Boolean): Boolean
         begin
-          if LCookieMap.ContainsKey(name) then
+          if LCookieMap.ContainsKey(_name) then
           begin
-            LCookieMap[name] := value;
+            LCookieMap[_name] := _value;
             Inc(n);
           end;
           Result := n < LCookieMap.count;
-          if (count + 1 = total) or not Result then
-            try
-              _OnComplete(LCookieMap);
-            finally
-              LCookieMap.Free;
-            end;
-        end);
-    end);
-end;
-
-procedure FreeMemoryCallback(str: PChar16); stdcall;
-begin
-  FreeMemory(str);
-end;
-
-function NewHeapString(const s: string): TCefString;
-begin
-  Result.length := Length(s);
-  if Result.length = 0 then
-  begin
-    Result.str := nil;
-    Result.dtor := nil;
-  end
-  else begin
-    Result.str := PWideChar(GetMemory((Result.length + 1) * 2));
-    Move(Pointer(s)^, Result.str^, (Result.length + 1) * 2);
-    Result.dtor := FreeMemoryCallback;
-  end;
+        end,
+      procedure begin _OnComplete(LCookieMap); end
+    )
+  );
 end;
 
 type
@@ -388,11 +355,11 @@ var
   LSettings: TCefRequestContextSettings;
 begin
   LSettings.size := SizeOf(LSettings);
-  LSettings.cache_path := NewHeapString(_CachePath);
+  LSettings.cache_path := CefString(_CachePath);
   LSettings.persist_session_cookies := Ord(_PersistSessionCookies);
   LSettings.persist_user_preferences := Ord(_PersistUserPreferences);
-  LSettings.accept_language_list := NewHeapString(_AcceptLanguageList);
-  LSettings.cookieable_schemes_list := NewHeapString(_CookieableSchemesList);
+  LSettings.accept_language_list := CefString(_AcceptLanguageList);
+  LSettings.cookieable_schemes_list := CefString(_CookieableSchemesList);
   LSettings.cookieable_schemes_exclude_defaults :=
     Ord(_CookieableSchemesExcludeDefaults);
 
@@ -484,6 +451,66 @@ procedure TCustomRequestContextHandler.OnRequestContextInitialized(const _Ctx: I
 begin
   inherited;
   FOnInit(_Ctx);
+end;
+
+{ TCustomCookieVisitor }
+
+function cef_cookie_visitor_visit(self: PCefCookieVisitor; const cookie : PCefCookie;
+  count, total: Integer; deleteCookie : PInteger): Integer; stdcall;
+var
+  delete     : Boolean;
+  exp        : TDateTime;
+  TempObject : TObject;
+begin
+  delete     := False;
+  Result     := Ord(True);
+  TempObject := CefGetObject(self);
+  if (cookie^.has_expires <> 0) then
+    exp := CefTimeToDateTime(cookie^.expires)
+   else
+    exp := 0;
+
+  if (TempObject <> nil) and (TempObject is TCustomCookieVisitor) then
+    Result := Ord(TCustomCookieVisitor(TempObject).visit(CefString(@cookie^.name),
+                                                         CefString(@cookie^.value),
+                                                         CefString(@cookie^.domain),
+                                                         CefString(@cookie^.path),
+                                                         Boolean(cookie^.secure),
+                                                         Boolean(cookie^.httponly),
+                                                         Boolean(cookie^.has_expires),
+                                                         CefTimeToDateTime(cookie^.creation),
+                                                         CefTimeToDateTime(cookie^.last_access),
+                                                         exp,
+                                                         count,
+                                                         total,
+                                                         cookie^.same_site,
+                                                         cookie^.priority,
+                                                         delete));
+
+  deleteCookie^ := Ord(delete);
+end;
+
+constructor TCustomCookieVisitor.Create(_VisitProc: TCefCookieVisitorProc; _OnFinished: TProc);
+begin
+  inherited CreateData(SizeOf(TCefCookieVisitor));
+  PCefCookieVisitor(FData)^.visit := cef_cookie_visitor_visit;
+  FVisitProc := _VisitProc;
+  FOnFinished := _OnFinished;
+end;
+
+destructor TCustomCookieVisitor.Destroy;
+begin
+  if Assigned(FOnFinished) then
+    FOnFinished();
+  inherited;
+end;
+
+function TCustomCookieVisitor.visit(const name, value, domain, path: ustring; secure, httponly, hasExpires: Boolean;
+  const creation, lastAccess, expires: TDateTime; count, total: Integer; same_site: TCefCookieSameSite;
+  priority: TCefCookiePriority; out deleteCookie: Boolean): Boolean;
+begin
+  Result := FVisitProc(name, value, domain, path, secure, httponly, hasExpires, creation, lastAccess, expires,
+    count, total, same_site, priority, deleteCookie);
 end;
 
 initialization

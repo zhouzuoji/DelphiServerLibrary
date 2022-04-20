@@ -39,7 +39,7 @@ type
 implementation
 
 uses
-  StrUtils, uCEFExtPolyfill, uFrmScripts;
+  StrUtils, uCEFExtPolyfill;
 
 {$R *.dfm}
 
