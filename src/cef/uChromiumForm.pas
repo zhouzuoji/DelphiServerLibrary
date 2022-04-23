@@ -15,6 +15,7 @@ uses
   uCEFWindowParent,
   uCEFChromiumCore,
   uCEFChromium,
+  uCEFChromiumEvents,
   uCEFInterfaces,
   uCEFTypes,
   uCEFConstants,
@@ -84,6 +85,13 @@ type
     procedure ChromiumAfterCreated(Sender: TObject; const browser: ICefBrowser);
     procedure ChromiumClose(Sender: TObject; const browser: ICefBrowser; var aAction: TCefCloseBrowserAction);
     procedure ChromiumBeforeClose(Sender: TObject; const browser: ICefBrowser);
+    procedure ChromiumBeforePopup(Sender: TObject;
+      const browser: ICefBrowser; const frame: ICefFrame; const targetUrl,
+      targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition;
+      userGesture: Boolean; const popupFeatures: TCefPopupFeatures;
+      var windowInfo: TCefWindowInfo; var client: ICefClient;
+      var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue;
+      var noJavascriptAccess, Result: Boolean);
   end;
 
 function GetBrowserTagData(const _Browser: ICefBrowser): UTF8String;
@@ -170,6 +178,8 @@ begin
   _Chromium.OnAfterCreated := tab.ChromiumAfterCreated;
   _Chromium.OnClose := tab.ChromiumClose;
   _Chromium.OnBeforeClose := tab.ChromiumBeforeClose;
+  if not Assigned(_Chromium.OnBeforePopup) then
+    _Chromium.OnBeforePopup := tab.ChromiumBeforePopup;
   tab.State := cbsCreating;
   _Chromium.CreateBrowser(_Window, _WindowName, _Context, _ExtraInfo);
 end;
@@ -316,6 +326,7 @@ procedure OnBrowserClosed(_Form: TCustomChromiumForm; _Tab: TChromiumTab; const 
 var
   i: Integer;
   LMainForm: TCustomChromiumForm;
+  tmp: TOnBeforePopup;
 begin
   G_TagDataLock.Acquire;
   try
@@ -331,6 +342,9 @@ begin
       _Tab.Chromium.OnAfterCreated := nil;
       _Tab.Chromium.OnClose := nil;
       _Tab.Chromium.OnBeforeClose := nil;
+      tmp := _Tab.ChromiumBeforePopup;
+      if @_Tab.Chromium.OnBeforePopup = @tmp then
+        _Tab.Chromium.OnBeforePopup := nil;
       _Form.FBrowserList.Delete(i);
       _Tab.Free;
       Break;
@@ -356,6 +370,14 @@ begin
       OnBrowserClosed(Form, Self, browser);
     end
   );
+end;
+
+procedure TChromiumTab.ChromiumBeforePopup(Sender: TObject; const browser: ICefBrowser; const frame: ICefFrame;
+  const targetUrl, targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean;
+  const popupFeatures: TCefPopupFeatures; var windowInfo: TCefWindowInfo; var client: ICefClient;
+  var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var noJavascriptAccess, Result: Boolean);
+begin
+  Result := (targetDisposition in [WOD_NEW_FOREGROUND_TAB, WOD_NEW_BACKGROUND_TAB, WOD_NEW_POPUP, WOD_NEW_WINDOW]);
 end;
 
 procedure TChromiumTab.ChromiumClose(Sender: TObject; const browser: ICefBrowser;

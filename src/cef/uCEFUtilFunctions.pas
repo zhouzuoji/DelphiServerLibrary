@@ -24,6 +24,7 @@ function DumpRequest(const r: ICefRequest): string;
 function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
 function PostDataToByteArray(_PostData: ICefPostData): RawByteString;
 function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
+function LoadCookieFromJson(json: ISuperObject): TList<TCookie>;
 procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string; _OnComplete: TProc);
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
   _OnComplete: TProc<TList<TPair<string,string>>>); overload;
@@ -33,6 +34,7 @@ procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComp
 procedure SetCookie(const _Ctx: ICefRequestContext;
   const _Url, _Name, _Value: string; cb: TCefSetCookieCallbackProc = nil;
   const _Path: string = '/'; const _Domain: string = '');
+procedure AddCookies(const _Ctx: ICefRequestContext; const _Url: string; _Cookies: TList<TCookie>; _OnComplete: TProc);
 procedure CreateRequestContext(const _CachePath: ustring;
   const _AcceptLanguageList: ustring; const _CookieableSchemesList: ustring;
   const _CookieableSchemesExcludeDefaults: Boolean;
@@ -185,6 +187,36 @@ begin
     cb);
 end;
 
+procedure AddCookies(const _Ctx: ICefRequestContext; const _Url: string; _Cookies: TList<TCookie>; _OnComplete: TProc);
+var
+  LCookieMgr: ICefCookieManager;
+  LDomain, LPath: string;
+  i, n: Integer;
+  cb: TCefSetCookieCallbackProc;
+begin
+  n := 0;
+  if Assigned(_OnComplete) then
+    cb := procedure(success: Boolean)
+      begin
+        Inc(n);
+        if n = _Cookies.Count then
+          _OnComplete()
+      end
+    else
+      cb := EMPTY_SET_COOKIE_CALLBACK;
+  LCookieMgr := _Ctx.GetCookieManager(nil);
+  for i := 0 to _Cookies.Count - 1 do
+  begin
+    with _Cookies.List[i] do
+    begin
+      _Ctx.GetCookieManager(nil).SetCookieProc(_Url, name, value, domain,
+        path, False, False, True, Now, Now, Now + 30,
+        CEF_COOKIE_SAME_SITE_STRICT_MODE, 0,
+        cb);
+    end;
+  end;
+end;
+
 const
   SAME_SITE_STRINGS: array [TCefCookieSameSite] of string =
     ('', 'none', 'Lax', 'Strict');
@@ -212,6 +244,39 @@ begin
       o.I['same_site'] := Ord(same_site);
       arr.Add(o);
     end;
+  end;
+end;
+
+function LoadCookieFromJson(json: ISuperObject): TList<TCookie>;
+var
+  arr: TSuperArray;
+  o: ISuperObject;
+  i: Integer;
+begin
+  Result := TList<TCookie>.Create;
+  try
+    arr := json.AsArray;
+    if arr <> nil then
+    begin
+      Result.Count := arr.Length;
+      for i := 0 to arr.Length - 1 do
+      begin
+        o := arr[i];
+        with Result.List[i] do
+        begin
+          name := o.S['name'];
+          value := o.S['value'];
+          domain := o.S['domain'];
+          path := o.S['path'];
+          expires := UnixToDateTime(o.I['expires']);
+          httponly := o.B['httponly'];
+          secure := o.B['secure'];
+          same_site := TCefCookieSameSite(o.I['same_site']);
+        end;
+      end;
+    end;
+  except
+    FreeAndNil(Result);
   end;
 end;
 
