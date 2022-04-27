@@ -32,20 +32,37 @@ type
 
   TCustomChromiumForm = class;
 
+  TChromiumMgr = class
+  private
+    FForm: TCustomChromiumForm;
+    FBrowserList: TList;
+    FClosing: Boolean;
+    function CloseBrowsers: Boolean;
+  public
+    constructor Create(_Form: TCustomChromiumForm);
+    destructor Destroy; override;
+    procedure NotifyMoveOrResizeStarted;
+    procedure CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent;
+      const _TagData: UTF8String = '';
+      const _WindowName : ustring = '';
+      const _Context : ICefRequestContext = nil;
+      const _ExtraInfo : ICefDictionaryValue = nil);
+    procedure CloseBrowser(_Chromium: TChromium);
+    function PrepareClose: Boolean;
+  end;
+
   TCustomChromiumForm = class(TForm)
   private
     FShowTimes: Integer;
     FChromeInited: Boolean;
     FClosing: Boolean;
-    FBrowserList: TList;
-    function PrepareClose: Boolean;
-    function CloseBrowsers: Boolean;
+    FChromiumMgr: TChromiumMgr;
     procedure InitChrome;
-    procedure NotifyMoveOrResizeStarted;
     procedure WMMove(var aMessage : TWMMove); message WM_MOVE;
     procedure WMMoving(var aMessage : TMessage); message WM_MOVING;
     procedure WMEnterMenuLoop(var aMessage: TMessage); message WM_ENTERMENULOOP;
     procedure WMExitMenuLoop(var aMessage: TMessage); message WM_EXITMENULOOP;
+    function GetChromiumMgr: TChromiumMgr;
   protected
     procedure DoClose(var Action: TCloseAction); override;
     procedure DoShow; override;
@@ -53,16 +70,14 @@ type
     procedure DoInitChrome; virtual;
   public
     destructor Destroy; override;
-    procedure CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent;
-      const _TagData: UTF8String = '';
-      const _WindowName : ustring = '';
-      const _Context : ICefRequestContext = nil;
-      const _ExtraInfo : ICefDictionaryValue = nil);
-    procedure CloseBrowser(_Chromium: TChromium);
+    property ChromiumMgr: TChromiumMgr read GetChromiumMgr;
   end;
 
 function GetBrowserTagData(const _Browser: ICefBrowser): UTF8String;
 procedure SetBrowserTagData(const _Browser: ICefBrowser; const _TagData: UTF8String);
+
+var
+  WndlessChromiumMgr: TChromiumMgr;
 
 implementation
 
@@ -77,11 +92,12 @@ var
 
 type
   TChromiumTab = class
+    Owner: TChromiumMgr;
     State: TCefBrowserState;
     Chromium: TChromium;
     Window: TCEFWindowParent;
-    Form: TCustomChromiumForm;
     TagData: UTF8String;
+    Url: string;
     procedure ChromiumAfterCreated(Sender: TObject; const browser: ICefBrowser);
     procedure ChromiumClose(Sender: TObject; const browser: ICefBrowser; var aAction: TCefCloseBrowserAction);
     procedure ChromiumBeforeClose(Sender: TObject; const browser: ICefBrowser);
@@ -118,75 +134,9 @@ end;
 
 { TCustomChromiumForm }
 
-procedure TCustomChromiumForm.CloseBrowser(_Chromium: TChromium);
-var
-  i: Integer;
-  tab: TChromiumTab;
-begin
-  if FBrowserList = nil then Exit;
-
-  for i := 0 to FBrowserList.Count - 1 do
-  begin
-    tab := TChromiumTab(FBrowserList[i]);
-    if tab.Chromium = _Chromium then
-    begin
-      if tab.State = cbsCreated then
-      begin
-        tab.State := cbsDestroying;
-        _Chromium.CloseBrowser(True);
-      end;
-      Break;
-    end;
-  end;
-end;
-
-function TCustomChromiumForm.CloseBrowsers: Boolean;
-var
-  i: Integer;
-  tab: TChromiumTab;
-begin
-  Result := True;
-  if FBrowserList = nil then Exit;
-
-  for i := 0 to FBrowserList.Count - 1 do
-  begin
-    tab := TChromiumTab(FBrowserList[i]);
-    if not (tab.State in [cbsNone, cbsDestroyed]) then
-    begin
-      Result := False;
-      if tab.State = cbsCreated then
-      begin
-        tab.State := cbsDestroying;
-        tab.Chromium.CloseBrowser(True);
-      end;
-    end;
-  end;
-end;
-
-procedure TCustomChromiumForm.CreateBrowser;
-var
-  tab: TChromiumTab;
-begin
-  tab := TChromiumTab.Create;
-  tab.Chromium := _Chromium;
-  tab.Window := _Window;
-  tab.Form := Self;
-  tab.TagData := _TagData;
-  if FBrowserList = nil then
-    FBrowserList := TList.Create;
-  FBrowserList.Add(tab);
-  _Chromium.OnAfterCreated := tab.ChromiumAfterCreated;
-  _Chromium.OnClose := tab.ChromiumClose;
-  _Chromium.OnBeforeClose := tab.ChromiumBeforeClose;
-  if not Assigned(_Chromium.OnBeforePopup) then
-    _Chromium.OnBeforePopup := tab.ChromiumBeforePopup;
-  tab.State := cbsCreating;
-  _Chromium.CreateBrowser(_Window, _WindowName, _Context, _ExtraInfo);
-end;
-
 destructor TCustomChromiumForm.Destroy;
 begin
-  FBrowserList.Free;
+  FChromiumMgr.Free;
   inherited;
 end;
 
@@ -199,7 +149,7 @@ begin
   if (Application.MainForm = Self) or (Action = caFree) then
   begin
     FClosing := True;
-    if not PrepareClose then
+    if not FChromiumMgr.PrepareClose then
     begin
       if fsModal in Self.FormState then
         Action := caHide
@@ -233,55 +183,19 @@ begin
   end;
 end;
 
+function TCustomChromiumForm.GetChromiumMgr: TChromiumMgr;
+begin
+  if FChromiumMgr = nil then
+    FChromiumMgr := TChromiumMgr.Create(Self);
+  Result := FChromiumMgr;
+end;
+
 procedure TCustomChromiumForm.InitChrome;
 begin
   if not FChromeInited then
   begin
     FChromeInited := True;
     DoInitChrome;
-  end;
-end;
-
-procedure TCustomChromiumForm.NotifyMoveOrResizeStarted;
-var
-  i: Integer;
-  tab: TChromiumTab;
-begin
-  if FBrowserList = nil then Exit;
-
-  for i := 0 to FBrowserList.Count - 1 do
-  begin
-    tab := TChromiumTab(FBrowserList[i]);
-    if tab.State = cbsCreated then
-      tab.Chromium.NotifyMoveOrResizeStarted;
-  end;
-end;
-
-function TCustomChromiumForm.PrepareClose: Boolean;
-var
-  i: Integer;
-  form: TCustomForm;
-  ccf: TCustomChromiumForm;
-begin
-  Result := True;
-  if not CloseBrowsers then
-    Result := False;
-  if Self = Application.MainForm then
-  begin
-    for i := 0 to Screen.CustomFormCount - 1 do
-    begin
-      form := Screen.CustomForms[i];
-      if form <> Self then
-      begin
-        form.Hide;
-        if form is TCustomChromiumForm then
-        begin
-          ccf := TCustomChromiumForm(form);
-          if not ccf.PrepareClose then
-            Result := False;
-        end;
-      end;
-    end;
   end;
 end;
 
@@ -300,44 +214,47 @@ end;
 procedure TCustomChromiumForm.WMMove(var aMessage: TWMMove);
 begin
   inherited;
-  NotifyMoveOrResizeStarted;
+  FChromiumMgr.NotifyMoveOrResizeStarted;
 end;
 
 procedure TCustomChromiumForm.WMMoving(var aMessage: TMessage);
 begin
   inherited;
-  NotifyMoveOrResizeStarted;
+  FChromiumMgr.NotifyMoveOrResizeStarted;
 end;
 
 { TChromiumTab }
 
 procedure TChromiumTab.ChromiumAfterCreated(Sender: TObject; const browser: ICefBrowser);
 begin
+  State := cbsCreated;
   G_TagDataLock.Acquire;
   try
     G_TagDataMap.Add(browser.Identifier, TagData);
   finally
     G_TagDataLock.Release;
   end;
-  State := cbsCreated;
 end;
 
-procedure OnBrowserClosed(_Form: TCustomChromiumForm; _Tab: TChromiumTab; const _Browser: ICefBrowser);
+procedure OnBrowserClosed(_Tab: TChromiumTab; const _Browser: ICefBrowser);
 var
   i: Integer;
-  LMainForm: TCustomChromiumForm;
+  LOwnerForm, LMainForm: TCustomChromiumForm;
+  LMgr: TChromiumMgr;
   tmp: TOnBeforePopup;
 begin
+  _Tab.State := cbsDestroyed;
+  OutputDebugString(PChar(Format('OnBrowserClosed: %p, %s',  [Pointer(_Tab), _Tab.Url])));
   G_TagDataLock.Acquire;
   try
     G_TagDataMap.Remove(_Browser.Identifier);
   finally
     G_TagDataLock.Release;
   end;
-
-  for i := 0 to _Form.FBrowserList.Count - 1 do
+  LMgr := _Tab.Owner;
+  for i := 0 to LMgr.FBrowserList.Count - 1 do
   begin
-    if _Form.FBrowserList[i] = _Tab then
+    if LMgr.FBrowserList[i] = _Tab then
     begin
       _Tab.Chromium.OnAfterCreated := nil;
       _Tab.Chromium.OnClose := nil;
@@ -345,29 +262,32 @@ begin
       tmp := _Tab.ChromiumBeforePopup;
       if @_Tab.Chromium.OnBeforePopup = @tmp then
         _Tab.Chromium.OnBeforePopup := nil;
-      _Form.FBrowserList.Delete(i);
+      LMgr.FBrowserList.Delete(i);
       _Tab.Free;
       Break;
     end;
   end;
 
+  LOwnerForm := LMgr.FForm;
   LMainForm := Application.MainForm as TCustomChromiumForm;
-  if (_Form.FClosing or LMainForm.FClosing) and _Form.PrepareClose then
+
+  if (LMgr.FClosing or LMainForm.FClosing) and LMgr.PrepareClose then
   begin
-    if _Form = LMainForm then
-      Application.Terminate
-    else if LMainForm.FClosing and LMainForm.PrepareClose then
+    if LMgr.FClosing and (LOwnerForm <> nil) and (LOwnerForm <> LMainForm) then
+      FreeAndNil(LMgr.FForm);
+
+    if (LOwnerForm = LMainForm) or (LMainForm.FClosing and LMainForm.FChromiumMgr.PrepareClose) then
       Application.Terminate;
   end;
 end;
 
 procedure TChromiumTab.ChromiumBeforeClose(Sender: TObject; const browser: ICefBrowser);
 begin
-  Self.State := cbsDestroyed;
+  OutputDebugString(PChar(Format('ChromiumBeforeClose: %p, %s',  [Pointer(Self), Url])));
   ExecOnMainThread(
     procedure
     begin
-      OnBrowserClosed(Form, Self, browser);
+      OnBrowserClosed(Self, browser);
     end
   );
 end;
@@ -388,9 +308,9 @@ begin
   ExecOnMainThread(
     procedure
     begin
-      if Self.Window = nil then
-        OnBrowserClosed(Form, Self, browser)
-      else
+      //if Self.Window = nil then
+        //OnBrowserClosed(Self, browser)
+      //else
         FreeAndNil(Self.Window);
     end
   );
@@ -416,13 +336,153 @@ begin
   );
 end;
 
+{ TChromiumMgr }
+
+procedure TChromiumMgr.CloseBrowser(_Chromium: TChromium);
+begin
+  ExecOnMainThread(
+    procedure
+    var
+      i: Integer;
+      tab: TChromiumTab;
+    begin
+      for i := 0 to FBrowserList.Count - 1 do
+      begin
+        tab := TChromiumTab(FBrowserList[i]);
+        if tab.Chromium = _Chromium then
+        begin
+          if tab.State = cbsCreated then
+          begin
+            tab.Url := _Chromium.Browser.MainFrame.Url;
+            tab.State := cbsDestroying;
+            _Chromium.CloseBrowser(True);
+          end;
+          Break;
+        end;
+      end;
+    end
+  );
+end;
+
+function TChromiumMgr.CloseBrowsers: Boolean;
+var
+  i: Integer;
+  tab: TChromiumTab;
+begin
+  Result := True;
+
+  for i := 0 to FBrowserList.Count - 1 do
+  begin
+    tab := TChromiumTab(FBrowserList[i]);
+    if not (tab.State in [cbsNone, cbsDestroyed]) then
+    begin
+      Result := False;
+      if tab.State = cbsCreated then
+      begin
+        tab.Url := tab.Chromium.Browser.MainFrame.Url;
+        tab.State := cbsDestroying;
+        tab.Chromium.CloseBrowser(True);
+      end;
+    end;
+  end;
+end;
+
+constructor TChromiumMgr.Create(_Form: TCustomChromiumForm);
+begin
+  inherited Create;
+  FForm := _Form;
+  FBrowserList := TList.Create;
+end;
+
+procedure TChromiumMgr.CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent; const _TagData: UTF8String;
+  const _WindowName: ustring; const _Context: ICefRequestContext; const _ExtraInfo: ICefDictionaryValue);
+begin
+  ExecOnMainThread(
+    procedure
+    var
+      tab: TChromiumTab;
+    begin
+      tab := TChromiumTab.Create;
+      tab.Chromium := _Chromium;
+      tab.Window := _Window;
+      tab.Owner := Self;
+      tab.TagData := _TagData;
+      FBrowserList.Add(tab);
+      _Chromium.OnAfterCreated := tab.ChromiumAfterCreated;
+      _Chromium.OnClose := tab.ChromiumClose;
+      _Chromium.OnBeforeClose := tab.ChromiumBeforeClose;
+      if not Assigned(_Chromium.OnBeforePopup) then
+        _Chromium.OnBeforePopup := tab.ChromiumBeforePopup;
+      tab.State := cbsCreating;
+      _Chromium.CreateBrowser(_Window, _WindowName, _Context, _ExtraInfo);
+    end
+  );
+end;
+
+destructor TChromiumMgr.Destroy;
+begin
+  FBrowserList.Free;
+  inherited;
+end;
+
+procedure TChromiumMgr.NotifyMoveOrResizeStarted;
+var
+  i: Integer;
+  tab: TChromiumTab;
+begin
+  if Self <> nil then
+  begin
+    for i := 0 to FBrowserList.Count - 1 do
+    begin
+      tab := TChromiumTab(FBrowserList[i]);
+      if tab.State = cbsCreated then
+        tab.Chromium.NotifyMoveOrResizeStarted;
+    end;
+  end;
+end;
+
+function TChromiumMgr.PrepareClose: Boolean;
+var
+  i: Integer;
+  form: TCustomForm;
+begin
+  if Self = nil then
+  begin
+    Result := True;
+    Exit;
+  end;
+  FClosing := True;
+  Result := Self.CloseBrowsers;
+  if FForm = Application.MainForm then
+  begin
+    for i := 0 to Screen.CustomFormCount - 1 do
+    begin
+      form := Screen.CustomForms[i];
+      if form <> FForm then
+      begin
+        form.Hide;
+        if form is TCustomChromiumForm then
+        begin
+          if not TCustomChromiumForm(form).FChromiumMgr.PrepareClose then
+            Result := False;
+        end;
+      end;
+    end;
+    if not WndlessChromiumMgr.PrepareClose then
+      Result := False;
+  end;
+  OutputDebugString(PChar(Format('PrepareClose: %s', [BoolToStr(Result, True)])));
+end;
+
 initialization
   ExecWhenCEFInitiaized(OnCEFInitialized);
   G_TagDataLock := TCriticalSection.Create;
   G_TagDataMap := TDictionary<Integer, UTF8String>.Create;
+  WndlessChromiumMgr := TChromiumMgr.Create(nil);
 
 finalization
   G_TagDataMap.Free;
   G_TagDataLock.Free;
+  WndlessChromiumMgr.Free;
 
 end.

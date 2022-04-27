@@ -19,10 +19,12 @@ uses
 
 function ValueToString(const v: ICefValue): string; overload;
 function ValueToString(const v: ICefv8Value): string; overload;
+function IsHttp(const _Url: string): Boolean;
 function DumpStringMultimap(const m: ICefStringMultimap): string;
 function DumpRequest(const r: ICefRequest): string;
 function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
 function PostDataToByteArray(_PostData: ICefPostData): RawByteString;
+function ParseSetCookie(const _SetCookie: string): TCookie;
 function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
 function LoadCookieFromJson(json: ISuperObject): TList<TCookie>;
 procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string; _OnComplete: TProc);
@@ -41,8 +43,11 @@ procedure CreateRequestContext(const _CachePath: ustring;
   _PersistSessionCookies: Boolean; _PersistUserPreferences: Boolean;
   cb: TProc<ICefRequestContext>);
 
+function SetProxyForRequestContext(const ctx: ICefRequestContext; const _ProxyURL: string): string;
+
 function IsCEFInitialized: Boolean;
 function GlobalRequestContext: ICefRequestContext;
+function TmpRequestContext: ICefRequestContext;
 procedure ExecWhenCEFInitiaized(_Proc: TProc);
 procedure OnCEFInitiaized;
 
@@ -51,6 +56,8 @@ implementation
 uses
   DateUtils,
   uCEFBaseRefCounted,
+  uCefValue,
+  uCefDictionaryValue,
   uCefStringMultimap,
   uCefRequestContextHandler;
 
@@ -68,7 +75,7 @@ type
 
 var
   EMPTY_SET_COOKIE_CALLBACK: TCefSetCookieCallbackProc;
-  _GlobalReqCtx: ICefRequestContext;
+  _GlobalReqCtx, G_TmpReqCtx: ICefRequestContext;
   G_CEFInitCallbacks: TList<TProc>;
   G_CEFInitialized: Boolean;
 
@@ -78,13 +85,19 @@ begin
 end;
 
 procedure OnCEFInitiaized;
-var
-  LProc: TProc;
 begin
   G_CEFInitialized := True;
   _GlobalReqCtx := TCEFRequestContextRef.Global;
-  for LProc in G_CEFInitCallbacks do
-    LProc();
+  CreateRequestContext('', '', '', False, False, False,
+    procedure(_ctx: ICefRequestContext)
+    var
+      LProc: TProc;
+    begin
+      G_TmpReqCtx := _ctx;
+      for LProc in G_CEFInitCallbacks do
+        LProc();
+    end
+  );
 end;
 
 procedure ExecWhenCEFInitiaized(_Proc: TProc);
@@ -95,6 +108,11 @@ end;
 function GlobalRequestContext: ICefRequestContext;
 begin
   Result := _GlobalReqCtx;
+end;
+
+function TmpRequestContext: ICefRequestContext;
+begin
+  Result := G_TmpReqCtx;
 end;
 
 function ValueToString(const v: ICefValue): string;
@@ -152,6 +170,11 @@ begin
     Result := 'ArrayBuffer}';
 end;
 
+function IsHttp(const _Url: string): Boolean;
+begin
+  Result := _Url.StartsWith('https://', True) or _Url.StartsWith('http://', True);
+end;
+
 function GetHost(const _Url: string): string;
 var
   P1, P2: Integer;
@@ -190,20 +213,19 @@ end;
 procedure AddCookies(const _Ctx: ICefRequestContext; const _Url: string; _Cookies: TList<TCookie>; _OnComplete: TProc);
 var
   LCookieMgr: ICefCookieManager;
-  LDomain, LPath: string;
   i, n: Integer;
   cb: TCefSetCookieCallbackProc;
 begin
   n := 0;
-  if Assigned(_OnComplete) then
-    cb := procedure(success: Boolean)
+  cb := procedure(success: Boolean)
+    begin
+      Inc(n);
+      if n = _Cookies.Count then
       begin
-        Inc(n);
-        if n = _Cookies.Count then
-          _OnComplete()
-      end
-    else
-      cb := EMPTY_SET_COOKIE_CALLBACK;
+        _Cookies.Free;
+        if Assigned(_OnComplete) then _OnComplete();
+      end;
+    end;
   LCookieMgr := _Ctx.GetCookieManager(nil);
   for i := 0 to _Cookies.Count - 1 do
   begin
@@ -215,6 +237,69 @@ begin
         cb);
     end;
   end;
+end;
+
+procedure SplitKeyValue(const kv: string; out k, v: string);
+var
+  P: Integer;
+begin
+  P := Pos('=', kv);
+  if P > 0 then
+  begin
+    k := Copy(kv, 1, P - 1);
+    v := Copy(kv, P + 1);
+  end
+  else
+    k := kv;
+end;
+
+function ParseSetCookie(const _SetCookie: string): TCookie;
+var
+  LParts: TStringList;
+  i: Integer;
+  kv, k, v: string;
+begin
+  Result.name := '';
+  Result.domain := '';
+  Result.path := '/';
+  Result.value := '';
+  Result.creation := Now;
+  Result.last_access := Result.creation;
+  Result.expires := IncDay(Result.creation, 365);
+  Result.secure := False;
+  Result.httponly := False;
+  Result.has_expires := False;
+  Result.same_site := CEF_COOKIE_SAME_SITE_UNSPECIFIED;
+  Result.priority := 0;
+  LParts := TStringList.Create;
+  try
+    LParts.Delimiter := ';';
+    LParts.StrictDelimiter := True;
+    LParts.DelimitedText := _SetCookie;
+    for i := 0 to LParts.Count - 1 do
+      LParts[i] := Trim(LParts[i]);
+    SplitKeyValue(LParts[0], k, v);
+    Result.name := k;
+    Result.value := v;
+    for i := 1 to LParts.Count - 1 do
+    begin
+      kv := LParts[i];
+      if SameText(kv, 'httponly') then
+        Result.httponly := True
+      else if SameText(kv, 'secure') then
+        Result.secure := True
+      else begin
+        SplitKeyValue(kv, k, v);
+        if SameText(k, 'domain') then
+          Result.domain := v
+        else if SameText(k, 'path') then
+          Result.path := v;
+      end;
+    end;
+  finally
+    LParts.Free;
+  end;
+  // BAIDUID=A01FCA226003D712E99EAA52F3BDE1E1:FG=1; max-age=31536000; expires=Thu, 27-Apr-23 10:33:20 GMT; domain=.baidu.com; path=/; version=1; comment=bd
 end;
 
 const
@@ -429,6 +514,28 @@ begin
     Ord(_CookieableSchemesExcludeDefaults);
 
   TCefRequestContextRef.New(@LSettings, TCustomRequestContextHandler.Create(cb));
+end;
+
+function SetProxyForRequestContext(const ctx: ICefRequestContext; const _ProxyURL: string): string;
+var
+  LDic: ICefDictionaryValue;
+  LVal: ICefValue;
+  errMsg: ustring;
+begin
+  LVal := nil;
+  if _ProxyURL <> '' then
+  begin
+    LDic := TCefDictionaryValueRef.New;
+    LDic.SetString('mode', 'fixed_servers');
+    LDic.SetString('server', _ProxyURL);
+    LVal := TCefValueRef.New;
+    LVal.SetDictionary(LDic);
+  end;
+
+  if ctx.SetPreference('proxy', LVal, errMsg) then
+    Result := ''
+  else
+    Result := errMsg;
 end;
 
 function DumpStringMultimap(const m: ICefStringMultimap): string;

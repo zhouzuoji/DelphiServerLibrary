@@ -1034,6 +1034,7 @@ procedure HttpLogCloseFile;
 function WinHttpDecodeResponseText(request: TBaseHttpRequest; ResponseContent: TStream; ContentLength: Integer;
   out CodePage: Integer): UnicodeString;
 
+function GetUrlExt(const url: string): string;
 
 var
   g_DbgOutputRedirect: Boolean;
@@ -1070,6 +1071,31 @@ const
 var
   g_lineEnd: TAnsiCharSection;
   g_headersEnd: TAnsiCharSection;
+
+function GetUrlExt(const url: string): string;
+var
+  P, L: Integer;
+begin
+  Result := '';
+  L := Pos('?', url);
+  if L <= 0 then
+    L := Length(url) + 1;
+  P := L;
+  while P > 2 do
+  begin
+    case url[P - 1] of
+      '/':
+        Break;
+      '.':
+        begin
+          Result := Copy(url, P, L - P);
+          Break;
+        end;
+    else
+      Dec(P);
+    end;
+  end;
+end;
 
 function CheckLogFilter(request: TBaseHttpRequest): Boolean;
 var

@@ -155,7 +155,7 @@ begin
     Self.Caption := 'Æ´¶à¶àµÇÂ¼ - ' + FUsername;
   Chromium1.DefaultUrl := 'https://mobile.yangkeduo.com/login.html?from=http%3A%2F%2Fmobile.yangkeduo.com%2Fpersonal.html%3Frefer_page_name%3Dindex%26refer_page_id%3D10002_1649643580314_n3hetyc9cc%26refer_page_sn%3D10002&refer_page_name=personal'
     + '&refer_page_id=10001_1649643581939_kaqlz7rtwk&refer_page_sn=10001';
-  CreateBrowser(Chromium1, CEFWindowParent1, '', '', FContext);
+  ChromiumMgr.CreateBrowser(Chromium1, CEFWindowParent1, '', '', FContext);
 end;
 
 class procedure TFrmPDDLogin.LoginPDD(_ctx: ICefRequestContext; const _Username: string;

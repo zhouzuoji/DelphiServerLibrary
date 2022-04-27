@@ -45,6 +45,7 @@ type
     procedure StreamRequired;
     procedure OnRequestComplete(const request: ICefUrlRequest); override;
     procedure OnDownloadData(const request: ICefUrlRequest; data: Pointer; dataLength: NativeUInt); override;
+    function  OnGetAuthCredentials(isProxy: Boolean; const host: ustring; port: Integer; const realm, scheme: ustring; const callback: ICefAuthCallback): Boolean; override;
   public
     constructor Create(_Content: TStream; _Handler: THttpResponseHandler); reintroduce;
     destructor Destroy; override;
@@ -233,7 +234,7 @@ end;
 
 procedure DoRequestAsync(const req: ICefRequest; const client: ICefUrlRequestClient; ctx: ICefRequestContext); overload;
 begin
-  req.Flags := req.Flags or UR_FLAG_ALLOW_STORED_CREDENTIALS or UR_FLAG_ALLOW_STORED_CREDENTIALS;
+  req.Flags := req.Flags or UR_FLAG_ALLOW_STORED_CREDENTIALS;
   AddChromiumHeaders(req);
   if CefCurrentlyOn(TID_UI) then
     TCefUrlRequestRef.New(req, client, ctx)
@@ -294,6 +295,18 @@ procedure TCefUrlRequestClient.OnDownloadData(const request: ICefUrlRequest;
 begin
   StreamRequired;
   FRespBody.WriteBuffer(data^, dataLength);
+end;
+
+function TCefUrlRequestClient.OnGetAuthCredentials(isProxy: Boolean;
+  const host: ustring; port: Integer; const realm,
+  scheme: ustring; const callback: ICefAuthCallback): Boolean;
+begin
+  Result := False;
+  if isProxy then
+  begin
+    callback.Cont('yynn8899', 'aa369369');
+    Result := True;
+  end;
 end;
 
 procedure TCefUrlRequestClient.OnRequestComplete(const request: ICefUrlRequest);
