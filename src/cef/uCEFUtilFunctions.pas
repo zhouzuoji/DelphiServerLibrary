@@ -25,6 +25,7 @@ function DumpRequest(const r: ICefRequest): string;
 function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
 function PostDataToByteArray(_PostData: ICefPostData): RawByteString;
 function ParseSetCookie(const _SetCookie: string): TCookie;
+procedure CreateCookie(out _Cookie: TCookie; const _Name, _Value, _Domain, _Path: string);
 function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
 function LoadCookieFromJson(json: ISuperObject): TList<TCookie>;
 procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string; _OnComplete: TProc);
@@ -300,6 +301,22 @@ begin
     LParts.Free;
   end;
   // BAIDUID=A01FCA226003D712E99EAA52F3BDE1E1:FG=1; max-age=31536000; expires=Thu, 27-Apr-23 10:33:20 GMT; domain=.baidu.com; path=/; version=1; comment=bd
+end;
+
+procedure CreateCookie(out _Cookie: TCookie; const _Name, _Value, _Domain, _Path: string);
+begin
+  _Cookie.name := _Name;
+  _Cookie.value := _Value;
+  _Cookie.domain := _Domain;
+  _Cookie.path := _Path;
+  _Cookie.creation := Now;
+  _Cookie.last_access := _Cookie.creation;
+  _Cookie.expires := IncDay(_Cookie.creation, 365);
+  _Cookie.secure := False;
+  _Cookie.httponly := False;
+  _Cookie.has_expires := True;
+  _Cookie.same_site := CEF_COOKIE_SAME_SITE_NO_RESTRICTION;
+  _Cookie.priority := 0;
 end;
 
 const

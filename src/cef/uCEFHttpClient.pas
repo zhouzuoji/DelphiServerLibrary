@@ -259,7 +259,7 @@ begin
     tid := TID_UI;
   body := TMemoryStream.Create;
   hev := CreateEvent(nil, False, False, nil);
-  req.Flags := req.Flags or UR_FLAG_ALLOW_STORED_CREDENTIALS or UR_FLAG_ALLOW_STORED_CREDENTIALS;
+  req.Flags := req.Flags or UR_FLAG_ALLOW_STORED_CREDENTIALS;
   AddChromiumHeaders(req);
   CefPostTask(tid, TCefFastTask.Create(procedure
   var

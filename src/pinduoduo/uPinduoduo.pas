@@ -32,6 +32,11 @@ const
 type
   TContentType = (ctWWWFormUrlEncoded, ctJson);
 
+  TPinduoduoCookie = class
+  public
+    api_uid: string;
+  end;
+
   TReceiveAddress = record
     address: string;
     province: string;

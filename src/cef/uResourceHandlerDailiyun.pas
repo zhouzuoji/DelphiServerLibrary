@@ -29,7 +29,7 @@ type
       FBrowser: ICefBrowser;
       FFrame: ICefFrame;
       FRequest: ICefRequest;
-      FProxy, FCity: string;
+      FProxy, FCity, FSessionId: string;
       FStream: TMemoryStream;
       FResp: ICefResponse;
       FRespHeaders: ICefStringMultimap;
@@ -43,7 +43,7 @@ type
       procedure Cancel; override;
     public
       constructor Create(const browser: ICefBrowser; const frame: ICefFrame; const request: ICefRequest;
-        const _Proxy, _City: string); reintroduce;
+        const _Proxy, _City, _SessionId: string); reintroduce;
       destructor Destroy; override;
   end;
 
@@ -64,7 +64,7 @@ begin
 end;
 
 constructor TResourceHandlerDailiyun.Create(const browser: ICefBrowser; const frame: ICefFrame; const request: ICefRequest;
-  const _Proxy, _City: string);
+  const _Proxy, _City, _SessionId: string);
 begin
   inherited Create(browser, frame, '', request);
   FBrowser := browser;
@@ -72,6 +72,7 @@ begin
   FRequest := request;
   FProxy := _Proxy;
   FCity := _City;
+  FSessionId := _SessionId;
 end;
 
 destructor TResourceHandlerDailiyun.Destroy;
@@ -130,7 +131,7 @@ begin
   req := TCefRequestRef.New;
   req.SetHeaderMap(LHeaders);
   LUrl := request.Url;
-  req.Url := FProxy + '/?url=' + string(encodeURIComponent(LUrl)) + '&city=' + string(encodeURIComponent(FCity));
+  req.Url := FProxy + '/?url=' + string(encodeURIComponent(LUrl)) + '&city=' + string(encodeURIComponent(FCity)) + '&ssnid=' + string(encodeURIComponent(FSessionId));
   req.Method := request.Method;
   req.PostData := request.PostData;
   req.Flags := request.Flags or UR_FLAG_STOP_ON_REDIRECT;
