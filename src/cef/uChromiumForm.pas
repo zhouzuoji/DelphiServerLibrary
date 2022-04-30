@@ -305,6 +305,7 @@ procedure TChromiumTab.ChromiumClose(Sender: TObject; const browser: ICefBrowser
 begin
   if Self.Window <> nil then
     aAction := cbaDelay;
+  Self.State := cbsDestroying;
   ExecOnMainThread(
     procedure
     begin
