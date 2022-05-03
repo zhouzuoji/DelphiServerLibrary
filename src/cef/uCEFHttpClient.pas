@@ -3,33 +3,66 @@ unit uCEFHttpClient;
 interface
 
 uses
-  SysUtils, Classes, Windows, Forms, Generics.Collections, Generics.Defaults,
-  uCEFTypes, uCEFInterfaces, uCEFLibFunctions, uCEFMiscFunctions, uCEFRequest, uCEFUrlRequest,
-  uCEFBaseRefCounted, uCefUrlRequestClient, uCEFRequestContext, uCEFTask, uCefStringMultimap,
-  uCEFConstants, uCEFPostDataElement, uCEFPostData, DSLUtils, DSLHttp, DSLMimeTypes;
+  SysUtils,
+  Classes,
+  Windows,
+  Generics.Collections,
+  Generics.Defaults,
+  uCEFTypes,
+  uCEFInterfaces,
+  uCEFLibFunctions,
+  uCEFMiscFunctions,
+  uCEFRequest,
+  uCEFUrlRequest,
+  uCEFBaseRefCounted,
+  uCefUrlRequestClient,
+  uCEFRequestContext,
+  uCEFTask,
+  uCefStringMultimap,
+  uCEFConstants,
+  uCEFPostDataElement,
+  uCEFPostData,
+  DSLUtils,
+  DSLHttp,
+  DSLMimeTypes;
 
 type
-  THttpResponseHandler = reference to procedure(req: ICefRequest; resp: ICefResponse; RespBody: TStream);
-  THttpResponse = record
-    resp: ICefResponse;
-    body: TMemoryStream;
+  THttpRoundtrip = record
+    Request: ICefRequest;
+    Response: ICefResponse;
+    Content: TStream;
     function AsUTF16: string;
     function AsUTF8: UTF8String;
     function AsRawBytes: RawByteString;
   end;
+  THttpResponseHandler = reference to procedure(const _Roundtrip: THttpRoundtrip);
 
-function HttpGet(const _url: string; const _referrer: string = ''; ctx: ICefRequestContext = nil): string;
-function HttpPost(const _url: string; const _data: IMimeData; const _referrer: string = ''; ctx: ICefRequestContext = nil): string;
-procedure HttpGetAsync(const _url: string; handler: THttpResponseHandler; const _referrer: string = ''; ctx: ICefRequestContext = nil);
-procedure HttpPostAsync(const _url: string; const _data: IMimeData; handler: THttpResponseHandler;
-  const _referrer: string = '';  ctx: ICefRequestContext = nil);
+  TCEFHttpRequest = record
+    Context: ICefRequestContext;
+    Handle: ICefRequest;
+    Headers: ICefStringMultimap;
+    FOnCreated: TProc<ICefUrlRequest>;
+    constructor Create(const url: string);
+    function RequireHeaders: ICefStringMultimap;
+    function WithContext(const c: ICefRequestContext): TCEFHttpRequest;
+    function Method(const m: string): TCEFHttpRequest;
+    function Referer(const _Referer: string): TCEFHttpRequest;
+    function PostData(const _data: IMimeData): TCEFHttpRequest; overload;
+    function PostData(const _data: ICefPostData; const _ContentType: string): TCEFHttpRequest; overload;
+    function AddHeader(const _Name, _Value: string): TCEFHttpRequest;
+    function ContentType(const _ContentType: string): TCEFHttpRequest;
+    function NoRedirect: TCEFHttpRequest;
+    function NoRetryOn5xx: TCEFHttpRequest;
+    function NoCookie: TCEFHttpRequest;
+    function DisableCache: TCEFHttpRequest;
+    function OnCreated(cb: TProc<ICefUrlRequest>): TCEFHttpRequest;
+    procedure Fetch(_Content: TStream;  _OnResult: THttpResponseHandler);
+  end;
 
-function WaitForRequest(const req: ICefRequest; ctx: ICefRequestContext = nil): THttpResponse;
-procedure DoRequestAsync(const req: ICefRequest; RespBody: TStream; handler: THttpResponseHandler; ctx: ICefRequestContext = nil); overload;
-procedure DoRequestAsync(const req: ICefRequest; const client: ICefUrlRequestClient; ctx: ICefRequestContext = nil); overload;
 function GetRespHeader(resp: ICefResponse): string;
 function GetRespText(resp: ICefResponse; body: TStream): string;
 function GetRespTextUTF8(resp: ICefResponse; body: TStream): UTF8String;
+function GetRespTextRaw(resp: ICefResponse; body: TStream): RawByteString;
 
 implementation
 
@@ -41,13 +74,12 @@ type
   private
     FRespBody: TStream;
     FOwnedBody: Boolean;
-    FHandler: THttpResponseHandler;
+    FOnResult: THttpResponseHandler;
     procedure StreamRequired;
-    procedure OnRequestComplete(const request: ICefUrlRequest); override;
+    procedure OnRequestComplete(const _UrlReq: ICefUrlRequest); override;
     procedure OnDownloadData(const request: ICefUrlRequest; data: Pointer; dataLength: NativeUInt); override;
-    function  OnGetAuthCredentials(isProxy: Boolean; const host: ustring; port: Integer; const realm, scheme: ustring; const callback: ICefAuthCallback): Boolean; override;
   public
-    constructor Create(_Content: TStream; _Handler: THttpResponseHandler); reintroduce;
+    constructor Create(_Content: TStream; _OnResult: THttpResponseHandler); reintroduce;
     destructor Destroy; override;
   end;
 
@@ -69,7 +101,7 @@ begin
   Result := string(encodeURIComponent(s));
 end;
 
-procedure AddChromiumHeaders(r: ICefRequest);
+procedure AddChromiumHeaders(r: ICefRequest); overload;
 begin
   r.SetHeaderByName('Sec-Fetch-Mode', 'cors', True);
   r.SetHeaderByName('sec-ch-ua', '" Not A;Brand";v="99", "Chromium";v="99", "Microsoft Edge";v="99"', True);
@@ -149,144 +181,31 @@ begin
   end;
 end;
 
-function HttpGet(const _url, _referrer: string; ctx: ICefRequestContext): string;
-var
-  req: ICefRequest;
-  res: THttpResponse;
+function GetRespTextRaw(resp: ICefResponse; body: TStream): RawByteString;
 begin
   Result := '';
-  req := TCefRequestRef.New;
-  req.Assign(_url, 'GET', nil, nil);
-  if _referrer <> '' then
-    req.SetReferrer(_referrer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
-  res := WaitForRequest(req, ctx);
-  try
-    Result := res.AsUTF16;
-  finally
-    res.body.Free;
-  end;
-end;
-
-function HttpPost(const _url: string; const _data: IMimeData; const _referrer: string ; ctx: ICefRequestContext): string;
-var
-  req: ICefRequest;
-  res: THttpResponse;
-  pd: ICefPostData;
-  pde: ICefPostDataElement;
-begin
-  Result := '';
-  pde := TCefPostDataElementRef.New;
-  pde.SetToBytes(_data.DataSize, _data.DataPointer);
-  pd := TCefPostDataRef.New;
-  pd.AddElement(pde);
-  req := TCefRequestRef.New;
-  req.Url := _url;
-  req.Method := 'POST';
-  req.PostData := pd;
-  if _referrer <> '' then
-    req.SetReferrer(_referrer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
-  req.SetHeaderByName('Content-Type', _data.ContentType, True);
-  res := WaitForRequest(req, ctx);
-  try
-    Result := res.AsUTF16;
-  finally
-    res.body.Free;
-  end;
-end;
-
-procedure HttpGetAsync(const _url: string; handler: THttpResponseHandler;
-  const _referrer: string; ctx: ICefRequestContext);
-var
-  req: ICefRequest;
-begin
-  req := TCefRequestRef.New;
-  req.url := _url;
-  if _referrer <> '' then
-    req.SetReferrer(_referrer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
-  DoRequestAsync(req, nil, handler, ctx);
-end;
-
-procedure HttpPostAsync(const _url: string; const _data: IMimeData; handler: THttpResponseHandler;
-  const _referrer: string; ctx: ICefRequestContext);
-var
-  req: ICefRequest;
-  pd: ICefPostData;
-  pde: ICefPostDataElement;
-begin
-  pd := TCefPostDataRef.New;
-  pde := TCefPostDataElementRef.New;
-  pde.SetToBytes(_data.DataSize, _data.DataPointer);
-  pd.AddElement(pde);
-  req := TCefRequestRef.New;
-  req.Url := _url;
-  req.Method := 'POST';
-  req.PostData := pd;
-  if _referrer <> '' then
-    req.SetReferrer(_referrer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
-  req.SetHeaderByName('Content-Type', _data.ContentType, True);
-  DoRequestAsync(req, nil, handler, ctx);
-end;
-
-procedure DoRequestAsync(const req: ICefRequest; RespBody: TStream; handler: THttpResponseHandler; ctx: ICefRequestContext);
-begin
-  DoRequestAsync(req, TCefUrlRequestClient.Create(RespBody, handler), ctx);
-end;
-
-procedure DoRequestAsync(const req: ICefRequest; const client: ICefUrlRequestClient; ctx: ICefRequestContext); overload;
-begin
-  req.Flags := req.Flags or UR_FLAG_ALLOW_STORED_CREDENTIALS;
-  AddChromiumHeaders(req);
-  if CefCurrentlyOn(TID_UI) then
-    TCefUrlRequestRef.New(req, client, ctx)
-  else begin
-    CefPostTask(TID_UI, TCefFastTask.Create(procedure
-    begin
-      TCefUrlRequestRef.New(req, client, ctx);
-    end));
-  end;
-end;
-
-function WaitForRequest(const req: ICefRequest; ctx: ICefRequestContext = nil): THttpResponse;
-var
-  tid: TCefThreadId;
-  body: TMemoryStream;
-  hev: THandle;
-  resp: ICefResponse;
-begin
-  Result.body := nil;
-  tid := TID_UI;
-  if cef_currently_on(TID_RENDERER) <> 0 then
-    tid := TID_UI;
-  body := TMemoryStream.Create;
-  hev := CreateEvent(nil, False, False, nil);
-  req.Flags := req.Flags or UR_FLAG_ALLOW_STORED_CREDENTIALS;
-  AddChromiumHeaders(req);
-  CefPostTask(tid, TCefFastTask.Create(procedure
-  var
-    r: ICefUrlRequest;
+  if (resp.Error <> 0) and (resp.Status = 0) then
+    raise Exception.CreateFmt('CEF HTTP error %d', [resp.Error]);
+  if body.Size > 0 then
   begin
-    r := TCefUrlRequestRef.New(req, TCefUrlRequestClientSync.Create(body, hev), ctx);
-    resp := r.Response;
-  end));
-  WaitForSingleObject(hev, INFINITE);
-  CloseHandle(hev);
-  Result.body := body;
-  Result.resp := resp;
+    SetLength(Result, body.Size);
+    body.ReadBuffer(Pointer(Result)^, Length(Result));
+  end;
 end;
 
 { TCefUrlRequestClient }
 
-constructor TCefUrlRequestClient.Create(_Content: TStream; _Handler: THttpResponseHandler);
+constructor TCefUrlRequestClient.Create(_Content: TStream; _OnResult: THttpResponseHandler);
 begin
   inherited Create;
   FRespBody := _Content;
-  FHandler := _Handler;
+  FOnResult := _OnResult;
 end;
 
 destructor TCefUrlRequestClient.Destroy;
 begin
   if FOwnedBody then
-    FRespBody.Free;
+    FreeAndNil(FRespBody);
   inherited;
 end;
 
@@ -297,22 +216,15 @@ begin
   FRespBody.WriteBuffer(data^, dataLength);
 end;
 
-function TCefUrlRequestClient.OnGetAuthCredentials(isProxy: Boolean;
-  const host: ustring; port: Integer; const realm,
-  scheme: ustring; const callback: ICefAuthCallback): Boolean;
+procedure TCefUrlRequestClient.OnRequestComplete(const _UrlReq: ICefUrlRequest);
+var
+  LRoundtrip: THttpRoundtrip;
 begin
-  Result := False;
-  if isProxy then
-  begin
-    callback.Cont('yynn8899', 'aa369369');
-    Result := True;
-  end;
-end;
-
-procedure TCefUrlRequestClient.OnRequestComplete(const request: ICefUrlRequest);
-begin
-  if Assigned(FHandler) then
-    FHandler(request.Request, request.Response, FRespBody);
+  LRoundtrip.Request := _UrlReq.Request;
+  LRoundtrip.Response := _UrlReq.Response;
+  LRoundtrip.Content := FRespBody;
+  if Assigned(FOnResult) then
+    FOnResult(LRoundtrip);
 end;
 
 procedure TCefUrlRequestClient.StreamRequired;
@@ -364,23 +276,152 @@ end;
 
 { THttpResponse }
 
-function THttpResponse.AsRawBytes: RawByteString;
+function THttpRoundtrip.AsRawBytes: RawByteString;
 begin
-  Result := '';
-  if (resp.Error <> 0) and (resp.Status  = 0) then
-    raise Exception.CreateFmt('CEF HTTP error %d', [resp.Error]);
-  if body.Size > 0 then
-    SetString(Result, PAnsiChar(body.Memory), body.Size)
+  Result := GetRespTextRaw(Response, Content);
 end;
 
-function THttpResponse.AsUTF16: string;
+function THttpRoundtrip.AsUTF16: string;
 begin
-  Result := GetRespText(resp, body);
+  Result := GetRespText(Response, Content);
 end;
 
-function THttpResponse.AsUTF8: UTF8String;
+function THttpRoundtrip.AsUTF8: UTF8String;
 begin
-  Result := GetRespTextUTF8(resp, body);
+  Result := GetRespTextUTF8(Response, Content);
+end;
+
+{ TCEFHttpRequest }
+
+function TCEFHttpRequest.AddHeader(const _Name, _Value: string): TCEFHttpRequest;
+begin
+  RequireHeaders.Append(_Name, _Value);
+  Result := Self;
+end;
+
+function TCEFHttpRequest.ContentType(const _ContentType: string): TCEFHttpRequest;
+begin
+  RequireHeaders.Append('Content-Type', _ContentType);
+  Result := Self;
+end;
+
+constructor TCEFHttpRequest.Create(const url: string);
+begin
+  Handle := TCefRequestRef.New;
+  Handle.Url := url;
+  Handle.Flags := UR_FLAG_ALLOW_STORED_CREDENTIALS;
+end;
+
+function TCEFHttpRequest.DisableCache: TCEFHttpRequest;
+begin
+  Handle.Flags := Handle.Flags or UR_FLAG_DISABLE_CACHE;
+  Result := Self;
+end;
+
+procedure TCEFHttpRequest.Fetch(_Content: TStream;  _OnResult: THttpResponseHandler);
+var
+  LClient: ICefUrlRequestClient;
+  LReq: ICefUrlRequest;
+  LContext: ICefRequestContext;
+  LHandle: ICefRequest;
+  LOnCreated: TProc<ICefUrlRequest>;
+begin
+  LClient := TCefUrlRequestClient.Create(_Content, _OnResult);
+  if Headers <> nil then
+    Handle.SetHeaderMap(Headers);
+  AddChromiumHeaders(Handle);
+  if CefCurrentlyOn(TID_IO) then
+  begin
+    LReq := TCefUrlRequestRef.New(Handle, LClient, Context);
+    if Assigned(FOnCreated) then
+      FOnCreated(LReq);
+  end
+  else begin
+    LContext := Self.Context;
+    LHandle := Self.Handle;
+    LOnCreated := Self.FOnCreated;
+    CefPostTask(TID_IO, TCefFastTask.Create(procedure
+    var
+      r: ICefUrlRequest;
+    begin
+      r := TCefUrlRequestRef.New(LHandle, LClient, LContext);
+      if Assigned(LOnCreated) then
+        LOnCreated(r);
+    end));
+  end;
+end;
+
+function TCEFHttpRequest.Method(const m: string): TCEFHttpRequest;
+begin
+  Handle.Method := m;
+  Result := Self;
+end;
+
+function TCEFHttpRequest.NoCookie: TCEFHttpRequest;
+begin
+  Handle.Flags := Handle.Flags and not UR_FLAG_ALLOW_STORED_CREDENTIALS;
+  Result := Self;
+end;
+
+function TCEFHttpRequest.NoRedirect: TCEFHttpRequest;
+begin
+  Handle.Flags := Handle.Flags or UR_FLAG_STOP_ON_REDIRECT;
+  Result := Self;
+end;
+
+function TCEFHttpRequest.NoRetryOn5xx: TCEFHttpRequest;
+begin
+  Handle.Flags := Handle.Flags or UR_FLAG_NO_RETRY_ON_5XX;
+  Result := Self;
+end;
+
+function TCEFHttpRequest.OnCreated(cb: TProc<ICefUrlRequest>): TCEFHttpRequest;
+begin
+  FOnCreated := cb;
+  Result := Self;
+end;
+
+function TCEFHttpRequest.PostData(const _data: ICefPostData; const _ContentType: string): TCEFHttpRequest;
+begin
+  Handle.Method := 'POST';
+  Handle.PostData := _data;
+  if _ContentType <> '' then
+    ContentType(_ContentType);
+  Result := Self;
+end;
+
+function TCEFHttpRequest.PostData(const _data: IMimeData): TCEFHttpRequest;
+var
+  pd: ICefPostData;
+  pde: ICefPostDataElement;
+begin
+  Handle.Method := 'POST';
+  pde := TCefPostDataElementRef.New;
+  pde.SetToBytes(_data.DataSize, _data.DataPointer);
+  pd := TCefPostDataRef.New;
+  pd.AddElement(pde);
+  Handle.PostData := pd;
+  ContentType( _data.ContentType);
+  Result := Self;
+end;
+
+function TCEFHttpRequest.Referer(const _Referer: string): TCEFHttpRequest;
+begin
+  Handle.SetReferrer(_Referer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
+  Result := Self;
+end;
+
+function TCEFHttpRequest.RequireHeaders: ICefStringMultimap;
+begin
+  if Headers = nil then
+    Headers := TCefCustomStringMultimap.Create;
+  Result := Headers;
+end;
+
+function TCEFHttpRequest.WithContext(const c: ICefRequestContext): TCEFHttpRequest;
+begin
+  Context := c;
+  Result := Self;
 end;
 
 end.

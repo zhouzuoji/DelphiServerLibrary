@@ -284,33 +284,28 @@ begin
   url := 'https://mobile.yangkeduo.com/goods.html?goods_id=' + id
     + '&is_spike=0&page_from=101&page_el_sn=296024&refer_page_name=order_detail&refer_page_id=10038_'
     + IntToStr(getWebTimestamp)+ '_gpbbnud77u&refer_page_sn=10038&refer_page_el_sn=296024';
-  HttpGetAsync(url, procedure(req: ICefRequest; resp: ICefResponse; RespBody: TStream)
-  var
-    html: string;
-  begin
-    if resp.Status = 200 then
+  TCEFHttpRequest.Create(url).Referer('https://mobile.yangkeduo.com/').WithContext(ctx).Fetch(nil,
+    procedure(const r: THttpRoundtrip)
     begin
-      html := GetRespText(resp, RespBody);
-      cb(ExtractRawDataFromHTML(html));
-    end;
-  end, 'https://mobile.yangkeduo.com/', ctx);
+      if r.Response.Status = 200 then
+        cb(ExtractRawDataFromHTML(r.AsUTF16));
+    end
+  );
 end;
 
 procedure GetChildCategories(const ParentCatID: string; cb: TProc<ISuperObject>);
-var
-  url: string;
 begin
-  url := 'https://mms.pinduoduo.com/vodka/v2/mms/categories?parentId=' + ParentCatID;
-  HttpGetAsync(url, procedure(req: ICefRequest; resp: ICefResponse; RespBody: TStream)
-  var
-    json: string;
-  begin
-    if resp.Status = 200 then
-    begin
-      json := GetRespText(resp, RespBody);
-      cb(SO(json));
-    end;
-  end, 'https://mms.pinduoduo.com/goods/category');
+  TCEFHttpRequest.Create('https://mms.pinduoduo.com/vodka/v2/mms/categories?parentId=' + ParentCatID)
+    .Referer('https://mms.pinduoduo.com/goods/category')
+    .Fetch(nil,
+      procedure(const r: THttpRoundtrip)
+      begin
+        if r.Response.Status = 200 then
+        begin
+          cb(SO(r.AsUTF16));
+        end;
+      end
+  );
 end;
 
 function EncodeForm(_Params: TList<TPair<string, string>>): RawByteString;
@@ -334,46 +329,45 @@ procedure PDDAPIInvokeWithCookie(
   const _ctx: ICefRequestContext;
   const PDDAccessToken, pdd_user_id: string);
 var
-  req: ICefRequest;
-  url: string;
+  LUrl: string;
   LPostData: RawByteString;
   pd: ICefPostData;
   pde: ICefPostDataElement;
+  LReq: TCEFHttpRequest;
 begin
-  req := TCefRequestRef.New;
-  if Pos('?', _Url) > 0 then
-    url := PDD_ORIGIN + _Url + '&pdd_user_id=' + pdd_user_id
+  if pdd_user_id <> '' then
+  begin
+    if(Pos('?', _Url) > 0) then
+      LUrl := PDD_ORIGIN + _Url + '&pdd_user_id=' + pdd_user_id
+    else
+      LUrl := PDD_ORIGIN + _Url + '?pdd_user_id=' + pdd_user_id;
+  end
   else
-    url := PDD_ORIGIN + _Url + '?pdd_user_id=' + pdd_user_id;
-  req.Url := url;
-  req.SetReferrer(PDD_ORIGIN + _Referer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
+    LUrl := PDD_ORIGIN + _Url;
+  LReq := TCEFHttpRequest.Create(LUrl).Referer(PDD_ORIGIN + _Referer);
   if _Params <> nil then
   begin
-    req.Method := 'POST';
+    LReq.Method('POST');
     if _ContentType = ctWWWFormUrlEncoded then
     begin
-      req.SetHeaderByName('content-type', CONTENT_TYPE_URLENCODED_FORM_UTF8, True);
+      LReq.ContentType(CONTENT_TYPE_URLENCODED_FORM_UTF8);
       LPostData := 'pdd_user_id=' + RawByteString(pdd_user_id) + '&' + EncodeForm(_Params);
     end
-    else begin
-      req.SetHeaderByName('content-type', CONTENT_TYPE_JSON_UTF8, True);
-    end;
+    else
+      LReq.ContentType(CONTENT_TYPE_JSON_UTF8);
     pd := TCefPostDataRef.New;
     pde := TCefPostDataElementRef.New;
     pde.SetToBytes(Length(LPostData), Pointer(LPostData));
     pd.AddElement(pde);
-    req.PostData := pd;
+    LReq.Handle.PostData := pd;
   end;
-
-  req.SetHeaderByName('accesstoken', PDDAccessToken, True);
-  req.SetHeaderByName('accept', 'application/json, text/plain, */*', True);
-  DoRequestAsync(req, nil, procedure(req: ICefRequest; resp: ICefResponse; RespBody: TStream)
-    var
-      LText: string;
+  LReq.AddHeader('accesstoken', PDDAccessToken);
+  LReq.AddHeader('accept', 'application/json, text/plain, */*');
+  LReq.Fetch(nil, procedure(const r: THttpRoundtrip)
     begin
-      LText := GetRespText(resp, RespBody);
-      cb(SO(LText));
-    end, _ctx);
+      cb(SO(r.AsUTF16));
+    end
+  );
 end;
 
 procedure PDDAPIInvoke(

@@ -21,6 +21,7 @@ function ValueToString(const v: ICefValue): string; overload;
 function ValueToString(const v: ICefv8Value): string; overload;
 function IsHttp(const _Url: string): Boolean;
 function DumpStringMultimap(const m: ICefStringMultimap): string;
+function TransformStringMultimap(const m: ICefStringMultimap; _KeyMap: TDictionary<string, string>): ICefStringMultimap;
 function DumpRequest(const r: ICefRequest): string;
 function PostDataToString(_PostData: ICefPostData; _ContentType: string): string;
 function PostDataToByteArray(_PostData: ICefPostData): RawByteString;
@@ -43,6 +44,7 @@ procedure CreateRequestContext(const _CachePath: ustring;
   const _CookieableSchemesExcludeDefaults: Boolean;
   _PersistSessionCookies: Boolean; _PersistUserPreferences: Boolean;
   cb: TProc<ICefRequestContext>);
+procedure CreateTempRequestContext(cb: TProc<ICefRequestContext>);
 
 function SetProxyForRequestContext(const ctx: ICefRequestContext; const _ProxyURL: string): string;
 
@@ -533,6 +535,11 @@ begin
   TCefRequestContextRef.New(@LSettings, TCustomRequestContextHandler.Create(cb));
 end;
 
+procedure CreateTempRequestContext(cb: TProc<ICefRequestContext>);
+begin
+  CreateRequestContext('', '', '', False, False, False, cb);
+end;
+
 function SetProxyForRequestContext(const ctx: ICefRequestContext; const _ProxyURL: string): string;
 var
   LDic: ICefDictionaryValue;
@@ -557,11 +564,37 @@ end;
 
 function DumpStringMultimap(const m: ICefStringMultimap): string;
 var
-  i: Integer;
+  i, j: Integer;
+  LKey: string;
 begin
   Result := '';
   for i := 0 to m.Size - 1 do
-    Result := Result + m.Key[i] + ': ' + m.Value[i] + #13#10;
+  begin
+    LKey := m.Key[i];
+    for j := 0 to m.FindCount(LKey) - 1 do
+      Result := Result + LKey + ': ' + m.Enumerate[LKey, j] + #13#10;
+  end;
+end;
+
+function TransformStringMultimap(const m: ICefStringMultimap; _KeyMap: TDictionary<string, string>): ICefStringMultimap;
+var
+  i, j: Integer;
+  LKey, LKey2: string;
+begin
+  Result := TCefCustomStringMultimap.Create;
+  for i := 0 to m.Size - 1 do
+  begin
+    LKey := m.Key[i];
+    if _KeyMap.TryGetValue(LKey, LKey2) then
+    begin
+      if LKey2 <> '' then
+        for j := 0 to m.FindCount(LKey) - 1 do
+          Result.Append(LKey2, m.Enumerate[LKey, j]);
+    end
+    else
+      for j := 0 to m.FindCount(LKey) - 1 do
+        Result.Append(LKey, m.Enumerate[LKey, j]);
+  end;
 end;
 
 function DumpRequest(const r: ICefRequest): string;
