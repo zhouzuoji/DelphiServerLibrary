@@ -4,21 +4,13 @@ object SimpleBrowserFrame: TSimpleBrowserFrame
   Width = 791
   Height = 666
   TabOrder = 0
-  object CEFWindowParent1: TCEFWindowParent
-    Left = 0
-    Top = 41
-    Width = 791
-    Height = 301
-    Align = alClient
-    TabOrder = 0
-  end
   object Panel1: TPanel
     Left = 0
     Top = 0
     Width = 791
     Height = 41
     Align = alTop
-    TabOrder = 1
+    TabOrder = 0
     DesignSize = (
       791
       41)
@@ -92,7 +84,7 @@ object SimpleBrowserFrame: TSimpleBrowserFrame
     Height = 162
     Align = alBottom
     ScrollBars = ssVertical
-    TabOrder = 2
+    TabOrder = 1
   end
   object txtScript: TMemo
     Left = 0
@@ -101,11 +93,35 @@ object SimpleBrowserFrame: TSimpleBrowserFrame
     Height = 162
     Align = alBottom
     ScrollBars = ssVertical
-    TabOrder = 3
+    TabOrder = 2
   end
-  object Chromium1: TChromium
-    OnAddressChange = Chromium1AddressChange
-    OnConsoleMessage = Chromium1ConsoleMessage
+  object BrowserContainer: TPanel
+    Left = 0
+    Top = 41
+    Width = 791
+    Height = 301
+    Align = alClient
+    TabOrder = 3
+    ExplicitLeft = 16
+    ExplicitTop = 88
+    ExplicitWidth = 185
+    ExplicitHeight = 41
+    object Window: TCEFWindowParent
+      Left = 1
+      Top = 1
+      Width = 789
+      Height = 299
+      Align = alClient
+      TabOrder = 0
+      ExplicitLeft = 0
+      ExplicitTop = 41
+      ExplicitWidth = 791
+      ExplicitHeight = 301
+    end
+  end
+  object Browser: TChromium
+    OnAddressChange = BrowserAddressChange
+    OnConsoleMessage = BrowserConsoleMessage
     Left = 384
     Top = 320
   end

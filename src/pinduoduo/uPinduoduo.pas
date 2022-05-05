@@ -329,11 +329,12 @@ procedure PDDAPIInvokeWithCookie(
   const _ctx: ICefRequestContext;
   const PDDAccessToken, pdd_user_id: string);
 var
-  LUrl: string;
+  LUrl, LContentType: string;
   LPostData: RawByteString;
   pd: ICefPostData;
   pde: ICefPostDataElement;
   LReq: TCEFHttpRequest;
+  LJson: ISuperObject;
 begin
   if pdd_user_id <> '' then
   begin
@@ -344,22 +345,26 @@ begin
   end
   else
     LUrl := PDD_ORIGIN + _Url;
-  LReq := TCEFHttpRequest.Create(LUrl).Referer(PDD_ORIGIN + _Referer);
+  LReq := TCEFHttpRequest.Create(LUrl).WithContext(_ctx).Referer(PDD_ORIGIN + _Referer);
   if _Params <> nil then
   begin
     LReq.Method('POST');
     if _ContentType = ctWWWFormUrlEncoded then
     begin
+      LContentType := CONTENT_TYPE_URLENCODED_FORM_UTF8;
       LReq.ContentType(CONTENT_TYPE_URLENCODED_FORM_UTF8);
       LPostData := 'pdd_user_id=' + RawByteString(pdd_user_id) + '&' + EncodeForm(_Params);
     end
-    else
-      LReq.ContentType(CONTENT_TYPE_JSON_UTF8);
+    else begin
+      LContentType := CONTENT_TYPE_JSON_UTF8;
+      LJson := nil;
+      LPostData := UTF8Encode(LJson.AsJSon(False, False));
+    end;
     pd := TCefPostDataRef.New;
     pde := TCefPostDataElementRef.New;
     pde.SetToBytes(Length(LPostData), Pointer(LPostData));
     pd.AddElement(pde);
-    LReq.Handle.PostData := pd;
+    LReq.PostData(pd, LContentType);
   end;
   LReq.AddHeader('accesstoken', PDDAccessToken);
   LReq.AddHeader('accept', 'application/json, text/plain, */*');
@@ -381,7 +386,7 @@ var
 begin
   LCtx := _ctx;
   if _ctx = nil then
-    LCtx := TCefRequestContextRef.Global;
+    LCtx := GlobalRequestContext;
   GetCookies(LCtx, PDD_ORIGIN, ['PDDAccessToken', 'pdd_user_id'],
     procedure(_Cookies: TDictionary<string, string>)
     var

@@ -43,6 +43,7 @@ type
     Headers: ICefStringMultimap;
     FOnCreated: TProc<ICefUrlRequest>;
     constructor Create(const url: string);
+    procedure Clear;
     function RequireHeaders: ICefStringMultimap;
     function WithContext(const c: ICefRequestContext): TCEFHttpRequest;
     function Method(const m: string): TCEFHttpRequest;
@@ -67,6 +68,7 @@ function GetRespTextRaw(resp: ICefResponse; body: TStream): RawByteString;
 implementation
 
 uses
+  uCEFUtilFunctions,
   uChromiumForm;
 
 type
@@ -299,6 +301,14 @@ begin
   Result := Self;
 end;
 
+procedure TCEFHttpRequest.Clear;
+begin
+  Context := nil;
+  Handle := nil;
+  Headers := nil;
+  FOnCreated := nil;
+end;
+
 function TCEFHttpRequest.ContentType(const _ContentType: string): TCEFHttpRequest;
 begin
   RequireHeaders.Append('Content-Type', _ContentType);
@@ -327,9 +337,8 @@ var
   LOnCreated: TProc<ICefUrlRequest>;
 begin
   LClient := TCefUrlRequestClient.Create(_Content, _OnResult);
-  if Headers <> nil then
-    Handle.SetHeaderMap(Headers);
-  AddChromiumHeaders(Handle);
+  RequireHeaders;
+  Handle.SetHeaderMap(Headers);
   if CefCurrentlyOn(TID_IO) then
   begin
     LReq := TCefUrlRequestRef.New(Handle, LClient, Context);
@@ -383,10 +392,13 @@ end;
 
 function TCEFHttpRequest.PostData(const _data: ICefPostData; const _ContentType: string): TCEFHttpRequest;
 begin
-  Handle.Method := 'POST';
-  Handle.PostData := _data;
-  if _ContentType <> '' then
-    ContentType(_ContentType);
+  if _data <> nil then
+  begin
+    Handle.Method := 'POST';
+    Handle.PostData := _data;
+    if _ContentType <> '' then
+      ContentType(_ContentType);
+  end;
   Result := Self;
 end;
 
@@ -401,20 +413,27 @@ begin
   pd := TCefPostDataRef.New;
   pd.AddElement(pde);
   Handle.PostData := pd;
-  ContentType( _data.ContentType);
+  ContentType(_data.ContentType);
   Result := Self;
 end;
 
 function TCEFHttpRequest.Referer(const _Referer: string): TCEFHttpRequest;
 begin
-  Handle.SetReferrer(_Referer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
+  if _Referer <> '' then
+    Handle.SetReferrer(_Referer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
   Result := Self;
 end;
 
 function TCEFHttpRequest.RequireHeaders: ICefStringMultimap;
 begin
   if Headers = nil then
-    Headers := TCefCustomStringMultimap.Create;
+  begin
+    Headers := TCefStringMultimapOwn.Create;
+    Headers.Append('Sec-Fetch-Mode', 'cors');
+    Headers.Append('sec-ch-ua', '" Not A;Brand";v="99", "Chromium";v="99", "Microsoft Edge";v="99"');
+    Headers.Append('sec-ch-ua-mobile', '?0');
+    Headers.Append('sec-ch-ua-platform', '"Windows"');
+  end;
   Result := Headers;
 end;
 

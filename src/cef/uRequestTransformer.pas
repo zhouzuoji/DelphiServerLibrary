@@ -10,7 +10,8 @@ uses
   uCEFTypes,
   uCefResourceHandler,
   uCefStringMultimap,
-  uCEFInterfaces;
+  uCEFInterfaces,
+  uCEFHttpClient;
 
 type
   TCustomRequestTransformer = class(TCefResourceHandlerOwn)
@@ -18,6 +19,7 @@ type
     FBrowser: ICefBrowser;
     FFrame: ICefFrame;
     FRequest: ICefRequest;
+    FOpened: Boolean;
     FIsCanceled: Boolean;
     FRespHeader: ICefStringMultimap;
     FRespBody: TMemoryStream;
@@ -30,7 +32,7 @@ type
     function skip(bytes_to_skip: int64; var bytes_skipped: Int64; const callback: ICefResourceSkipCallback): Boolean; override;
     function read(const data_out: Pointer; bytes_to_read: Integer; var bytes_read: Integer; const callback: ICefResourceReadCallback): boolean; override;
     procedure Cancel; override;
-    function Tranform(const _Req: ICefRequest; out _Ctx: ICefRequestContext): ICefRequest; virtual; abstract;
+    function Tranform(const _Req: ICefRequest): TCEFHttpRequest; virtual; abstract;
     procedure TransformRespHeader(_RespHeaders: ICefStringMultimap; cb: TProc<ICefStringMultimap>); virtual;
   public
     constructor Create(const _browser: ICefBrowser; const _frame: ICefFrame; const _schemeName: ustring; const _request: ICefRequest); override;
@@ -44,8 +46,7 @@ implementation
 
 uses
   DSLUtils,
-  uCEFUtilFunctions,
-  uCEFHttpClient;
+  uCEFUtilFunctions;
 
 { TCustomRequestTransformer }
 
@@ -55,7 +56,8 @@ begin
   FIsCanceled := True;
   if Assigned(FUrlReq) then
     FUrlReq.Cancel;
-  Assert(DbgOutput(Self.ClassName + '.Cancel: ' + FRequest.Url));
+  //if FOpened then
+    //Assert(DbgOutput(Self.ClassName + '.Cancel: ' + FRequest.Url));
 end;
 
 constructor TCustomRequestTransformer.Create(const _browser: ICefBrowser; const _frame: ICefFrame; const _schemeName: ustring;
@@ -75,8 +77,6 @@ end;
 
 procedure TCustomRequestTransformer.GetResponseHeaders(const _Resp: ICefResponse;
   out _ContentLength: Int64; out redirectUrl: ustring);
-var
-  LHeaders, LNewHeaders: ICefStringMultimap;
 begin
   inherited;
   _Resp.Status := FResp.Status;
@@ -101,9 +101,10 @@ var
   LReq: TCEFHttpRequest;
 begin
   //OutputDebugString(PChar(DumpRequest(request)));
+  FOpened := True;
   FRequest := _Req;
   FUrl := _Req.Url;
-  LReq.Handle := Tranform(_Req, LReq.Context);
+  LReq := Tranform(_Req);
   if LReq.Handle = nil then
   begin
     _HandleImmediately := True;

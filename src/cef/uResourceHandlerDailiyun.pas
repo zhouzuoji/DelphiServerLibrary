@@ -12,14 +12,15 @@ uses
   uCEFInterfaces,
   uCEFResourceHandler,
   uCEFRequest,
-  uRequestTransformer;
+  uRequestTransformer,
+  uCEFHttpClient;
 
 type
   TResourceHandlerDailiyun = class(TCustomRequestTransformer)
   private
     FProxy, FCity, FSessionId: string;
   protected
-    function Tranform(const _Req: ICefRequest; out _Ctx: ICefRequestContext): ICefRequest; override;
+    function Tranform(const _Req: ICefRequest): TCEFHttpRequest; override;
     procedure TransformRespHeader(_RespHeaders: ICefStringMultimap; cb: TProc<ICefStringMultimap>); override;
   public
     constructor Create(const browser: ICefBrowser; const frame: ICefFrame; const request: ICefRequest;
@@ -31,8 +32,7 @@ implementation
 uses
   DSLUtils,
   DSLMimeTypes,
-  uCEFUtilFunctions,
-  uCEFHttpClient;
+  uCEFUtilFunctions;
 
 var
   G_HeaderKeyMap: TDictionary<string, string>;
@@ -48,40 +48,34 @@ begin
   FSessionId := _SessionId;
 end;
 
-function TResourceHandlerDailiyun.Tranform(const _Req: ICefRequest; out _Ctx: ICefRequestContext): ICefRequest;
+function TResourceHandlerDailiyun.Tranform(const _Req: ICefRequest): TCEFHttpRequest;
 var
   LReq: ICefRequest;
-  LUrl, LReferer, LCookie, LKey: string;
-  LOldHeaders, LNewHeaders: ICefStringMultimap;
+  LUrl, LNewUrl, LReferer, LCookie, LKey: string;
+  LOldHeaders: ICefStringMultimap;
   i, j: NativeUInt;
 begin
+  Result.Clear;
+  LUrl := Self.Url;
+  LNewUrl := FProxy + '/?url=' + string(encodeURIComponent(LUrl)) + '&city=' + string(encodeURIComponent(FCity)) + '&ssnid=' + string(encodeURIComponent(FSessionId));
+  Result := TCEFHttpRequest.Create(LNewUrl).Method(_Req.Method).NoRedirect.Referer(_Req.ReferrerUrl).WithContext(TmpRequestContext);
   LOldHeaders := TCefStringMultimapOwn.Create;
   _Req.GetHeaderMap(LOldHeaders);
-  LNewHeaders := LOldHeaders;
   LCookie := _Req.GetHeaderByName('cookie');
   if LCookie <> '' then
   begin
-    LNewHeaders := TCefStringMultimapOwn.Create;
     for i := 0 to LOldHeaders.Size - 1 do
     begin
       LKey := LOldHeaders.Key[i];
       if not SameText(LKey, 'cookie') then
         for j := 0 to LOldHeaders.FindCount(LKey) - 1 do
-          LNewHeaders.Append(LKey, LOldHeaders.Enumerate[LKey, j]);
+          Result.AddHeader(LKey, LOldHeaders.Enumerate[LKey, j]);
     end;
-    LNewHeaders.Append('Cookiex', LCookie);
-  end;
-  Result := TCefRequestRef.New;
-  Result.SetHeaderMap(LNewHeaders);
-  LUrl := Self.Url;
-  Result.Url := FProxy + '/?url=' + string(encodeURIComponent(LUrl)) + '&city=' + string(encodeURIComponent(FCity)) + '&ssnid=' + string(encodeURIComponent(FSessionId));
-  Result.Method := _Req.Method;
-  Result.PostData := _Req.PostData;
-  Result.Flags := _Req.Flags or UR_FLAG_STOP_ON_REDIRECT;
-  LReferer := _Req.ReferrerUrl;
-  if LReferer <> '' then
-    Result.SetReferrer(LReferer, REFERRER_POLICY_NEVER_CLEAR_REFERRER);
-  _Ctx := TmpRequestContext;
+    Result.AddHeader('Cookiex', LCookie);
+  end
+  else
+    Result.Headers := LOldHeaders;
+  Result.PostData(_Req.PostData, '');
 end;
 
 procedure TResourceHandlerDailiyun.TransformRespHeader(_RespHeaders: ICefStringMultimap; cb: TProc<ICefStringMultimap>);

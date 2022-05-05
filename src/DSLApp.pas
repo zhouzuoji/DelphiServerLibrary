@@ -52,6 +52,9 @@ procedure eventLogSysError(errorCode: Integer; const operation: string = '');
 procedure eventLogException(e: Exception; const operation: string ='');
 procedure setSerivceStatus(newStatus: TServiceRunningStatus);
 
+var
+  g_Terminating: Boolean;
+
 implementation
 
 var

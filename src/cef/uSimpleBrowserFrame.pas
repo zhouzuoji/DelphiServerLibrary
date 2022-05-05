@@ -10,7 +10,7 @@ uses
 
 type
   TSimpleBrowserFrame = class(TFrame)
-    CEFWindowParent1: TCEFWindowParent;
+    Window: TCEFWindowParent;
     Panel1: TPanel;
     edtURL: TLabeledEdit;
     Button1: TButton;
@@ -18,15 +18,16 @@ type
     Button2: TButton;
     txtConsole: TMemo;
     txtScript: TMemo;
-    Chromium1: TChromium;
+    Browser: TChromium;
     Button4: TButton;
     Button5: TButton;
+    BrowserContainer: TPanel;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
-    procedure Chromium1ConsoleMessage(Sender: TObject; const browser: ICefBrowser;
+    procedure BrowserConsoleMessage(Sender: TObject; const browser: ICefBrowser;
       level: Cardinal; const msg, source: ustring; line: Integer; out Result: Boolean);
-    procedure Chromium1AddressChange(Sender: TObject;
+    procedure BrowserAddressChange(Sender: TObject;
       const browser: ICefBrowser; const frame: ICefFrame; const url: ustring);
     procedure Button4Click(Sender: TObject);
     procedure Button5Click(Sender: TObject);
@@ -47,7 +48,7 @@ uses
 
 procedure TSimpleBrowserFrame.Button1Click(Sender: TObject);
 begin
-  Chromium1.DecZoomStep;
+  Browser.DecZoomStep;
 end;
 
 procedure TSimpleBrowserFrame.Button2Click(Sender: TObject);
@@ -56,31 +57,31 @@ var
 begin
   pt.X := 0;
   pt.Y := 100;
-  Chromium1.ShowDevTools(pt, nil);
+  Browser.ShowDevTools(pt, nil);
 end;
 
 procedure TSimpleBrowserFrame.Button3Click(Sender: TObject);
 begin
-  Chromium1.ExecuteJavaScript(txtScript.Lines.Text, 'about:blank');
+  Browser.ExecuteJavaScript(txtScript.Lines.Text, 'about:blank');
 end;
 
 procedure TSimpleBrowserFrame.Button4Click(Sender: TObject);
 begin
-  Chromium1.LoadURL(edtURL.Text);
+  Browser.LoadURL(edtURL.Text);
 end;
 
 procedure TSimpleBrowserFrame.Button5Click(Sender: TObject);
 begin
-  Chromium1.IncZoomStep;
+  Browser.IncZoomStep;
 end;
 
-procedure TSimpleBrowserFrame.Chromium1AddressChange(Sender: TObject;
+procedure TSimpleBrowserFrame.BrowserAddressChange(Sender: TObject;
   const browser: ICefBrowser; const frame: ICefFrame; const url: ustring);
 begin
   edtURL.Text := url;
 end;
 
-procedure TSimpleBrowserFrame.Chromium1ConsoleMessage;
+procedure TSimpleBrowserFrame.BrowserConsoleMessage;
 begin
   txtConsole.Lines.Add(msg);
   FilterConsoleMessage(browser, msg);

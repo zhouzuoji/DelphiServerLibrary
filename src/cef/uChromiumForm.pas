@@ -262,6 +262,8 @@ begin
       tmp := _Tab.ChromiumBeforePopup;
       if @_Tab.Chromium.OnBeforePopup = @tmp then
         _Tab.Chromium.OnBeforePopup := nil;
+      if _Tab.Chromium.Owner = nil then
+        FreeAndNil(_Tab.Chromium);
       LMgr.FBrowserList.Delete(i);
       _Tab.Free;
       Break;
@@ -309,10 +311,7 @@ begin
   ExecOnMainThread(
     procedure
     begin
-      //if Self.Window = nil then
-        //OnBrowserClosed(Self, browser)
-      //else
-        FreeAndNil(Self.Window);
+      FreeAndNil(Self.Window);
     end
   );
 end;

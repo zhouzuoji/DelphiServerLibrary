@@ -17,6 +17,9 @@ uses
   uCEFJson,
   superobject;
 
+type
+  TCookieList = TList<TCookie>;
+
 function ValueToString(const v: ICefValue): string; overload;
 function ValueToString(const v: ICefv8Value): string; overload;
 function IsHttp(const _Url: string): Boolean;
@@ -27,18 +30,18 @@ function PostDataToString(_PostData: ICefPostData; _ContentType: string): string
 function PostDataToByteArray(_PostData: ICefPostData): RawByteString;
 function ParseSetCookie(const _SetCookie: string): TCookie;
 procedure CreateCookie(out _Cookie: TCookie; const _Name, _Value, _Domain, _Path: string);
-function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
-function LoadCookieFromJson(json: ISuperObject): TList<TCookie>;
+function JsonizeCookieList(_Cookies: TCookieList): ISuperObject;
+function LoadCookieFromJson(json: ISuperObject): TCookieList;
 procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string; _OnComplete: TProc);
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
   _OnComplete: TProc<TList<TPair<string,string>>>); overload;
 procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string;
   const _Names: array of string; _OnComplete: TProc<TDictionary<string,string>>); overload;
-procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComplete: TProc<TList<TCookie>>); overload;
+procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComplete: TProc<TCookieList>); overload;
 procedure SetCookie(const _Ctx: ICefRequestContext;
   const _Url, _Name, _Value: string; cb: TCefSetCookieCallbackProc = nil;
   const _Path: string = '/'; const _Domain: string = '');
-procedure AddCookies(const _Ctx: ICefRequestContext; const _Url: string; _Cookies: TList<TCookie>; _OnComplete: TProc);
+procedure AddCookies(const _Ctx: ICefRequestContext; const _Url: string; _Cookies: TCookieList; _OnComplete: TProc);
 procedure CreateRequestContext(const _CachePath: ustring;
   const _AcceptLanguageList: ustring; const _CookieableSchemesList: ustring;
   const _CookieableSchemesExcludeDefaults: Boolean;
@@ -213,7 +216,7 @@ begin
     cb);
 end;
 
-procedure AddCookies(const _Ctx: ICefRequestContext; const _Url: string; _Cookies: TList<TCookie>; _OnComplete: TProc);
+procedure AddCookies(const _Ctx: ICefRequestContext; const _Url: string; _Cookies: TCookieList; _OnComplete: TProc);
 var
   LCookieMgr: ICefCookieManager;
   i, n: Integer;
@@ -325,7 +328,7 @@ const
   SAME_SITE_STRINGS: array [TCefCookieSameSite] of string =
     ('', 'none', 'Lax', 'Strict');
 
-function JsonizeCookieList(_Cookies: TList<TCookie>): ISuperObject;
+function JsonizeCookieList(_Cookies: TCookieList): ISuperObject;
 var
   arr: TSuperArray;
   o: ISuperObject;
@@ -351,13 +354,13 @@ begin
   end;
 end;
 
-function LoadCookieFromJson(json: ISuperObject): TList<TCookie>;
+function LoadCookieFromJson(json: ISuperObject): TCookieList;
 var
   arr: TSuperArray;
   o: ISuperObject;
   i: Integer;
 begin
-  Result := TList<TCookie>.Create;
+  Result := TCookieList.Create;
   try
     arr := json.AsArray;
     if arr <> nil then
@@ -417,7 +420,7 @@ var
   LCookies: TList<TPair<string, string>>;
 begin
   LCookieMgr := _Ctx.GetCookieManager(nil);
-  LCookies := TList < TPair < string, string >>.Create;
+  LCookies := TList <TPair<string, string >>.Create;
   LCookieMgr.VisitUrlCookies(_Url, True,
     TCustomCookieVisitor.Create(
       function(const name, value, domain, path: ustring;
@@ -434,13 +437,13 @@ begin
   );
 end;
 
-procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComplete: TProc<TList<TCookie>>);
+procedure GetCookies(const _Ctx: ICefRequestContext; const _Url: string; _OnComplete: TProc<TCookieList>);
 var
   LCookieMgr: ICefCookieManager;
-  LCookies: TList<TCookie>;
+  LCookies: TCookieList;
 begin
   LCookieMgr := _Ctx.GetCookieManager(nil);
-  LCookies := TList<TCookie>.Create;
+  LCookies := TCookieList.Create;
   LCookieMgr.VisitUrlCookies(_Url, True,
     TCustomCookieVisitor.Create(
       function(const _name, _value, _domain, _path: ustring;
@@ -581,7 +584,7 @@ var
   i, j: Integer;
   LKey, LKey2: string;
 begin
-  Result := TCefCustomStringMultimap.Create;
+  Result := TCefStringMultimapOwn.Create;
   for i := 0 to m.Size - 1 do
   begin
     LKey := m.Key[i];
