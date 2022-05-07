@@ -26,6 +26,7 @@ type
     FResp: ICefResponse;
     FUrlReq: ICefUrlRequest;
     FUrl: string;
+    FOnResourceLoad: THttpResponseHandler;
   protected
     function open(const _Req: ICefRequest; var _HandleImmediately: Boolean; const _Callback: ICefCallback): Boolean; override;
     procedure GetResponseHeaders(const _Resp: ICefResponse; out _ContentLength: Int64; out redirectUrl: ustring); override;
@@ -40,6 +41,7 @@ type
     property Browser: ICefBrowser read FBrowser;
     property Frame: ICefFrame read FFrame;
     property Url: string read FUrl;
+    property OnResourceLoad: THttpResponseHandler read FOnResourceLoad write FOnResourceLoad;
   end;
 
 implementation
@@ -77,6 +79,8 @@ end;
 
 procedure TCustomRequestTransformer.GetResponseHeaders(const _Resp: ICefResponse;
   out _ContentLength: Int64; out redirectUrl: ustring);
+var
+  r: THttpRoundtrip;
 begin
   inherited;
   _Resp.Status := FResp.Status;
@@ -88,6 +92,14 @@ begin
   _ContentLength := FRespBody.Size;
   if FResp.Error = 0 then
     _Resp.SetHeaderMap(FRespHeader);
+  if Assigned(FOnResourceLoad) then
+  begin
+    r.Request := FRequest;
+    r.Response := _Resp;
+    r.Content := FRespBody;
+    FOnResourceLoad(r);
+  end;
+  FRespBody.Position := 0;
 end;
 
 {

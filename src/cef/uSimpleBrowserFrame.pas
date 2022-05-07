@@ -40,7 +40,8 @@ type
 implementation
 
 uses
-  StrUtils, uCEFExtPolyfill;
+  StrUtils,
+  DSLVclApp;
 
 {$R *.dfm}
 
@@ -78,13 +79,12 @@ end;
 procedure TSimpleBrowserFrame.BrowserAddressChange(Sender: TObject;
   const browser: ICefBrowser; const frame: ICefFrame; const url: ustring);
 begin
-  edtURL.Text := url;
+  ExecOnMainThread(procedure begin edtURL.Text := url; end);
 end;
 
 procedure TSimpleBrowserFrame.BrowserConsoleMessage;
 begin
-  txtConsole.Lines.Add(msg);
-  FilterConsoleMessage(browser, msg);
+  ExecOnMainThread(procedure begin txtConsole.Lines.Add(msg); end);
 end;
 
 end.
