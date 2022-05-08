@@ -70,6 +70,11 @@ type
     procedure DoInitChrome; virtual;
   public
     destructor Destroy; override;
+    procedure CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent;
+      const _TagData: UTF8String = '';
+      const _WindowName : ustring = '';
+      const _Context : ICefRequestContext = nil;
+      const _ExtraInfo : ICefDictionaryValue = nil);
     property ChromiumMgr: TChromiumMgr read GetChromiumMgr;
   end;
 
@@ -133,6 +138,12 @@ begin
 end;
 
 { TCustomChromiumForm }
+
+procedure TCustomChromiumForm.CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent; const _TagData: UTF8String;
+  const _WindowName: ustring; const _Context: ICefRequestContext; const _ExtraInfo: ICefDictionaryValue);
+begin
+  ChromiumMgr.CreateBrowser(_Chromium, _Window, _TagData, _WindowName, _Context, _ExtraInfo);
+end;
 
 destructor TCustomChromiumForm.Destroy;
 begin

@@ -12,6 +12,7 @@ object FrmPDDLogin: TFrmPDDLogin
   Font.Style = []
   OldCreateOrder = False
   Scaled = False
+  OnClose = FormClose
   PixelsPerInch = 144
   TextHeight = 19
   object CEFWindowParent1: TCEFWindowParent

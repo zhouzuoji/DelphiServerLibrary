@@ -391,8 +391,6 @@ procedure CopyCookies(const _Src, _Dest: ICefRequestContext; const _Url: string;
 var
   LSrc, LDest: ICefCookieManager;
 begin
-  (Format('TCustomSiteSsnMgr.NewSession: MoveCookies("%s", "%s")',
-    [_Src.CachePath, _Dest.CachePath]));
   LSrc := _Src.GetCookieManager(nil);
   LDest := _Dest.GetCookieManager(nil);
   LSrc.VisitUrlCookies(_Url, True,
@@ -432,7 +430,11 @@ begin
           LCookies.Add(TPair<string, string>.Create(name, value));
           Result := True;
         end,
-      procedure begin _OnComplete(LCookies); end
+      procedure
+      begin
+        _OnComplete(LCookies);
+        LCookies.Free;
+      end
     )
   );
 end;
@@ -471,7 +473,7 @@ begin
           end;
           Result := True;
         end,
-      procedure begin _OnComplete(LCookies); end
+      procedure begin _OnComplete(LCookies); LCookies.Free; end
     )
   );
 end;
@@ -503,7 +505,11 @@ begin
           end;
           Result := n < LCookieMap.count;
         end,
-      procedure begin _OnComplete(LCookieMap); end
+      procedure
+      begin
+        _OnComplete(LCookieMap);
+        LCookieMap.Free;
+      end
     )
   );
 end;

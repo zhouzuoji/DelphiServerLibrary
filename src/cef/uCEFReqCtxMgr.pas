@@ -11,29 +11,22 @@ type
   TCEFReqCtxMgr = class
   private
     FBaseDir, FConfigFileName: string;
-    FSettings, FSites, FProfiles, FTmpProfiles: ISuperObject;
+    FSettings, FSites, FProfiles: ISuperObject;
     FProfileNames: TList<string>;
     FContexts: TDictionary<string, ICefRequestContext>;
     procedure LoadSettings;
     procedure SaveSettings;
-    procedure ExtractTempContext(const _Name: string);
     procedure AddContext(const _Name: string; const _Ctx: ICefRequestContext);
     function FindProfileName(const site, key: string): string;
     function GetProfileName(const site, key: string): string;
-    function RequireTmpProfileName: string;
     procedure GetOrCreateContext(const ProfileDir: string; cb: TProc<ICefRequestContext>);
     procedure _FindContext(const site, key: string; cb: TProc<ICefRequestContext>);
-    procedure _AssociateContext(const site, key: string; ctx: ICefRequestContext);
-    procedure _ReleaseTempContext(_Ctx: ICefRequestContext);
   public
     constructor Create(const _BaseDir: string; const _ConfigFileName: string = 'profiles.json');
     destructor Destroy; override;
     class function GenerateProfileName: string; static;
     procedure RequireContext(const site, key: string; cb: TProc<ICefRequestContext>);
     procedure FindContext(const site, key: string; cb: TProc<ICefRequestContext>);
-    procedure AssociateContext(const site, key: string; ctx: ICefRequestContext; cb: TProc<Boolean>);
-    procedure NewTempContext(cb: TProc<ICefRequestContext>);
-    procedure ReleaseTempContext(_Ctx: ICefRequestContext);
   end;
 
 procedure DumpCachePath(_Ctx: ICefRequestContext);
@@ -90,34 +83,6 @@ begin
   end;
 end;
 
-procedure TCEFReqCtxMgr._AssociateContext(const site, key: string; ctx: ICefRequestContext);
-var
-  LProfileName: string;
-  joSite: ISuperObject;
-  joKeys: ISuperObject;
-  joProfiles: ISuperObject;
-begin
-  //OutputDebugString(PChar(Format('_AssociateContext: %p, %s', [Pointer(ctx), ctx.CachePath])));
-  LProfileName := ExtractFileName(ctx.CachePath);
-  ExtractTempContext(LProfileName);
-  AddContext(LProfileName, ctx);
-  joSite := forceProperty(FSites, site, stObject);
-  joKeys := forceProperty(joSite, 'keys', stObject);
-  joProfiles := forceProperty(joSite, 'profiles', stObject);
-  joProfiles.S[LProfileName] := key;
-  joKeys.S[key] := LProfileName;
-  SaveSettings;
-end;
-
-procedure TCEFReqCtxMgr.AssociateContext(const site, key: string; ctx: ICefRequestContext; cb: TProc<Boolean>);
-begin
-  ExecOnMainThread(
-    procedure
-    begin
-      _AssociateContext(site, key, ctx);
-    end);
-end;
-
 constructor TCEFReqCtxMgr.Create(const _BaseDir, _ConfigFileName: string);
 begin
   inherited Create;
@@ -133,24 +98,6 @@ begin
   FProfileNames.Free;
   FContexts.Free;
   inherited;
-end;
-
-procedure TCEFReqCtxMgr.ExtractTempContext(const _Name: string);
-var
-  joProfile: ISuperObject;
-  i: Integer;
-  arr: TSuperArray;
-begin
-  arr := FTmpProfiles.AsArray;
-  for i := 0 to arr.Length - 1 do
-  begin
-    joProfile := arr[i];
-    if joProfile.S['dir'] = _Name then
-    begin
-      arr.Delete(i);
-      Exit;
-    end;
-  end;
 end;
 
 procedure TCEFReqCtxMgr._FindContext(const site, key: string; cb: TProc<ICefRequestContext>);
@@ -247,36 +194,6 @@ begin
   end;
 end;
 
-procedure TCEFReqCtxMgr._ReleaseTempContext(_Ctx: ICefRequestContext);
-var
-  LName: string;
-  joProfile: ISuperObject;
-  i: Integer;
-  arr: TSuperArray;
-begin
-  LName := extractFileName(_Ctx.CachePath);
-  arr := FTmpProfiles.AsArray;
-  for i := 0 to arr.Length - 1 do
-  begin
-    joProfile := arr[i];
-    if joProfile.S['dir'] = LName then
-    begin
-      joProfile.I['status'] := 0;
-      SaveSettings;
-      Exit;
-    end;
-  end;
-end;
-
-procedure TCEFReqCtxMgr.ReleaseTempContext(_Ctx: ICefRequestContext);
-begin
-  ExecOnMainThread(
-    procedure
-    begin
-      _ReleaseTempContext(_Ctx);
-    end);
-end;
-
 procedure TCEFReqCtxMgr.RequireContext(const site, key: string; cb: TProc<ICefRequestContext>);
 begin
   ExecOnMainThread(
@@ -284,34 +201,6 @@ begin
     begin
       GetOrCreateContext(GetProfileName(site, key), cb)
     end);
-end;
-
-function TCEFReqCtxMgr.RequireTmpProfileName: string;
-var
-  joProfile: ISuperObject;
-  i: Integer;
-  arr: TSuperArray;
-begin
-  arr := FTmpProfiles.AsArray;
-  for i := 0 to arr.Length - 1 do
-  begin
-    joProfile := arr[i];
-    if joProfile.I['status'] = 0 then
-    begin
-      joProfile.I['status'] := 1;
-      Result := joProfile.S['dir'];
-      SaveSettings;
-      Exit;
-    end;
-  end;
-
-  Result := GenerateProfileName;
-  joProfile := TSuperObject.Create(stObject);
-  joProfile.S['dir'] := Result;
-  joProfile.S['createTime'] := FormatDateTime('yyyy-mm-dd hh:nn:ss', Now);
-  joProfile.I['status'] := 1;
-  arr.Add(joProfile);
-  SaveSettings;
 end;
 
 procedure TCEFReqCtxMgr.LoadSettings;
@@ -339,16 +228,6 @@ begin
     FSettings := TSuperObject.Create(stObject);
   FSites := forceProperty(FSettings, 'sites', stObject);
   FProfiles := forceProperty(FSettings, 'profiles', stObject);
-  FTmpProfiles := forceProperty(FSettings, 'TmpProfiles', stArray);
-end;
-
-procedure TCEFReqCtxMgr.NewTempContext(cb: TProc<ICefRequestContext>);
-begin
-  ExecOnMainThread(
-    procedure
-    begin
-      GetOrCreateContext(RequireTmpProfileName, cb);
-    end);
 end;
 
 procedure TCEFReqCtxMgr.SaveSettings;
