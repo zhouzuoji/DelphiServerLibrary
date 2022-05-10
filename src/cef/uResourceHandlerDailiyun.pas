@@ -50,8 +50,7 @@ end;
 
 function TResourceHandlerDailiyun.Tranform(const _Req: ICefRequest): TCEFHttpRequest;
 var
-  LReq: ICefRequest;
-  LUrl, LNewUrl, LReferer, LCookie, LKey: string;
+  LUrl, LNewUrl, LCookie, LKey: string;
   LOldHeaders: ICefStringMultimap;
   i, j: NativeUInt;
 begin

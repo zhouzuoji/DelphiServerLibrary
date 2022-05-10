@@ -137,7 +137,7 @@ begin
     Self.Caption := '拼多多登录'
   else
     Self.Caption := '拼多多登录 - ' + FUsername;
-  CreateBrowser(Chromium1, CEFWindowParent1, '', '', FContext);
+  CreateBrowser(Chromium1, CEFWindowParent1, nil, '', FContext);
 end;
 
 procedure TFrmPDDLogin.FormClose(Sender: TObject; var Action: TCloseAction);

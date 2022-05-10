@@ -1810,7 +1810,8 @@ function HttpDecodeCStrTest(src: PAnsiChar; invalid: PPAnsiChar = nil): Integer;
 function HttpDecodeCStr2Buf(str, dst: PAnsiChar; invalid: PPAnsiChar = nil): Integer;
 
 function HttpDecodeCStr(str: PAnsiChar; invalid: PPAnsiChar = nil): RawByteString;
-function encodeURIComponent(const s: u16string): RawByteString;
+function encodeURIComponent(const s: u16string): RawByteString; overload;
+function encodeURIComponent(const s: RawByteString): RawByteString; overload;
 function decodeURIComponent(const s: RawByteString): u16string;
 
 function JsonEscape(const s: u16string): u16string; overload;
@@ -4992,6 +4993,11 @@ end;
 function encodeURIComponent(const s: u16string): RawByteString;
 begin
   Result := HttpEncode(UTF8Encode(s));
+end;
+
+function encodeURIComponent(const s: RawByteString): RawByteString;
+begin
+  Result := HttpEncode(s);
 end;
 
 function decodeURIComponent(const s: RawByteString): u16string;

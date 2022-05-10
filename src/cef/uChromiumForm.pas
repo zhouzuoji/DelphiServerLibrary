@@ -43,7 +43,7 @@ type
     destructor Destroy; override;
     procedure NotifyMoveOrResizeStarted;
     procedure CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent;
-      const _TagData: UTF8String = '';
+      const _TagData: ISuperObject = nil;
       const _WindowName : ustring = '';
       const _Context : ICefRequestContext = nil;
       const _ExtraInfo : ICefDictionaryValue = nil);
@@ -71,15 +71,15 @@ type
   public
     destructor Destroy; override;
     procedure CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent;
-      const _TagData: UTF8String = '';
+      const _TagData: ISuperObject = nil;
       const _WindowName : ustring = '';
       const _Context : ICefRequestContext = nil;
       const _ExtraInfo : ICefDictionaryValue = nil);
     property ChromiumMgr: TChromiumMgr read GetChromiumMgr;
   end;
 
-function GetBrowserTagData(const _Browser: ICefBrowser): UTF8String;
-procedure SetBrowserTagData(const _Browser: ICefBrowser; const _TagData: UTF8String);
+function GetBrowserTagData(const _Browser: ICefBrowser; const _Key: string): ISuperObject;
+procedure SetBrowserTagData(const _Browser: ICefBrowser; const _Key: string; const _Value: ISuperObject);
 
 var
   WndlessChromiumMgr: TChromiumMgr;
@@ -93,7 +93,7 @@ uses
 
 var
   G_TagDataLock: TSynchroObject;
-  G_TagDataMap: TDictionary<Integer, UTF8String>;
+  G_TagDataMap: TDictionary<Integer, ISuperObject>;
 
 type
   TChromiumTab = class
@@ -101,7 +101,7 @@ type
     State: TCefBrowserState;
     Chromium: TChromium;
     Window: TCEFWindowParent;
-    TagData: UTF8String;
+    TagData: ISuperObject;
     Url: string;
     procedure ChromiumAfterCreated(Sender: TObject; const browser: ICefBrowser);
     procedure ChromiumClose(Sender: TObject; const browser: ICefBrowser; var aAction: TCefCloseBrowserAction);
@@ -115,23 +115,42 @@ type
       var noJavascriptAccess, Result: Boolean);
   end;
 
-function GetBrowserTagData(const _Browser: ICefBrowser): UTF8String;
+function GetBrowserTagData(const _Browser: ICefBrowser; const _Key: string): ISuperObject;
+var
+  LAll: ISuperObject;
 begin
+  Result := nil;
   G_TagDataLock.Acquire;
   try
-    G_TagDataMap.TryGetValue(_Browser.Identifier, Result);
+    if G_TagDataMap.TryGetValue(_Browser.Identifier, LAll) and (LAll <> nil) then
+    begin
+      if _Key = '' then
+        Result := LAll
+      else
+        Result := LAll[_Key];
+    end;
   finally
     G_TagDataLock.Release;
   end;
-  if Result = '' then
-    Result := 'null';
 end;
 
-procedure SetBrowserTagData(const _Browser: ICefBrowser; const _TagData: UTF8String);
+procedure SetBrowserTagData(const _Browser: ICefBrowser; const _Key: string; const _Value: ISuperObject);
+var
+  LAll: ISuperObject;
 begin
   G_TagDataLock.Acquire;
   try
-    G_TagDataMap.AddOrSetValue(_Browser.Identifier, _TagData);
+    if _Key = '' then
+      G_TagDataMap.AddOrSetValue(_Browser.Identifier, _Value)
+    else begin
+      if G_TagDataMap.TryGetValue(_Browser.Identifier, LAll) and (LAll <> nil) then
+        LAll[_Key] := _Value
+      else begin
+        LAll := TSuperObject.Create(stObject);
+        LAll[_Key] := _Value;
+        G_TagDataMap.AddOrSetValue(_Browser.Identifier, LAll);
+      end;
+    end;
   finally
     G_TagDataLock.Release;
   end;
@@ -139,8 +158,7 @@ end;
 
 { TCustomChromiumForm }
 
-procedure TCustomChromiumForm.CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent; const _TagData: UTF8String;
-  const _WindowName: ustring; const _Context: ICefRequestContext; const _ExtraInfo: ICefDictionaryValue);
+procedure TCustomChromiumForm.CreateBrowser;
 begin
   ChromiumMgr.CreateBrowser(_Chromium, _Window, _TagData, _WindowName, _Context, _ExtraInfo);
 end;
@@ -405,8 +423,7 @@ begin
   FBrowserList := TList.Create;
 end;
 
-procedure TChromiumMgr.CreateBrowser(_Chromium: TChromium; _Window: TCEFWindowParent; const _TagData: UTF8String;
-  const _WindowName: ustring; const _Context: ICefRequestContext; const _ExtraInfo: ICefDictionaryValue);
+procedure TChromiumMgr.CreateBrowser;
 begin
   ExecOnMainThread(
     procedure
@@ -488,7 +505,7 @@ end;
 initialization
   ExecWhenCEFInitiaized(OnCEFInitialized);
   G_TagDataLock := TCriticalSection.Create;
-  G_TagDataMap := TDictionary<Integer, UTF8String>.Create;
+  G_TagDataMap := TDictionary<Integer, ISuperObject>.Create;
   WndlessChromiumMgr := TChromiumMgr.Create(nil);
 
 finalization
