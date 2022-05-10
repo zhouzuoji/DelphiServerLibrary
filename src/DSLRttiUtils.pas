@@ -37,13 +37,15 @@ type
   private
     FParamlessCtor: TParamlessConstructor;
     FMetaClass: TClass;
+    FTypeInfo: PTypeInfo;
   protected
-    procedure Init(t: TRttiInstanceType); virtual;
+    procedure Init(t: TRttiStructuredType); virtual;
   public
-    constructor Create(_MetaClass: TClass); virtual;
-    class function CreateTrait(_Class: TClass): TCustomClassTrait; static;
+    constructor Create(_TypeInfo: PTypeInfo); virtual;
+    class function CreateTrait(_TypeInfo: PTypeInfo): TCustomClassTrait; static;
     function CreateObject: TObject; virtual;
     property MetaClass: TClass read FMetaClass;
+    property TypeInfo_: PTypeInfo read FTypeInfo;
   end;
 
   TClassField = record
@@ -56,7 +58,7 @@ type
   private
     FFields: TArray<TClassField>;
   protected
-    procedure Init(t: TRttiInstanceType); override;
+    procedure Init(t: TRttiStructuredType); override;
   public
     property Fields: TArray<TClassField> read FFields;
   end;
@@ -72,9 +74,9 @@ type
     FMethodGetList: TListGetListProc;
     FIsObjectList: Boolean;
     procedure FindMethods(t: TRttiType);
-    procedure FindProperties(t: TRttiInstanceType);
+    procedure FindProperties(_t: TRttiStructuredType);
   protected
-    procedure Init(t: TRttiInstanceType); override;
+    procedure Init(t: TRttiStructuredType); override;
   public
     function CreateObject: TObject; override;
     procedure SetCount(_List: TObject; _Count: Integer);
@@ -127,7 +129,7 @@ type
     property ElementTypeSize: Integer read tvTypeSize;          // SizeOf(‘™Àÿ¿‡–Õ)
   end;
 
-function GetClassTrait(_Class: TClass): TCustomClassTrait;
+function GetClassTrait(_TypeInfo: PTypeInfo): TCustomClassTrait;
 function FindRttiAttribute(const _Attrs: TArray<TCustomAttribute>; _AttrClass: TRTTIAttributeClass): TCustomAttribute;
 
 implementation
@@ -147,26 +149,26 @@ end;
 
 var
   G_ClassTraitCacheLock: TSynchroObject;
-  G_ClassTraitCache: TDictionary<TClass, TCustomClassTrait>;
+  G_ClassTraitCache: TDictionary<PTypeInfo, TCustomClassTrait>;
 
-function GetClassTrait(_Class: TClass): TCustomClassTrait;
+function GetClassTrait(_TypeInfo: PTypeInfo): TCustomClassTrait;
 var
   tmp: TCustomClassTrait;
 begin
   G_ClassTraitCacheLock.Acquire;
-  G_ClassTraitCache.TryGetValue(_Class, Result);
+  G_ClassTraitCache.TryGetValue(_TypeInfo, Result);
   G_ClassTraitCacheLock.Release;
   if Result <> nil then
     Exit;
-  Result := TCustomClassTrait.CreateTrait(_Class);
+  Result := TCustomClassTrait.CreateTrait(_TypeInfo);
   G_ClassTraitCacheLock.Acquire;
-  if G_ClassTraitCache.TryGetValue(_Class, tmp) then
+  if G_ClassTraitCache.TryGetValue(_TypeInfo, tmp) then
   begin
     Result.Free;
     Result := tmp;
   end
   else
-    G_ClassTraitCache.Add(_Class, Result);
+    G_ClassTraitCache.Add(_TypeInfo, Result);
   G_ClassTraitCacheLock.Release;
 end;
 
@@ -495,15 +497,19 @@ end;
 
 { TCustomClassTrait }
 
-constructor TCustomClassTrait.Create(_MetaClass: TClass);
+constructor TCustomClassTrait.Create(_TypeInfo: PTypeInfo);
 var
   LRttiCtx: TRttiContext;
-  LType: TRttiInstanceType;
+  LType: TRttiStructuredType;
 begin
   inherited Create;
-  FMetaClass := _MetaClass;
-  LType := LRttiCtx.GetType(_MetaClass) as TRttiInstanceType;
-  FParamlessCtor := GetParamlessConstructor(LType);
+  FTypeInfo := _TypeInfo;
+  LType := LRttiCtx.GetType(_TypeInfo) as TRttiStructuredType;
+  if _TypeInfo.Kind = tkClass then
+  begin
+    FMetaClass := _TypeInfo.TypeData.ClassType;
+    FParamlessCtor := GetParamlessConstructor(LType as TRttiInstanceType);
+  end;
   Init(LType);
 end;
 
@@ -515,25 +521,25 @@ begin
     Result := nil;
 end;
 
-class function TCustomClassTrait.CreateTrait(_Class: TClass): TCustomClassTrait;
+class function TCustomClassTrait.CreateTrait(_TypeInfo: PTypeInfo): TCustomClassTrait;
 var
   LClassName: string;
 begin
-  LClassName := _Class.ClassName;
+  LClassName := _TypeInfo.Name;
   if LClassName.StartsWith('TList<') or LClassName.StartsWith('TObjectList<') then
-    Result := TGenericListTrait.Create(_Class)
+    Result := TGenericListTrait.Create(_TypeInfo)
   else
-    Result := TDataClassTrait.Create(_Class);
+    Result := TDataClassTrait.Create(_TypeInfo);
 end;
 
-procedure TCustomClassTrait.Init(t: TRttiInstanceType);
+procedure TCustomClassTrait.Init(t: TRttiStructuredType);
 begin
 
 end;
 
 { TDataClassTrait }
 
-procedure TDataClassTrait.Init(t: TRttiInstanceType);
+procedure TDataClassTrait.Init(t: TRttiStructuredType);
 var
   LFields: TArray<TRttiField>;
   i, n: Integer;
@@ -615,11 +621,13 @@ begin
   end;
 end;
 
-procedure TGenericListTrait.FindProperties(t: TRttiInstanceType);
+procedure TGenericListTrait.FindProperties(_t: TRttiStructuredType);
 var
   LProperty: TRttiProperty;
   LPropInfo: PPropInfo;
+  t: TRttiInstanceType;
 begin
+  t := _t as TRttiInstanceType;
   while Assigned(t) and not (Assigned(FMethodSetCount) and Assigned(FMethodGetList)) do
   begin
     for LProperty in t.GetDeclaredProperties do
@@ -656,7 +664,7 @@ begin
   Result := FMethodGetList(_List);
 end;
 
-procedure TGenericListTrait.Init(t: TRttiInstanceType);
+procedure TGenericListTrait.Init(t: TRttiStructuredType);
 begin
   inherited;
   FIsObjectList := t.Name.StartsWith('TObjectList<', True);
@@ -671,7 +679,7 @@ end;
 
 initialization
   G_ClassTraitCacheLock := TCriticalSection.Create;
-  G_ClassTraitCache := TDictionary<TClass, TCustomClassTrait>.Create;
+  G_ClassTraitCache := TDictionary<PTypeInfo, TCustomClassTrait>.Create;
 
 finalization
   G_ClassTraitCache.Free;
