@@ -362,7 +362,8 @@ end;
 
 function TCEFHttpRequest.Method(const m: string): TCEFHttpRequest;
 begin
-  Handle.Method := m;
+  if m <> '' then
+    Handle.Method := m;
   Result := Self;
 end;
 
@@ -394,7 +395,8 @@ function TCEFHttpRequest.PostData(const _data: ICefPostData; const _ContentType:
 begin
   if _data <> nil then
   begin
-    Handle.Method := 'POST';
+    if Handle.Method = '' then
+      Handle.Method := 'POST';
     Handle.PostData := _data;
     if _ContentType <> '' then
       ContentType(_ContentType);
@@ -407,14 +409,18 @@ var
   pd: ICefPostData;
   pde: ICefPostDataElement;
 begin
-  Handle.Method := 'POST';
-  pde := TCefPostDataElementRef.New;
-  pde.SetToBytes(_data.DataSize, _data.DataPointer);
-  pd := TCefPostDataRef.New;
-  pd.AddElement(pde);
-  Handle.PostData := pd;
-  ContentType(_data.ContentType);
-  Result := Self;
+  if _data <> nil then
+  begin
+    if Handle.Method = '' then
+      Handle.Method := 'POST';
+    pde := TCefPostDataElementRef.New;
+    pde.SetToBytes(_data.DataSize, _data.DataPointer);
+    pd := TCefPostDataRef.New;
+    pd.AddElement(pde);
+    Handle.PostData := pd;
+    ContentType(_data.ContentType);
+    Result := Self;
+  end;
 end;
 
 function TCEFHttpRequest.Referer(const _Referer: string): TCEFHttpRequest;

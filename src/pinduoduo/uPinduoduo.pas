@@ -39,16 +39,16 @@ type
 
   TReceiveAddress = record
     address: string;
-    province: string;
-    city: string;
-    district: string;
+    province: Integer;
+    city: Integer;
+    district: Integer;
     mobile: string;
     name: string;
     isDefault: Boolean;
   end;
 
 procedure PDDAPIInvoke(
-  const _Url, _Referer: string;
+  const _Url, _Referer, _Method: string;
   _Params: TList<TPair<string, string>>;
   _ContentType: TContentType;
   cb: TProc<ISuperObject>;
@@ -63,7 +63,7 @@ procedure PDDAPIAddReceiveAddress(
 
 procedure PDDAPIDeleteReceiveAddress(
   const _AddressID: string;
-  cb: TProc<Boolean, string>;
+  cb: TProc<string>;
   const _ctx: ICefRequestContext = nil);
 
 procedure GetItemJSON(const id: string; cb: TProc<ISuperObject>; const ctx: ICefRequestContext = nil);
@@ -136,7 +136,7 @@ begin
 end;
 
 procedure PDDAPIInvokeWithCookie(
-  const _Url, _Referer: string;
+  const _Url, _Referer, _Method: string;
   _Params: TList<TPair<string, string>>;
   _ContentType: TContentType;
   cb: TProc<ISuperObject>;
@@ -159,10 +159,11 @@ begin
   end
   else
     LUrl := PDD_ORIGIN + _Url;
-  LReq := TCEFHttpRequest.Create(LUrl).WithContext(_ctx).Referer(PDD_ORIGIN + _Referer);
+  
+  LReq := TCEFHttpRequest.Create(LUrl).WithContext(_ctx).Referer(PDD_ORIGIN + _Referer).Method(_Method);
+
   if _Params <> nil then
   begin
-    LReq.Method('POST');
     if _ContentType = ctWWWFormUrlEncoded then
     begin
       LContentType := CONTENT_TYPE_URLENCODED_FORM_UTF8;
@@ -190,7 +191,7 @@ begin
 end;
 
 procedure PDDAPIInvoke(
-  const _Url, _Referer: string;
+  const _Url, _Referer, _Method: string;
   _Params: TList<TPair<string, string>>;
   _ContentType: TContentType;
   cb: TProc<ISuperObject>;
@@ -208,31 +209,57 @@ begin
     begin
       _Cookies.TryGetValue('PDDAccessToken', PDDAccessToken);
       _Cookies.TryGetValue('pdd_user_id', pdd_user_id);
-      if (PDDAccessToken = '') or (pdd_user_id = '') then
+      if PDDAccessToken = '' then
         cb(API_RESPONSE_OFFLINE)
       else
-        PDDAPIInvokeWithCookie(_Url, _Referer, _Params, _ContentType, cb, LCtx, PDDAccessToken, pdd_user_id);
+        PDDAPIInvokeWithCookie(_Url, _Referer, _Method, _Params, _ContentType, cb, LCtx, PDDAccessToken, pdd_user_id);
     end
   );
 end;
 
 procedure PDDAPIGetUesrInfo(cb: TProc<ISuperObject>; const _ctx: ICefRequestContext);
 begin
-  PDDAPIInvoke('/proxy/api/api/apollo/v3/user/me', '', nil, ctWWWFormUrlEncoded, cb, _ctx);
+  PDDAPIInvoke('/proxy/api/api/apollo/v3/user/me', '', '', nil, ctWWWFormUrlEncoded, cb, _ctx);
 end;
 
-procedure PDDAPIAddReceiveAddress(
-  const ra: TReceiveAddress;
-  cb: TProc<string, string>;
-  const _ctx: ICefRequestContext);
+procedure PDDAPIAddReceiveAddress(const ra: TReceiveAddress; cb: TProc<string, string>; const _ctx: ICefRequestContext);
+var
+  LParams: TList<TPair<string, string>>;
 begin
+  LParams := TList<TPair<string, string>>.Create;
+  try
+    LParams.Add(TPair<string, string>.Create('address', ra.address));
+    LParams.Add(TPair<string, string>.Create('province_id', IntToStr(ra.province)));
+    LParams.Add(TPair<string, string>.Create('city_id', IntToStr(ra.city)));
+    LParams.Add(TPair<string, string>.Create('district_id', IntToStr(ra.district)));
+    if ra.isDefault then
+      LParams.Add(TPair<string, string>.Create('is_default', '1'))
+    else
+      LParams.Add(TPair<string, string>.Create('is_default', '0'));
+    LParams.Add(TPair<string, string>.Create('mobile', ra.mobile));
+    LParams.Add(TPair<string, string>.Create('name', ra.name));
+    PDDAPIInvoke('/proxy/api/api/origenes/address', '/addresses.html', '', LParams, ctWWWFormUrlEncoded,
+      procedure(_json: ISuperObject)
+      begin
+        cb(_json.S['address_id'], _json.S['error_msg']);
+      end,
+      _ctx);
+  finally
+    LParams.Free;
+  end;
 end;
 
 procedure PDDAPIDeleteReceiveAddress(
   const _AddressID: string;
-  cb: TProc<Boolean, string>;
+  cb: TProc<string>;
   const _ctx: ICefRequestContext);
 begin
+  PDDAPIInvoke('/proxy/api/api/origenes/address/delete/' + _AddressID, '/addresses.html', 'DELETE', nil, ctWWWFormUrlEncoded,
+    procedure(_json: ISuperObject)
+    begin
+      cb(_json.S['error_msg']);
+    end,
+    _ctx);
 end;
 
 initialization
