@@ -22,6 +22,15 @@ type
   TObjectListConstructor = function(vmt: TClass; flag: Shortint; AOwnsObjects: Boolean): TObject;
   TListSetCountProc = procedure(_Self: TObject; Value: Integer);
   TListGetListProc = function(_Self: TObject): TArray<Byte>;
+{$M+}
+type
+  TClosure = reference to procedure;
+  TClosure<T> = reference to procedure(_:T);
+  TClosure<T1, T2> = reference to procedure(_1: T1; _2: T2);
+  TClosure<T1, T2, T3> = reference to procedure(_1: T1 ;_2: T2; _3: T3);
+  TClosure<T1, T2, T3, T4> = reference to procedure(_1: T1 ;_2: T2; _3: T3; _4: T4);
+  TClosure<T1, T2, T3, T4, T5> = reference to procedure(_1: T1 ;_2: T2; _3: T3; _4: T4; _5: T5);
+{$M-}
 
 // get element type of generic TList<T> or TObjectList<T>
 function getGenericListElementType(var avContext: TRttiContext;
