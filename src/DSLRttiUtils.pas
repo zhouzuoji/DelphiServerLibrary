@@ -534,7 +534,7 @@ class function TCustomClassTrait.CreateTrait(_TypeInfo: PTypeInfo): TCustomClass
 var
   LClassName: string;
 begin
-  LClassName := _TypeInfo.Name;
+  LClassName := string(_TypeInfo.Name);
   if LClassName.StartsWith('TList<') or LClassName.StartsWith('TObjectList<') then
     Result := TGenericListTrait.Create(_TypeInfo)
   else

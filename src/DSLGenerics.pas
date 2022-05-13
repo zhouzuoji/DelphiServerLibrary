@@ -321,6 +321,24 @@ type
     class function GetInstance: IComparer<RawByteString>;
   end;
 
+  THashList<TKey, TValue> = class
+  private
+    FItems: TList<TValue>;
+    FKeyGetter: TFunc<TValue, TKey>;
+    FDict: TDictionary<TKey, Integer>;
+    function GetCount: Integer;
+  public
+    constructor Create(_KeyGetter: TFunc<TValue, TKey>);
+    destructor Destroy; override;
+    function TryGetValue(const _Key: TKey; out _Value: TValue): Boolean;
+    procedure Add(const _Value: TValue);
+    function TryAdd(const _Value: TValue): Boolean;
+    function Remove(const _Key: TKey): Boolean;
+    procedure Clear;
+    property Count: Integer read GetCount;
+    property Items: TList<TValue> read FItems;
+  end;
+
 procedure UnitTest_StringKeyStringValueList;
 
 implementation
@@ -1795,6 +1813,82 @@ end;
 procedure TThreadListEx<T>.UnlockList;
 begin
   LeaveCriticalSection(FLock);
+end;
+
+{ THashList<TKey, TValue> }
+
+procedure THashList<TKey, TValue>.Add(const _Value: TValue);
+var
+  LKey: TKey;
+begin
+  LKey := FKeyGetter(_Value);
+  FDict.Add(LKey, FItems.Count);
+  FItems.Add(_Value);
+end;
+
+procedure THashList<TKey, TValue>.Clear;
+begin
+  FDict.Clear;
+  FItems.Clear;
+end;
+
+constructor THashList<TKey, TValue>.Create(_KeyGetter: TFunc<TValue, TKey>);
+begin
+  inherited Create;
+  FKeyGetter := _KeyGetter;
+  FItems := TList<TValue>.Create;
+  FDict := TDictionary<TKey, Integer>.Create;
+end;
+
+destructor THashList<TKey, TValue>.Destroy;
+begin
+  FreeAndNil(FItems);
+  FreeAndNil(FDict);
+  inherited;
+end;
+
+function THashList<TKey, TValue>.GetCount: Integer;
+begin
+  Result := FItems.Count;
+end;
+
+function THashList<TKey, TValue>.Remove(const _Key: TKey): Boolean;
+var
+  LIdx: Integer;
+begin
+  Result := FDict.TryGetValue(_Key, LIdx);
+  if Result then
+  begin
+    if LIdx <> FItems.Count - 1 then
+    begin
+      FItems.Exchange(FItems.Count - 1, LIdx);
+      FDict.AddOrSetValue(FKeyGetter(FItems.List[LIdx]), LIdx);
+      FDict.AddOrSetValue(FKeyGetter(FItems.List[LIdx]), FItems.Count - 1);
+    end;
+    FItems.Delete(FItems.Count - 1);
+    FDict.Remove(_Key);
+  end;
+end;
+
+function THashList<TKey, TValue>.TryAdd(const _Value: TValue): Boolean;
+var
+  LKey: TKey;
+begin
+  LKey := FKeyGetter(_Value);
+  Result := FDict.TryAdd(LKey, FItems.Count);
+  if Result then
+    FItems.Add(_Value);
+end;
+
+function THashList<TKey, TValue>.TryGetValue(const _Key: TKey; out _Value: TValue): Boolean;
+var
+  LIdx: Integer;
+begin
+  Result := FDict.TryGetValue(_Key, LIdx);
+  if Result then
+    _Value := FItems.List[LIdx]
+  else
+    _Value := Default(TValue);
 end;
 
 end.

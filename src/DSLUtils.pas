@@ -2053,6 +2053,10 @@ type
     property instance: TObject read fInstance;
   end;
 
+  IProc = interface
+    procedure Invoke;
+  end;
+
   IRunnable = interface
     procedure run(context: TObject);
   end;
