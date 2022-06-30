@@ -2314,26 +2314,37 @@ type
 
   TFileVersionInfo = class
   private
-    VersionBlock: Pointer;
-    FProductVersion: Variant;
-    FBuildString: Variant;
-    FCompanyName: Variant;
-    FProductName: Variant;
-    FFixedInfo: Variant;
-    FVersion: TVersion;
-    function GetCompanyName: string;
-    function GetProductName: string;
-    function GetProductVersion: string;
-  protected
+    FVersionBlock: Pointer;
+    FFixedInfo: PVSFixedFileInfo;
+    FTransition: Pointer;
+    FTransitionSize: UINT;
+    FProductVersion: TVersion;
+    FFileVersion: TVersion;
+    FProductName: string;
+    FLegalTrademarks: string;
+    FLegalCopyright: string;
+    FCompanyName: string;
+    FFileDescription: string;
+    FProgramID: string;
+    FInternalName: string;
+    FComments: string;
+    FOriginalFilename: string;
     procedure GetFixedInfo;
-    function GetStringInfo(const name: string): string;
   public
     constructor Create(const FileName: string);
     destructor Destroy; override;
-    property ProductVersion: string read GetProductVersion;
-    property CompanyName: string read GetCompanyName;
-    property ProductName: string read GetProductName;
-    property Version: TVersion read FVersion;
+    function GetStringInfo(const name: string): string;
+    property FileVersion: TVersion read FFileVersion;
+    property ProductVersion: TVersion read FProductVersion;
+    property CompanyName: string read FCompanyName;
+    property ProductName: string read FProductName;
+    property OriginalFilename: string read FOriginalFilename;
+    property FileDescription: string read FFileDescription;
+    property InternalName: string read FInternalName;
+    property LegalCopyright: string read FLegalCopyright;
+    property LegalTrademarks: string read FLegalTrademarks;
+    property Comments: string read FComments;
+    property ProgramID: string read FProgramID;
   end;
 
 var
@@ -19433,106 +19444,90 @@ type
 
   PLanguageAndCodePage = ^TLanguageAndCodePage;
 
-  { TFileVersionInfo }
+{ TFileVersionInfo }
 
 constructor TFileVersionInfo.Create(const FileName: string);
 var
-  cbSize, handle: DWORD;
+  cbSize, LHandle: DWORD;
 begin
-  FProductVersion := Null;
-  FBuildString := Null;
-  FCompanyName := Null;
-  FProductName := Null;
-  FFixedInfo := Null;
-  FVersion := TVersion.Create;
-  cbSize := GetFileVersionInfoSize(PChar(FileName), handle);
+  FFixedInfo := PVSFixedFileInfo(-1);
+  FFileVersion := TVersion.Create;
+  FProductVersion := TVersion.Create;
+  LHandle := 0;
+  cbSize := GetFileVersionInfoSize(PChar(FileName), LHandle);
   if cbSize <= 0 then
-    RaiseLastOSError;
-  VersionBlock := System.GetMemory(cbSize);
-  if not GetFileVersionInfo(PChar(FileName), handle, cbSize, VersionBlock) then
-    RaiseLastOSError;
+    Exit;
+  FVersionBlock := System.GetMemory(cbSize);
+  if not GetFileVersionInfo(PChar(FileName), LHandle, cbSize, FVersionBlock) then
+    Exit;
   GetFixedInfo;
+  if VerQueryValue(FVersionBlock, '\VarFileInfo\Translation', FTransition, FTransitionSize) then
+  begin
+    FCompanyName := GetStringInfo('CompanyName');
+    FProductName := GetStringInfo('ProductName');
+    FFileDescription := GetStringInfo('FileDescription');
+    FInternalName := GetStringInfo('InternalName');
+    FOriginalFilename := GetStringInfo('OriginalFilename');
+    FLegalCopyright := GetStringInfo('LegalCopyright');
+    FComments := GetStringInfo('Comments');
+    FProgramID := GetStringInfo('ProgramID');
+    FLegalTrademarks := GetStringInfo('LegalTrademarks');
+  end
+  else begin
+    FTransition := nil;
+    FTransitionSize := 0;
+  end;
 end;
 
 destructor TFileVersionInfo.Destroy;
 begin
-  if Assigned(VersionBlock) then
-    System.FreeMemory(VersionBlock);
-  if Assigned(FVersion) then
-    FVersion.Free;
+  System.FreeMemory(FVersionBlock);
+  FreeAndNil(FFileVersion);
+  FreeAndNil(FProductVersion);
   inherited;
-end;
-
-function TFileVersionInfo.GetCompanyName: string;
-begin
-  if VarIsNull(FCompanyName) then
-    FCompanyName := GetStringInfo('CompanyName');
-  Result := FCompanyName;
 end;
 
 procedure TFileVersionInfo.GetFixedInfo;
 var
-  fixedInfo: PVSFixedFileInfo;
   cbSize: DWORD;
 begin
-  if VarIsNull(FFixedInfo) then
+  if NativeInt(FFixedInfo) < 0 then
   begin
-    if VerQueryValue(VersionBlock, '\', Pointer(fixedInfo), cbSize) then
+    if VerQueryValue(FVersionBlock, '\', Pointer(FFixedInfo), cbSize) and (FFixedInfo <> nil) then
     begin
-      FFixedInfo := Integer(fixedInfo);
-      FVersion.Major := fixedInfo.dwFileVersionMS shr 16;
-      FVersion.Minor := fixedInfo.dwFileVersionMS and $FFFF;
-      FVersion.release := fixedInfo.dwFileVersionLS shr 16;
-      FVersion.Build := fixedInfo.dwFileVersionLS and $FFFF;
+      FFileVersion.Major := FFixedInfo.dwFileVersionMS shr 16;
+      FFileVersion.Minor := FFixedInfo.dwFileVersionMS and $FFFF;
+      FFileVersion.release := FFixedInfo.dwFileVersionLS shr 16;
+      FFileVersion.Build := FFixedInfo.dwFileVersionLS and $FFFF;
+      FProductVersion.Major := FFixedInfo.dwProductVersionMS shr 16;
+      FProductVersion.Minor := FFixedInfo.dwProductVersionMS and $FFFF;
+      FProductVersion.release := FFixedInfo.dwProductVersionLS shr 16;
+      FProductVersion.Build := FFixedInfo.dwProductVersionLS and $FFFF;
     end
-    else
-      FFixedInfo := Integer(nil);
   end;
-end;
-
-function TFileVersionInfo.GetProductName: string;
-begin
-  if VarIsNull(FProductName) then
-    FProductName := GetStringInfo('ProductName');
-  Result := FProductName;
-end;
-
-function TFileVersionInfo.GetProductVersion: string;
-begin
-  if VarIsNull(FProductVersion) then
-  begin
-    if FFixedInfo <> 0 then
-      with PVSFixedFileInfo(Integer(FFixedInfo))^ do
-      begin
-        FProductVersion := Format('%d.%d.%d.%d', [dwProductVersionMS shr 16, dwProductVersionMS and $FFFF,
-          dwProductVersionLS shr 16, dwProductVersionLS and $FFFF]);
-      end
-      else
-        FProductVersion := '';
-  end;
-
-  Result := FProductVersion;
 end;
 
 function TFileVersionInfo.GetStringInfo(const name: string): string;
 var
-  subblock: string;
-  Buffer: PChar;
-  cbSize: DWORD;
+  LSubBlock: string;
+  LBuffer: PChar;
   i: Integer;
-  transition: PLanguageAndCodePage;
+  LDataSize: UINT;
+  LTransition: PLanguageAndCodePage;
 begin
   Result := '';
-  if not VerQueryValue(VersionBlock, '\VarFileInfo\Translation', Pointer(transition), cbSize) then
+  if FTransition = nil then
     Exit;
-  for i := 0 to cbSize div SizeOf(TLanguageAndCodePage) - 1 do
+  LTransition := PLanguageAndCodePage(FTransition);
+  for i := 0 to FTransitionSize div SizeOf(TLanguageAndCodePage) - 1 do
   begin
-    subblock := Format('StringFileInfo\%.4x%.4x\%s', [transition.language, transition.CodePage, name]);
-    if VerQueryValue(VersionBlock, PChar(subblock), Pointer(Buffer), cbSize) then
+    LSubBlock := Format('StringFileInfo\%.4x%.4x\%s', [LTransition.language, LTransition.CodePage, name]);
+    if VerQueryValue(FVersionBlock, PChar(LSubBlock), Pointer(LBuffer), LDataSize) then
     begin
-      Result := StrPas(Buffer);
+      Result := StrPas(LBuffer);
       Break;
     end;
+    Inc(LTransition);
   end;
 end;
 

@@ -30,8 +30,13 @@ type
     procedure _AddEventListener(const _EventName: string; const _Handler: TEventHandler);
     procedure _RemoveEventListener(const _EventName: string; const _Handler: TEventHandler);
   public
+    class var DPIX, DPIY: Integer;
+  public
     class constructor Create;
     class destructor Destroy;
+    class procedure SetDPI(_X, _Y: Integer);
+    class function ScaleX(_X: Integer): Integer;
+    class function ScaleY(_Y: Integer): Integer;
     constructor Create;
     destructor Destroy; override;
     class procedure AddEventListener(const _EventName: string; const _Handler: TEventHandler); static;
@@ -190,6 +195,22 @@ begin
         Instance._RemoveEventListener(_EventName, _Handler);
       end
     );
+end;
+
+class function TVclApp.ScaleX(_X: Integer): Integer;
+begin
+  Result := _X * DPIX div 96;
+end;
+
+class function TVclApp.ScaleY(_Y: Integer): Integer;
+begin
+  Result := _Y * DPIY div 96;
+end;
+
+class procedure TVclApp.SetDPI(_X, _Y: Integer);
+begin
+  DPIX := _X;
+  DPIY := _Y;
 end;
 
 class procedure TVclApp.ShowMessage(const _Msg: string);

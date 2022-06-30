@@ -132,12 +132,12 @@ function IcmpSendEcho(IcmpHandle: THandle; DestinationAddress: DWORD; RequestDat
   
 type
   TEnumResult = (erNoItem, erFound, erNotFound);
-  TEnumAdapterProc = function(adapter: PIPAdapterInfo;
-    param: Integer): Boolean;
+  TEnumAdapterProc = function(adapter: PIPAdapterInfo; param: Pointer): Boolean;
 
-function EnumAdapters(proc: TEnumAdapterProc; param: Integer): Boolean;
+function EnumAdapters(proc: TEnumAdapterProc; param: Pointer): Boolean;
 function IsNetworkHardware(const name: string): Boolean;
 procedure GetMacs(macs: TStrings; const delimiter: string = '-'; UpperCase: Boolean = False);
+procedure AppendMacs(_Output: TStream);
 function GetOneMacRaw: TBytes;
 function GetOneMac(const delimiter: string = '-'; UpperCase: Boolean = False): string;
 function GetBestRouteIfAddress(dwDestAddr, dwSourceAddr: DWORD): DWORD;
@@ -154,7 +154,7 @@ function IcmpSendEcho; external iphlpapi_dll name 'IcmpSendEcho';
 function GetAdaptersInfo; external iphlpapi_dll;
 function GetBestRoute; external iphlpapi_dll;
 
-function EnumAdapters(proc: TEnumAdapterProc; param: Integer): Boolean;
+function EnumAdapters(proc: TEnumAdapterProc; param: Pointer): Boolean;
 var
   adapters, iterator: PIPAdapterInfo;
   BufSize, RetValue: DWORD;
@@ -191,7 +191,7 @@ type
   end;
   PGetOneMacParam = ^TGetOneMacParam;
 
-function Proc_GetOneMac(adapter: PIPAdapterInfo; param: Integer): Boolean;
+function Proc_GetOneMac(adapter: PIPAdapterInfo; param: Pointer): Boolean;
 var
   i: Integer;
 begin
@@ -214,10 +214,10 @@ var
 begin
   SetLength(Result, 0);
   param.uType := MIB_IF_TYPE_ETHERNET;
-  if EnumAdapters(Proc_GetOneMac, Integer(@param)) then
+  if EnumAdapters(Proc_GetOneMac, @param) then
   begin
     param.uType := IF_TYPE_IEEE80211;
-    found := not EnumAdapters(Proc_GetOneMac, Integer(@param));
+    found := not EnumAdapters(Proc_GetOneMac, @param);
   end
   else found := True;
 
@@ -249,7 +249,7 @@ type
   end;
   PGetMacsParam = ^TGetMacsParam;
 
-function Proc_GetMacs(adapter: PIPAdapterInfo; param: Integer): Boolean;
+function Proc_GetMacs(adapter: PIPAdapterInfo; param: Pointer): Boolean;
 begin
   if IsNetworkHardware(string(RawByteString(adapter.AdapterName))) then
     with PGetMacsParam(param)^ do
@@ -260,14 +260,26 @@ end;
 
 procedure GetMacs(macs: TStrings; const delimiter: string; UpperCase: Boolean);
 var
-  param: PGetMacsParam;
+  param: TGetMacsParam;
 begin
   param.uType := MIB_IF_TYPE_ETHERNET;
   param.strs := macs;
   param.delimiter := delimiter;
   param.UpperCase := UpperCase;
 
-  EnumAdapters(Proc_GetMacs, Integer(@param));
+  EnumAdapters(Proc_GetMacs, @param);
+end;
+
+function Proc_AppendMacs(adapter: PIPAdapterInfo; param: Pointer): Boolean;
+begin
+  if IsNetworkHardware(string(RawByteString(adapter.AdapterName))) then
+    TStream(param).WriteBuffer(adapter.Address, adapter.AddressLength);
+  Result := True;
+end;
+
+procedure AppendMacs(_Output: TStream);
+begin
+  EnumAdapters(Proc_AppendMacs, _Output);
 end;
 
 type
@@ -277,8 +289,7 @@ type
   end;
   PGetAddrByIfIndex_Param = ^TGetAddrByIfIndex_Param;
 
-function Proc_GetAddrByIfIndex(adapter: PIPAdapterInfo;
-  param: Integer): Boolean;
+function Proc_GetAddrByIfIndex(adapter: PIPAdapterInfo; param: Pointer): Boolean;
 begin
   if (adapter.Index = PGetAddrByIfIndex_Param(param).IfIndex) then
   begin
@@ -302,7 +313,7 @@ begin
     else begin
       param.IfIndex := row.dwForwardIfIndex;
       param.ip := 0;
-      if not EnumAdapters(Proc_GetAddrByIfIndex, Integer(@param)) then
+      if not EnumAdapters(Proc_GetAddrByIfIndex, @param) then
         Result := param.ip;
     end;
   end;

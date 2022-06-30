@@ -3,7 +3,7 @@ unit DSLApp;
 interface
 
 uses
-  SysUtils, Classes, IniFiles, ActiveX, Windows, WinSvc, DSLUtils, DSLThread;
+  SysUtils, Classes, IniFiles, Registry, ActiveX, Windows, WinSvc, DSLUtils, DSLThread;
 
 type
   TNTSvcCtrlHandler = function: Boolean;
@@ -16,13 +16,37 @@ type
     onIdle: TProcedure;
   end;
 
+type
+  TAppInfo = class
+  private
+    FAppId, FName: string;
+    FDisplayName: string;
+    FDataPath: string;
+    FIniFileName: string;
+    FRegistryEntry: string;
+    procedure DoBuild;
+  public
+    function Id(const _Id: string): TAppInfo;
+    function Name(const _Name: string): TAppInfo;
+    function DisplayName(const _DisplayName: string): TAppInfo;
+    function DataPath(const _DataPath: string): TAppInfo;
+    function IniFileName(const _IniFileName: string): TAppInfo;
+    function RegistryEntry(const _RegistryEntry: string): TAppInfo;
+    procedure Build;
+  end;
+
 function cmdLineParamExists(const param: string): Boolean;
 function runningAsService: Boolean;
+function GetAppVerInfo: TFileVersionInfo;
 function getAppFileName: string;
+function GetAppFileNameWithoutExt: string;
 function getAppPath: string;
+function getAppId: string;
 function getAppName: string;
 function getAppDisplayName: string;
 function getAppStartTime: TDateTime;
+function getAppDataPath: string;
+function getAppUserPath: string;
 function iniReadInteger(const section, name: string; def: Integer = 0): Integer;
 function iniReadFloat(const section, name: string; def: Double = 0.0): Double;
 function iniReadBool(const section, name: string; def: Boolean = False): Boolean;
@@ -40,7 +64,15 @@ procedure userIniWriteFloat(const section, key: string; value: Double);
 function userIniReadBool(const section, key: string; DefaultValue: Boolean): Boolean;
 procedure userIniWriteString(const section, key, value: string);
 
-procedure initApp(const name: string; const iniFileName: string = ''; const displayName: string = '');
+procedure RegistrySetString(const key, value: string);
+function RegistryGetString(const key: string; const def: string = ''): string;
+procedure RegistrySetInteger(const key: string; value: Integer);
+function RegistryGetInteger(const key: string; def: Integer = 0): Integer;
+procedure RegistrySetBool(const key: string; value: Boolean);
+function RegistryGetBool(const key: string; def: Boolean = False): Boolean;
+procedure RegistrySetFloat(const key: string; value: Double);
+function RegistryGetFloat(const key: string; def: Double = 0.0): Double;
+
 procedure initUser(const username: string);
 function getServiceMainThread: TTaskQueue;
 procedure RunNTService(handlers: TNTSvcCtrlCmdHandlers);
@@ -58,15 +90,21 @@ var
 implementation
 
 var
-  g_RunningAsService: Boolean = False;
-  g_appPath: string = '';
-  g_appFileName: string = '';
-  g_appName: string = '';
-  g_appDisplayName: string = '';
-  g_StartTime: TDateTime = 0.0;
-  g_appDataDir: string = '';
+  g_appVerInfo: TFileVersionInfo;
+  g_RunningAsService: Boolean;
+  g_appPath: string;
+  g_appImagePath: string;
+  g_appFileName: string;
+  g_appFileNameWithoutExt: string;
+  g_appId: string;
+  g_appName: string;
+  g_appDisplayName: string;
+  g_StartTime: TDateTime;
+  g_appDataDir: string;
+  g_appUserPath: string;
   g_appIni: TIniFile;
   g_userIni: TIniFile;
+  G_appRegRoot: TRegistry;
   g_eventLogHandle: THandle;
   g_svcStatus: TServiceRunningStatus;
   g_svcStatusHandle: SERVICE_STATUS_HANDLE;
@@ -79,22 +117,6 @@ var
 function getServiceMainThread: TTaskQueue;
 begin
   Result := g_svcMainThread;
-end;
-
-procedure initApp(const name, iniFileName, displayName: string);
-begin
-  g_appName := name;
-
-  if displayName = '' then
-    g_appDisplayName := name
-  else
-    g_appDisplayName := displayName;
-
-  if Assigned(g_appIni) then
-    g_appIni.Free;
-
-  if iniFileName <> '' then
-    g_appIni := TIniFile.Create(iniFileName);
 end;
 
 function cmdLineParamExists(const param: string): Boolean;
@@ -117,6 +139,11 @@ begin
   Result := g_RunningAsService;
 end;
 
+function getAppId: string;
+begin
+  Result := g_appId;
+end;
+
 function getAppName: string;
 begin
   Result := g_appName;
@@ -127,14 +154,39 @@ begin
   Result := g_appDisplayName;
 end;
 
-function getAppFileName: string;
+function getAppExeFullName: string;
 begin
-  Result := g_appFileName;
+  Result := g_appImagePath;
 end;
 
 function getAppPath: string;
 begin
   Result := g_appPath;
+end;
+
+function getAppFileName: string;
+begin
+  Result := g_appFileName;
+end;
+
+function GetAppFileNameWithoutExt: string;
+begin
+  Result := g_appFileNameWithoutExt;
+end;
+
+function GetAppVerInfo: TFileVersionInfo;
+begin
+  Result := g_appVerInfo;
+end;
+
+function getAppDataPath: string;
+begin
+  Result := g_appDataDir;
+end;
+
+function getAppUserPath: string;
+begin
+  Result := g_appUserPath;
 end;
 
 function getAppStartTime: TDateTime;
@@ -183,12 +235,10 @@ begin
 end;
 
 procedure initUser(const username: string);
-var
-  d: string;
 begin
-  d := PathJoin(g_appDataDir, 'users\' + username + '\');
-  ForceDirectories(d);
-  g_userIni := TIniFile.Create(PathJoin(d, 'config.ini'));
+  g_appUserPath := PathJoin(g_appDataDir, 'users\' + username + '\');
+  ForceDirectories(g_appUserPath);
+  g_userIni := TIniFile.Create(g_appUserPath + 'config.ini');
 end;
 
 procedure userIniWriteString(const section, key, value: string);
@@ -229,6 +279,90 @@ end;
 function userIniReadFloat(const section, key: string; DefaultValue: Double): Double;
 begin
   Result := g_userIni.ReadFloat(section, key, DefaultValue);
+end;
+
+procedure RegistrySetString(const key, value: string);
+begin
+  try
+    G_appRegRoot.WriteString(key, value);
+  except
+    on e: Exception do ;
+  end;
+end;
+
+function RegistryGetString(const key, def: string): string;
+begin
+  try
+    Result := G_appRegRoot.ReadString(key);
+  except
+    on e: Exception do
+    begin
+      Result := def;
+    end;
+  end;
+end;
+
+procedure RegistrySetInteger(const key: string; value: Integer);
+begin
+  try
+    G_appRegRoot.WriteInteger(key, value);
+  except
+    on e: Exception do ;
+  end;
+end;
+
+function RegistryGetInteger(const key: string; def: Integer): Integer;
+begin
+  try
+    Result := G_appRegRoot.ReadInteger(key);
+  except
+    on e: Exception do
+    begin
+      Result := def;
+    end;
+  end;
+end;
+
+procedure RegistrySetBool(const key: string; value: Boolean);
+begin
+  try
+    G_appRegRoot.WriteBool(key, value);
+  except
+    on e: Exception do ;
+  end;
+end;
+
+function RegistryGetBool(const key: string; def: Boolean): Boolean;
+begin
+  try
+    Result := G_appRegRoot.ReadBool(key);
+  except
+    on e: Exception do
+    begin
+      Result := def;
+    end;
+  end;
+end;
+
+procedure RegistrySetFloat(const key: string; value: Double);
+begin
+  try
+    G_appRegRoot.WriteFloat(key, value);
+  except
+    on e: Exception do ;
+  end;
+end;
+
+function RegistryGetFloat(const key: string; def: Double): Double;
+begin
+  try
+    Result := G_appRegRoot.ReadFloat(key);
+  except
+    on e: Exception do
+    begin
+      Result := def;
+    end;
+  end;
 end;
 
 type
@@ -406,7 +540,7 @@ begin
       if cmdLineParamExists('/install') or cmdLineParamExists('-install') then
       begin
         silent := cmdLineParamExists('/silent') or cmdLineParamExists('-silent');
-        lastError := installNTService(g_appName, g_appDisplayName, g_appFileName, g_serviceType,
+        lastError := installNTService(g_appName, g_appDisplayName, g_appImagePath, g_serviceType,
           g_startType, g_errorSeverity, True);
         if lastError = 0 then
         begin
@@ -508,11 +642,31 @@ begin
 end;
 
 procedure unitInit;
+var
+  i: Integer;
 begin
   g_StartTime := Now;
-  g_appFileName := dslGetModuleFileName(0, 0);
-  g_appPath := ExtractFilePath(g_appFileName);
+  g_appImagePath := dslGetModuleFileName(0, 0);
+  g_appPath := ExtractFilePath(g_appImagePath);
+  g_appFileName := ExtractFileName(g_appImagePath);
+  for i := Length(g_appFileName) downto 1 do
+    if g_appFileName[i] = '.' then
+    begin
+      g_appFileNameWithoutExt := Copy(g_appFileName, 1, i - 1);
+      Break;
+    end;
   g_appDataDir := g_appPath;
+  g_appUserPath := g_appPath;
+  g_appVerInfo := TFileVersionInfo.Create(g_appImagePath);
+  g_appName := g_appVerInfo.ProductName;
+  if g_appName = '' then
+    g_appName := g_appFileNameWithoutExt;
+  g_appDisplayName := g_appVerInfo.FileDescription;
+  if g_appDisplayName = '' then
+    g_appDisplayName := g_appName;
+  g_appId := g_appVerInfo.ProgramID;
+  if g_appId = '' then
+    g_appId := g_appFileNameWithoutExt;
 end;
 
 procedure unitCleanup;
@@ -527,8 +681,84 @@ begin
     g_eventLogHandle := 0;
   end;
 
-  if Assigned(g_appIni) then
-    g_appIni.Free;
+  FreeAndNil(g_appIni);
+  FreeAndNil(G_appRegRoot);
+end;
+
+{ TAppInfo }
+
+procedure TAppInfo.Build;
+begin
+  try
+    DoBuild;
+  finally
+    Self.Free;
+  end;
+end;
+
+function TAppInfo.DataPath(const _DataPath: string): TAppInfo;
+begin
+  FDataPath := _DataPath;
+  Result := Self;
+end;
+
+function TAppInfo.DisplayName(const _DisplayName: string): TAppInfo;
+begin
+  FDisplayName := _DisplayName;
+  Result := Self;
+end;
+
+procedure TAppInfo.DoBuild;
+begin
+  if FAppId <> '' then
+    g_appId := FAppId;
+  if FName <> '' then
+    g_appName := g_appId;
+  if FDisplayName <> '' then
+    g_appDisplayName := FDisplayName;
+
+  if FDataPath <> '' then
+  begin
+    if Pos(':', FDataPath) > 0 then
+      g_appDataDir := FDataPath
+    else
+      g_appDataDir := g_appPath + FDataPath;
+    g_appDataDir := IncludeTrailingPathDelimiter(g_appDataDir);
+  end;
+
+  if FIniFileName <> '' then
+    g_appIni := TIniFile.Create(g_appDataDir + FIniFileName);
+
+  if FRegistryEntry <> '' then
+  begin
+    G_appRegRoot := TRegistry.Create;
+    G_appRegRoot.RootKey := HKEY_CURRENT_USER;
+    G_appRegRoot.OpenKey(FRegistryEntry, True);
+  end;
+end;
+
+function TAppInfo.Id(const _Id: string): TAppInfo;
+begin
+  FAppId := _Id;
+  Result := Self;
+end;
+
+function TAppInfo.IniFileName(const _IniFileName: string): TAppInfo;
+begin
+  FIniFileName := _IniFileName;
+  Result := Self;
+end;
+
+function TAppInfo.Name(const _Name: string): TAppInfo;
+begin
+  FName := _Name;
+  Result := Self;
+end;
+
+function TAppInfo.RegistryEntry(const _RegistryEntry: string): TAppInfo;
+begin
+  FRegistryEntry := _RegistryEntry;
+  Result := Self;
 end;
 
 initialization
