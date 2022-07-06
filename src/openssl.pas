@@ -3,7 +3,7 @@ unit openssl;
 interface
 
 uses
-  SysUtils, Classes, Windows, OpenSSLTypes, DSLUtils;
+  SysUtils, Classes, AnsiStrings, Windows, OpenSSLTypes, DSLUtils;
 
 type
   TPrototype_CRYPTO_free = procedure(ptr: Pointer); cdecl;
@@ -217,7 +217,7 @@ begin
 
   name := X509_get_subject_name(a);
   p := X509_NAME_oneline(name, nil, 0);
-  Result := string(StrPas(p));
+  Result := string(AnsiStrings.StrPas(p));
 end;
 
 function getX590IssuerName(a: POpenSSL_X509): string;
@@ -233,7 +233,7 @@ begin
 
   name := X509_get_issuer_name(a);
   p := X509_NAME_oneline(name, nil, 0);
-  Result := string(StrPas(p));
+  Result := string(AnsiStrings.StrPas(p));
 end;
 
 function openssl_ExtractDLLFromRes: Boolean;

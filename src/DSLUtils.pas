@@ -1732,9 +1732,10 @@ function getStreamContentType(data: TStream): RawByteString;
 function ControlFindContainer(control: TControl; cls: TClass): TWinControl;
 function ControlFindChild(container: TWinControl; cls: TClass): TControl;
 
-procedure InfoBox(const msg: string);
-procedure ErrorBox(const msg: string);
-procedure WarnBox(const msg: string);
+procedure InfoBox(const msg: string; _Parent: THandle = 0);
+procedure ErrorBox(const msg: string; _Parent: THandle = 0);
+procedure WarnBox(const msg: string; _Parent: THandle = 0);
+function ConfirmBox(const msg: string; _Parent: THandle = 0): Boolean;
 
 procedure ShowMessageEx(const v: TAnsiCharSection); overload;
 procedure ShowMessageEx(const v: string); overload;
@@ -1881,11 +1882,7 @@ type
 function ConfirmDialog(const msg: string; const parent: THandle = 0; const title: string = '';
   const buttons: TConfirmDlgButtons = cdbYesNo): TConfirmDlgResult;
 
-function getParentProcessId: DWORD;
-function dslGetModuleFileName(hProcess, hModule: THandle): string;
-function getProcessFilePath(const pid: DWORD): string;
 function RunningInMainThread: Boolean;
-function isLaunchedByExplorer: Boolean;
 function StrToBoolA(s: PAnsiChar; len: Integer; def: Boolean): Boolean;
 function RBStrToBool(const s: RawByteString; def: Boolean): Boolean;
 function StrToBoolW(s: PWideChar; len: Integer; def: Boolean): Boolean;
@@ -2308,7 +2305,7 @@ type
     function ToString: string; override;
     property Major: Integer read fMajor write fMajor;
     property Minor: Integer read fMinor write fMinor;
-    property release: Integer read fRelease write fRelease;
+    property Release: Integer read fRelease write fRelease;
     property Build: Integer read fBuild write fBuild;
   end;
 
@@ -5315,111 +5312,9 @@ begin
   Result := StrToBoolW(PWideChar(s), length(s), def);
 end;
 
-function getParentProcessId: DWORD;
-var
-  hSnapshot: THandle;
-  procEntry: TProcessEntry32;
-  myid: DWORD;
-begin
-  Result := 0;
-  myid := GetCurrentProcessId;
-  hSnapshot := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if hSnapshot <> INVALID_HANDLE_VALUE then
-    try
-      procEntry.dwSize := SizeOf(TProcessEntry32);
-      if Process32First(hSnapshot, procEntry) then
-      begin
-        repeat
-          if procEntry.th32ProcessID = myid then
-          begin
-            Result := procEntry.th32ParentProcessID;
-            Break;
-          end;
-        until not Process32Next(hSnapshot, procEntry);
-      end;
-    finally
-      CloseHandle(hSnapshot);
-    end;
-end;
-
-function getProcessFilePath_tlhlp32(const pid: DWORD): string;
-var
-  hSnapshot: THandle;
-  procEntry: TProcessEntry32;
-begin
-  Result := '';
-  hSnapshot := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if hSnapshot <> INVALID_HANDLE_VALUE then
-    try
-      procEntry.dwSize := SizeOf(TProcessEntry32);
-      if Process32First(hSnapshot, procEntry) then
-      begin
-        repeat
-          if procEntry.th32ProcessID = pid then
-          begin
-            Result := procEntry.szExeFile;
-            Break;
-          end;
-        until not Process32Next(hSnapshot, procEntry);
-      end;
-    finally
-      CloseHandle(hSnapshot);
-    end;
-end;
-
-function dslGetModuleFileName(hProcess, hModule: THandle): string;
-var
-  buf: array [0 .. MAX_PATH] of Char;
-  L: Integer;
-begin
-  Result := '';
-
-  if hProcess = 0 then
-  begin
-    L := Windows.GetModuleFileName(hModule, buf, MAX_PATH);
-    if L > 0 then
-      SetString(Result, buf, L)
-  end
-  else
-  begin
-    L := PsAPI.GetModuleFileNameEx(hProcess, hModule, buf, MAX_PATH);
-    if L > 0 then
-      SetString(Result, buf, L);
-  end;
-end;
-
-function getProcessFilePath(const pid: DWORD): string;
-var
-  hProcess: THandle;
-begin
-  if pid = GetCurrentProcessId then
-    Result := dslGetModuleFileName(0, 0)
-  else
-  begin
-    hProcess := OpenProcess(PROCESS_VM_READ or PROCESS_QUERY_INFORMATION, False, pid);
-
-    if hProcess <> 0 then
-    begin
-      Result := dslGetModuleFileName(hProcess, 0);
-      CloseHandle(hProcess);
-    end;
-
-    if Result = '' then
-      Result := getProcessFilePath_tlhlp32(pid);
-  end;
-end;
-
 function RunningInMainThread: Boolean;
 begin
   Result := GetCurrentThreadId = MainThreadID;
-end;
-
-function isLaunchedByExplorer: Boolean;
-var
-  s: string;
-begin
-  s := ExtractFileName(getProcessFilePath(getParentProcessId));
-  Result := SameText('explorer.exe', s);
 end;
 
 // 获取url参数
@@ -11030,7 +10925,7 @@ begin
     bit := Ord(Ptr^) - $30;
 
     if (bit >= 0) and (bit <= 9) then
-      Result := Result * 10 + bit
+      Result := Result * 10 + UInt64(bit)
     else
     begin
       if Assigned(invalid) then
@@ -11491,7 +11386,7 @@ begin
     bit := Ord(Ptr^) - $30;
 
     if (bit >= 0) and (bit <= 9) then
-      Result := Result * 10 + bit
+      Result := Result * 10 + UInt64(bit)
     else
     begin
       if Assigned(invalid) then
@@ -12429,7 +12324,7 @@ var
 begin
   if Length(Format) > Length(Buffer) - 32 then
     ConvertError(PResStringRec(@SFormatTooLong));
-  SetString(Result, Buffer, SysUtils.FloatToTextFmt(Buffer, Value, fvExtended,
+  SetString(Result, Buffer, AnsiStrings.FloatToTextFmt(Buffer, Value, fvExtended,
     PAnsiChar(Format)));
 end;
 
@@ -12440,7 +12335,7 @@ var
 begin
   if Length(Format) > Length(Buffer) - 32 then
     ConvertError(PResStringRec(@SFormatTooLong));
-  SetString(Result, Buffer, SysUtils.FloatToTextFmt(Buffer, Value, fvExtended,
+  SetString(Result, Buffer, AnsiStrings.FloatToTextFmt(Buffer, Value, fvExtended,
     PAnsiChar(Format), FormatSettings));
 end;
 
@@ -17428,19 +17323,24 @@ begin
   ListView.Refresh;
 end;
 
-procedure InfoBox(const msg: string);
+procedure InfoBox(const msg: string; _Parent: THandle);
 begin
-  Application.MessageBox(PChar(msg), '提示', MB_ICONINFORMATION or MB_OK);
+  Windows.MessageBox(_Parent, PChar(msg), '提示', MB_ICONINFORMATION or MB_OK);
 end;
 
-procedure ErrorBox(const msg: string);
+procedure ErrorBox(const msg: string; _Parent: THandle);
 begin
-  Application.MessageBox(PChar(msg), '错误', MB_ICONERROR or MB_OK);
+  Windows.MessageBox(_Parent, PChar(msg), '错误', MB_ICONERROR or MB_OK);
 end;
 
-procedure WarnBox(const msg: string);
+procedure WarnBox(const msg: string; _Parent: THandle);
 begin
-  Application.MessageBox(PChar(msg), '警告', MB_ICONEXCLAMATION or MB_OK);
+  Windows.MessageBox(_Parent, PChar(msg), '警告', MB_ICONEXCLAMATION or MB_OK);
+end;
+
+function ConfirmBox(const msg: string; _Parent: THandle = 0): Boolean;
+begin
+  Result := Windows.MessageBox(_Parent, PChar(msg), '确认', MB_ICONQUESTION or MB_YESNO) = ID_YES;
 end;
 
 function ConfirmDialog(const msg: string; const parent: THandle = 0; const title: string = '';
@@ -17916,12 +17816,11 @@ var
 begin
   Result := '';
 
-  if SUCCEEDED(SHGetSpecialFolderLocation(0, Ord(FolderID), pidl)) then
+  if SUCCEEDED(SHGetFolderLocation(0, Ord(FolderID), 0, 0, pidl)) then
   begin
     if SHGetPathFromIDList(pidl, buf) then
       Result := StrPas(buf);
-
-    CoTaskMemFree(pidl);
+    ILFree(pidl);
   end;
 end;
 
@@ -19015,18 +18914,7 @@ procedure TLogWritter.Writeln(sev: TMessageLevel; const text: RawByteString);
 begin
   if sev in fVerbosity then
   begin
-    if mtServerity in options then
-    begin
-      WriteAnsi(SEVERITY_NAMESA[sev]);
-      WriteAnsi(':: ')
-    end;
-
-    if mtTime in options then
-    begin
-      WriteAnsi(RawByteString(FormatDateTime(DateTimeFormat, Now)));
-      WriteAnsi(' ');
-    end;
-    WriteAnsi(text);
+    Self.write(sev, text);
     WriteAnsi(#13#10);
   end;
 end;
@@ -19035,17 +18923,7 @@ procedure TLogWritter.Writeln(sev: TMessageLevel; const text: u16string);
 begin
   if sev in fVerbosity then
   begin
-    if mtServerity in options then
-    begin
-      WriteUnicode(SEVERITY_NAMESW[sev]);
-      WriteAnsi(':: ');
-    end;
-    if mtTime in options then
-    begin
-      WriteUnicode(u16string(FormatDateTime(DateTimeFormat, Now)));
-      WriteUnicode(' ');
-    end;
-    WriteUnicode(text);
+    Self.write(sev, text);
     WriteUnicode(#13#10);
   end;
 end;
@@ -19069,7 +18947,7 @@ end;
 
 procedure TLogWritter.FormatWrite(sev: TMessageLevel; const fmt: u16string; const args: array of const );
 begin
-  Self.write(sev, WideFormat(fmt, args));
+  Self.write(sev, Format(fmt, args));
 end;
 
 procedure TLogWritter.SetDateTimeFormat(const value: string);
@@ -19127,6 +19005,7 @@ var
   utf8str: UTF8String;
   utf16str: u16string;
 begin
+  if text = '' then Exit;
   case Encoding of
     teAnsi:
       fFileStream.write(text[1], length(text));
@@ -19148,6 +19027,7 @@ var
   ansistr: RawByteString;
   utf8str: UTF8String;
 begin
+  if text = '' then Exit;
   case Encoding of
     teAnsi:
       begin
@@ -19168,24 +19048,28 @@ end;
 
 procedure TConsoleLogWritter.WriteAnsi(const text: RawByteString);
 begin
-  System.write(text);
+  if text <> '' then
+    System.write(text);
 end;
 
 procedure TConsoleLogWritter.WriteUnicode(const text: u16string);
 begin
-  System.write(text);
+  if text <> '' then
+    System.write(text);
 end;
 
 { TDebugLogWritter }
 
 procedure TDebugLogWritter.WriteAnsi(const text: RawByteString);
 begin
-  OutputDebugStringA(PAnsiChar(text));
+  if text <> '' then
+    OutputDebugStringA(PAnsiChar(text));
 end;
 
 procedure TDebugLogWritter.WriteUnicode(const text: u16string);
 begin
-  OutputDebugStringW(PWideChar(text));
+  if text <> '' then
+    OutputDebugStringW(PWideChar(text));
 end;
 
 { TSliceLogWritter }
@@ -19205,13 +19089,14 @@ end;
 
 destructor TMultiFileLogWritter.Destroy;
 begin
-  fWritter.Free;
+  FreeAndNil(fWritter);
   inherited;
 end;
 
 procedure TMultiFileLogWritter.flush;
 begin
-  fWritter.flush;
+  if fWritter <> nil then
+    fWritter.flush;
 end;
 
 procedure TMultiFileLogWritter.FormatWrite(sev: TMessageLevel; const fmt: u16string; const args: array of const );
@@ -19259,7 +19144,7 @@ begin
   else
     FileName := fLogFileDir + FormatDateTime('yyyymmddhh', tick) + '.log';
   end;
-
+  FreeAndNil(fWritter);
   fWritter := TFileLogWritter.Create(FileName);
   fWritter.Encoding := Encoding;
   fWritter.DateTimeFormat := DateTimeFormat;

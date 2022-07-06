@@ -18,7 +18,7 @@ type
 
   TVclApp = class
   private
-    class var Instance: TVclApp;
+    class var FInstance: TVclApp;
   private
     CM_EXEC_ON_MAIN_THREAD: Cardinal;
     FMsgHandlers: TDictionary<Cardinal, TMessageHandler>;
@@ -30,15 +30,11 @@ type
     procedure _AddEventListener(const _EventName: string; const _Handler: TEventHandler);
     procedure _RemoveEventListener(const _EventName: string; const _Handler: TEventHandler);
   public
-    class var DPIX, DPIY: Integer;
-  public
     class constructor Create;
     class destructor Destroy;
-    class procedure SetDPI(_X, _Y: Integer);
-    class function ScaleX(_X: Integer): Integer;
-    class function ScaleY(_Y: Integer): Integer;
     constructor Create;
     destructor Destroy; override;
+    procedure MoveForm(Sender: TObject; Shift: TShiftState; X, Y: Integer);
     class procedure AddEventListener(const _EventName: string; const _Handler: TEventHandler); static;
     class procedure RemoveEventListener(const _EventName: string; const _Handler: TEventHandler); static;
     class procedure DispatchEvent(const _EventName: string; const _Data: ISuperObject); static;
@@ -51,26 +47,64 @@ type
     class function DispatchToMainThread<T1, T2>(_Callback: TProc<T1, T2>): TProc<T1, T2>; overload;static;
     class function DispatchToMainThread<T1, T2, T3>(_Callback: TProc<T1, T2, T3>): TProc<T1, T2, T3>; overload; static;
     class function DispatchToMainThread<T1, T2, T3, T4>(_Callback: TProc<T1, T2, T3, T4>): TProc<T1, T2, T3, T4>; overload;static;
+    class property Instance: TVclApp read FInstance;
   end;
 
 function RegisterMsgHandler(const _UniqueMsgName: string; _Handler: TMessageHandler): Cardinal;
 procedure ExecOnMainThread(_Proc: TProc);
+procedure CustomBorderHitTest(_Form: TForm; _BorderWidth: Integer; var _Msg: TWMNCHitTest);
 
 implementation
 
 uses
+  Controls,
   uCEFTypes,
   uCEFTask,
   Dialogs;
 
 function RegisterMsgHandler(const _UniqueMsgName: string; _Handler: TMessageHandler): Cardinal;
 begin
-  Result := TVclApp.Instance.RegisterMsgHandler(_UniqueMsgName, _Handler);
+  Result := TVclApp.FInstance.RegisterMsgHandler(_UniqueMsgName, _Handler);
 end;
 
 procedure ExecOnMainThread(_Proc: TProc);
 begin
-  TVclApp.Instance.ExecOnMainThread(_Proc);
+  TVclApp.FInstance.ExecOnMainThread(_Proc);
+end;
+
+procedure CustomBorderHitTest(_Form: TForm; _BorderWidth: Integer; var _Msg: TWMNCHitTest);
+const
+  NCHIT_TEST_RESULT: array [0..2, 0..2] of Integer =
+    (
+    (HTTOPLEFT, HTLEFT, HTBOTTOMLEFT),
+    (HTTOP, HTERROR, HTBOTTOM),
+    (HTTOPRIGHT, HTRIGHT, HTBOTTOMRIGHT)
+    );
+var
+  LPos: TPoint;
+  LHeight, LWidth, LXIdx, LYIdx: Integer;
+begin
+  LWidth := _Form.Width;
+  LHeight := _Form.Height;
+  LPos := _Form.ScreenToClient(_Msg.Pos);
+
+  if (LPos.X < 0) or (LPos.X >= LWidth) or (LPos.Y < 0) or (LPos.Y >= LHeight) then
+    Exit;
+  if LPos.X < _BorderWidth then
+    LXIdx := 0
+  else if LPos.X < LWidth - _BorderWidth then
+    LXIdx := 1
+  else
+    LXIdx := 2;
+
+  if LPos.Y < _BorderWidth then
+    LYIdx := 0
+  else if LPos.Y < LHeight - _BorderWidth then
+    LYIdx := 1
+  else
+    LYIdx := 2;
+  if NCHIT_TEST_RESULT[LXIdx, LYIdx] <> HTERROR then
+    _Msg.Result := NCHIT_TEST_RESULT[LXIdx, LYIdx];
 end;
 
 { TVclApp }
@@ -86,7 +120,7 @@ end;
 
 class constructor TVclApp.Create;
 begin
-  Instance := TVclApp.Create;
+  FInstance := TVclApp.Create;
 end;
 
 destructor TVclApp.Destroy;
@@ -99,18 +133,18 @@ end;
 
 class destructor TVclApp.Destroy;
 begin
-  FreeAndNil(Instance);
+  FreeAndNil(FInstance);
 end;
 
 class procedure TVclApp.DispatchEvent(const _EventName: string; const _Data: ISuperObject);
 begin
   if RunningInMainThread then
-    Instance._DispatchEvent(_EventName, _Data)
+    FInstance._DispatchEvent(_EventName, _Data)
   else
-    Instance.ExecOnMainThread(
+    FInstance.ExecOnMainThread(
       procedure
       begin
-        Instance._DispatchEvent(_EventName, _Data);
+        FInstance._DispatchEvent(_EventName, _Data);
       end
     );
 end;
@@ -119,7 +153,7 @@ class function TVclApp.DispatchToMainThread<T1, T2, T3, T4>(_Callback: TProc<T1,
 begin
   Result := procedure(_1: T1; _2: T2; _3: T3; _4: T4)
     begin
-      TVclApp.Instance.ExecOnMainThread(procedure begin _Callback(_1, _2, _3, _4) end);
+      TVclApp.FInstance.ExecOnMainThread(procedure begin _Callback(_1, _2, _3, _4) end);
     end;
 end;
 
@@ -127,7 +161,7 @@ class function TVclApp.DispatchToMainThread<T1, T2, T3>(_Callback: TProc<T1, T2,
 begin
   Result := procedure(_1: T1; _2: T2; _3: T3)
     begin
-      TVclApp.Instance.ExecOnMainThread(procedure begin _Callback(_1, _2, _3) end);
+      TVclApp.FInstance.ExecOnMainThread(procedure begin _Callback(_1, _2, _3) end);
     end;
 end;
 
@@ -135,7 +169,7 @@ class function TVclApp.DispatchToMainThread<T1, T2>(_Callback: TProc<T1, T2>): T
 begin
   Result := procedure(_1: T1; _2: T2)
     begin
-      TVclApp.Instance.ExecOnMainThread(procedure begin _Callback(_1, _2) end);
+      TVclApp.FInstance.ExecOnMainThread(procedure begin _Callback(_1, _2) end);
     end;
 end;
 
@@ -144,7 +178,7 @@ class function TVclApp.DispatchToMainThread<T>(_Callback: TProc<T>): TProc<T>;
 begin
   Result := procedure(_: T)
     begin
-      TVclApp.Instance.ExecOnMainThread(procedure begin _Callback(_) end);
+      TVclApp.FInstance.ExecOnMainThread(procedure begin _Callback(_) end);
     end;
 end;
 
@@ -161,9 +195,18 @@ begin
   TCefFastTask.NewDelayed(TID_UI, _Delay,
     procedure
     begin
-      Instance.ExecOnMainThread(_Proc)
+      FInstance.ExecOnMainThread(_Proc)
     end
   );
+end;
+
+procedure TVclApp.MoveForm(Sender: TObject; Shift: TShiftState; X, Y: Integer);
+begin
+  if ssLeft in Shift then
+  begin
+    ReleaseCapture;
+    GetParentForm(TControl(Sender)).Perform(WM_SYSCOMMAND, $F017, 0);
+  end;
 end;
 
 procedure TVclApp.OnExecOnMainThread(var _Msg: TMessage);
@@ -187,35 +230,19 @@ end;
 class procedure TVclApp.RemoveEventListener(const _EventName: string; const _Handler: TEventHandler);
 begin
   if RunningInMainThread then
-    Instance._RemoveEventListener(_EventName, _Handler)
+    FInstance._RemoveEventListener(_EventName, _Handler)
   else
-    Instance.ExecOnMainThread(
+    FInstance.ExecOnMainThread(
       procedure
       begin
-        Instance._RemoveEventListener(_EventName, _Handler);
+        FInstance._RemoveEventListener(_EventName, _Handler);
       end
     );
 end;
 
-class function TVclApp.ScaleX(_X: Integer): Integer;
-begin
-  Result := _X * DPIX div 96;
-end;
-
-class function TVclApp.ScaleY(_Y: Integer): Integer;
-begin
-  Result := _Y * DPIY div 96;
-end;
-
-class procedure TVclApp.SetDPI(_X, _Y: Integer);
-begin
-  DPIX := _X;
-  DPIY := _Y;
-end;
-
 class procedure TVclApp.ShowMessage(const _Msg: string);
 begin
-  TVclApp.Instance.ExecOnMainThread(procedure begin Dialogs.ShowMessage(_Msg); end);
+  TVclApp.FInstance.ExecOnMainThread(procedure begin Dialogs.ShowMessage(_Msg); end);
 end;
 
 procedure TVclApp._AddEventListener(const _EventName: string; const _Handler: TEventHandler);
@@ -258,12 +285,12 @@ end;
 class procedure TVclApp.AddEventListener(const _EventName: string; const _Handler: TEventHandler);
 begin
   if RunningInMainThread then
-    Instance._AddEventListener(_EventName, _Handler)
+    FInstance._AddEventListener(_EventName, _Handler)
   else
-    Instance.ExecOnMainThread(
+    FInstance.ExecOnMainThread(
       procedure
       begin
-        Instance._AddEventListener(_EventName, _Handler);
+        FInstance._AddEventListener(_EventName, _Handler);
       end
     );
 end;

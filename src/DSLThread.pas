@@ -216,6 +216,8 @@ type
   TPoolOverflowStrategy = (posDiscard, posFreeTask, posEnQueue);
   TThreadPool = class(TRefCountedObject)
   private
+    class var FGlobal: TThreadPool;
+  private
     FRunningThreadCount: Integer;
     FIdleThreadsLock: Integer;
     FIdleThreads: TThread;
@@ -237,6 +239,7 @@ type
     function GetIdleThread: TThread;
     procedure return(thread: TThread);
   public
+    class constructor Create;
     constructor Create;
     destructor Destroy; override;
     procedure stop;
@@ -249,6 +252,7 @@ type
     property ThreadCount: Integer read GetThreadCount;
     property CompletedTaskCount: Integer read fCompletedTaskCount;
     property TaskCountInQueue: Integer read GetTaskCountInQueue;
+    class property Global: TThreadPool read FGlobal;
   end;
 
 procedure StopAndWaitForThread(thread: TThread);
@@ -1037,6 +1041,13 @@ end;
 procedure TThreadPool.ClearThreads;
 begin
   ReleaseThreads(0);
+end;
+
+class constructor TThreadPool.Create;
+begin
+  FGlobal := TThreadPool.Create;
+  FGlobal.MaxThreadCount := 100;
+  FGlobal.ReserveThreadCount := 10;
 end;
 
 constructor TThreadPool.Create;

@@ -474,6 +474,16 @@ type
   end;
   LPWINHTTP_PROXY_INFO = ^WINHTTP_PROXY_INFO;
 
+  TWinHttpStatusCallback = procedure(
+    hInternet: HINTERNET;
+    dwContext: DWORD_PTR;
+    dwInternetStatus: DWORD;
+    lpvStatusInformation: Pointer;
+    dwStatusInformationLength: DWORD);
+
+const
+  WINHTTP_INVALID_STATUS_CALLBACK: TWinHttpStatusCallback = TWinHttpStatusCallback(-1);
+
 function WinHttpOpen(pwszUserAgent: PWideChar; dwAccessType: DWORD;
   pwszProxyName, pwszProxyBypass: PWideChar;
   dwFlags: DWORD): HINTERNET; stdcall;
@@ -535,6 +545,13 @@ function WinHttpCrackUrl(pwszUrl: PWideChar;
   dwUrlLength, dwFlags: DWORD;
   out lpUrlComponents: URL_COMPONENTS): BOOL; stdcall;
 
+function WinHttpSetStatusCallback(
+  hInternet: HINTERNET;
+  lpfnInternetCallback: TWinHttpStatusCallback;
+  dwNotificationFlags: DWORD;
+  dwReserved: DWORD_PTR
+): TWinHttpStatusCallback; stdcall;
+
 implementation
 
 function WinHttpOpen; stdcall; external WinHttpDLL;
@@ -572,5 +589,6 @@ function WinHttpTimeToSystemTime; stdcall; external WinHttpDLL;
 function WinHttpCrackUrl; stdcall; external WinHttpDLL;
 
 function WinHttpQueryOption; stdcall; external WinHttpDLL;
+function WinHttpSetStatusCallback; stdcall; external WinHttpDLL;
 
 end.

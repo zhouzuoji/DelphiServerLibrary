@@ -1917,7 +1917,7 @@ var
   FromLen: Integer;
   lastError: Integer;
 begin
-  Result := SOCKET_ERROR;
+  //Result := SOCKET_ERROR;
   while True do
   begin
     if Assigned(flags) then RFlags := flags^

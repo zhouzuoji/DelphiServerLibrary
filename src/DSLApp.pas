@@ -3,7 +3,16 @@ unit DSLApp;
 interface
 
 uses
-  SysUtils, Classes, IniFiles, Registry, ActiveX, Windows, WinSvc, DSLUtils, DSLThread;
+  SysUtils,
+  Classes,
+  IniFiles,
+  Registry,
+  ActiveX,
+  Windows,
+  WinSvc,
+  DSLUtils,
+  DSLProcess,
+  DSLThread;
 
 type
   TNTSvcCtrlHandler = function: Boolean;
@@ -38,6 +47,7 @@ type
 function cmdLineParamExists(const param: string): Boolean;
 function runningAsService: Boolean;
 function GetAppVerInfo: TFileVersionInfo;
+function getAppExeFullName: string;
 function getAppFileName: string;
 function GetAppFileNameWithoutExt: string;
 function getAppPath: string;
@@ -47,6 +57,7 @@ function getAppDisplayName: string;
 function getAppStartTime: TDateTime;
 function getAppDataPath: string;
 function getAppUserPath: string;
+function ResolvePath(const _Path: string): string;
 function iniReadInteger(const section, name: string; def: Integer = 0): Integer;
 function iniReadFloat(const section, name: string; def: Double = 0.0): Double;
 function iniReadBool(const section, name: string; def: Boolean = False): Boolean;
@@ -83,11 +94,16 @@ procedure writeEventLog(const msg: string; EventType: TEventLogType = eltError;
 procedure eventLogSysError(errorCode: Integer; const operation: string = '');
 procedure eventLogException(e: Exception; const operation: string ='');
 procedure setSerivceStatus(newStatus: TServiceRunningStatus);
+procedure ExecOnAppStart(_Proc: TProc);
+procedure ExecOnUserLogin(_Proc: TProc);
 
 var
   g_Terminating: Boolean;
 
 implementation
+
+uses
+  Generics.Collections;
 
 var
   g_appVerInfo: TFileVersionInfo;
@@ -113,6 +129,18 @@ var
   g_serviceType: TNTServiceType = stWin32;
   g_errorSeverity: TErrorSeverity = esNormal;
   g_svcMainThread: TTaskQueue;
+
+  g_AppInitProcs, g_UserLoginCallbacks: TList<TProc>;
+
+procedure ExecOnAppStart(_Proc: TProc);
+begin
+  g_AppInitProcs.Add(_Proc);
+end;
+
+procedure ExecOnUserLogin(_Proc: TProc);
+begin
+  g_UserLoginCallbacks.Add(_Proc);
+end;
 
 function getServiceMainThread: TTaskQueue;
 begin
@@ -189,6 +217,20 @@ begin
   Result := g_appUserPath;
 end;
 
+var
+  G_LocalAppDataLocal, G_AppDataRoaming, G_CommonAppData: string;
+
+function ResolvePath(const _Path: string): string;
+begin
+  Result := StringReplace(_Path, '/', '\', [rfIgnoreCase, rfReplaceAll]);
+  Result := StringReplace(Result, '{app_data_local}', G_LocalAppDataLocal, [rfIgnoreCase, rfReplaceAll]);
+  Result := StringReplace(Result, '{app_data_roaming}', G_AppDataRoaming, [rfIgnoreCase, rfReplaceAll]);
+  Result := StringReplace(Result, '{common_app_data}', G_CommonAppData, [rfIgnoreCase, rfReplaceAll]);
+  Result := StringReplace(Result, '{app_id}', g_appId, [rfIgnoreCase, rfReplaceAll]);
+  if Pos(':', Result) <= 0 then
+    Result := PathJoin(g_appPath, Result);
+end;
+
 function getAppStartTime: TDateTime;
 begin
   Result := g_StartTime;
@@ -235,10 +277,14 @@ begin
 end;
 
 procedure initUser(const username: string);
+var
+  LProc: TProc;
 begin
   g_appUserPath := PathJoin(g_appDataDir, 'users\' + username + '\');
   ForceDirectories(g_appUserPath);
   g_userIni := TIniFile.Create(g_appUserPath + 'config.ini');
+  for LProc in g_UserLoginCallbacks do
+    LProc();
 end;
 
 procedure userIniWriteString(const section, key, value: string);
@@ -645,6 +691,9 @@ procedure unitInit;
 var
   i: Integer;
 begin
+  G_AppDataRoaming := ExcludeTrailingPathDelimiter(SHGetSpecialFolderPath(sfiAppData));
+  G_LocalAppDataLocal := ExcludeTrailingPathDelimiter(SHGetSpecialFolderPath(sfiLocalAppData));
+  G_CommonAppData := ExcludeTrailingPathDelimiter(SHGetSpecialFolderPath(sfiCommonAppData));
   g_StartTime := Now;
   g_appImagePath := dslGetModuleFileName(0, 0);
   g_appPath := ExtractFilePath(g_appImagePath);
@@ -667,6 +716,8 @@ begin
   g_appId := g_appVerInfo.ProgramID;
   if g_appId = '' then
     g_appId := g_appFileNameWithoutExt;
+  g_AppInitProcs := TList<TProc>.Create;
+  g_UserLoginCallbacks := TList<TProc>.Create;
 end;
 
 procedure unitCleanup;
@@ -683,14 +734,20 @@ begin
 
   FreeAndNil(g_appIni);
   FreeAndNil(G_appRegRoot);
+  FreeAndNil(g_AppInitProcs);
+  FreeAndNil(g_UserLoginCallbacks);
 end;
 
 { TAppInfo }
 
 procedure TAppInfo.Build;
+var
+  LProc: TProc;
 begin
   try
     DoBuild;
+    for LProc in g_AppInitProcs do
+      LProc();
   finally
     Self.Free;
   end;
@@ -719,6 +776,7 @@ begin
 
   if FDataPath <> '' then
   begin
+    FDataPath := ResolvePath(FDataPath);
     if Pos(':', FDataPath) > 0 then
       g_appDataDir := FDataPath
     else

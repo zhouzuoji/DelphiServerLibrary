@@ -1052,6 +1052,8 @@ var
   g_BaseHttpOptions: TBaseHttpOptions =
     (ConnectTimeout: 0; SendTimeout: 0; RecvTimeout: 0; AutoDecompress: True);
 
+  GlobalHttpClient: TCustomHttpSession;
+
 implementation
 
 const

@@ -3,7 +3,7 @@ unit DSLWinHttp;
 interface
 
 uses
-  SysUtils, Classes, Forms, Windows, SyncObjs, WinHttp, ZLibExApi, DSLUtils, DSLHtml, DSLHttp,
+  SysUtils, Classes, Forms, Windows, SyncObjs, WinAPI.WinHttp, ZLibExApi, DSLUtils, DSLHtml, DSLHttp,
   Generics.Collections, Generics.Defaults, DSLGenerics;
 
 function WinHttpSetDWORDOption(handle: HINTERNET; option, value: DWORD): Boolean;
@@ -377,7 +377,7 @@ begin
     end;
 
     if FBaseOptions.SendTimeout <> 0 then
-      WinHttpSetDWORDOption(FWinHttpRequest, WINHTTP_OPTION_SENDING_TIMEOUT, FBaseOptions.SendTimeout);
+      WinHttpSetDWORDOption(FWinHttpRequest, WINHTTP_OPTION_SEND_TIMEOUT, FBaseOptions.SendTimeout);
 
     if FBaseOptions.ConnectTimeout <> 0 then
       WinHttpSetDWORDOption(FWinHttpRequest, WINHTTP_OPTION_CONNECT_TIMEOUT, FBaseOptions.ConnectTimeout);
@@ -445,7 +445,7 @@ function TWinHttpIOHandler.read;
 var
   BytesWritten: DWORD;
 begin
-  if WinHttpReadData(FWinHttpRequest, @buf, BufLen, BytesWritten) then
+  if WinHttpReadData(FWinHttpRequest, buf, BufLen, @BytesWritten) then
   begin
     if BytesWritten = 0 then
     begin
@@ -483,7 +483,7 @@ function TWinHttpIOHandler.write;
 var
   BytesWritten: DWORD;
 begin
-  if WinHttpWriteData(FWinHttpRequest, @buf, BufLen, @BytesWritten) then
+  if WinHttpWriteData(FWinHttpRequest, buf, BufLen, @BytesWritten) then
     Result := Integer(BytesWritten)
   else begin
     convertWinHttpError('winhttp.WinHttpWriteData', GetLastError, comerr);
