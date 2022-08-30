@@ -78,6 +78,7 @@ function ParseJsonUtf8(const s: UTF8String): TPortableValue; overload; inline;
 
 implementation
 
+
 function ParseJson(s: PWideChar; len: Integer): TPortableValue;
 begin
   Result.init;
