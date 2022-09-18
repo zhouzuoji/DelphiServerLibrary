@@ -770,7 +770,7 @@ begin
   if FAppId <> '' then
     g_appId := FAppId;
   if FName <> '' then
-    g_appName := g_appId;
+    g_appName := FName;
   if FDisplayName <> '' then
     g_appDisplayName := FDisplayName;
 
@@ -783,7 +783,7 @@ begin
       g_appDataDir := g_appPath + FDataPath;
     g_appDataDir := IncludeTrailingPathDelimiter(g_appDataDir);
   end;
-
+  ForceDirectories(g_appDataDir);
   if FIniFileName <> '' then
     g_appIni := TIniFile.Create(g_appDataDir + FIniFileName);
 
