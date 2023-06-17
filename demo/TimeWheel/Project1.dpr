@@ -3,10 +3,15 @@ program Project1;
 {$APPTYPE CONSOLE}
 
 uses
-  SysUtils, Classes, DateUtils, Windows, DSLUtils;
+  SysUtils, Classes, DateUtils, Windows, DSLUtils, DSLTimer;
 
 var
   StdOutput: THandle;
+  i: Integer;
+  tw: TTimeWheel;
+  xy: Windows._COORD;
+  g_exited: Boolean = False;
+  g_Terminated: Boolean = False;
 
 type
   TThreadAddTimer = class(TThread)
@@ -16,7 +21,7 @@ type
     constructor Create;
   end;
 
-procedure timerProc(driver: TTimeWheel; timer: PTimerItem; cbType: TTimerCallbackType);
+procedure timerProc(cbType: TTimerCallbackType);
 begin
   (*
   Writeln(IntToStr(Integer(timer.context)) + '  delay ' + IntToStr(driver.getNowJiffies - timer.expire)
@@ -27,27 +32,20 @@ begin
   *)
 end;
 
-procedure showDebugInfo(driver: TTimeWheel; timer: PTimerItem; cbType: TTimerCallbackType);
-var
-  xy: Windows._COORD;
-  scrinfo: TConsoleScreenBufferInfo;
+procedure showDebugInfo(cbType: TTimerCallbackType);
+//var
+  //xy: Windows._COORD;
+  //scrinfo: TConsoleScreenBufferInfo;
 begin
-  GetConsoleScreenBufferInfo(StdOutput, scrinfo);
-  xy.X := 0;
-  xy.Y := 0;
-  SetConsoleCursorPosition(StdOutput, xy);
+  //GetConsoleScreenBufferInfo(StdOutput, scrinfo);
+  //xy.X := 0;
+  //xy.Y := 0;
+  //SetConsoleCursorPosition(StdOutput, xy);
   Writeln(FormatDateTime('yyyy-mm-dd hh:nn:ss zzz', now) + ' '
-    + IntToStr(driver.itemCount) + ' pending, '
-    + IntToStr(driver.overdue) + ' overdue, '
-    + IntToStr(driver.executedItemCount) + ' executed                  ');
-  SetConsoleCursorPosition(StdOutput, scrinfo.dwCursorPosition);
+    + IntToStr(tw.TimerCount) + ' pending, '
+    + IntToStr(tw.TriggerCount) + ' executed                  ');
+  //SetConsoleCursorPosition(StdOutput, scrinfo.dwCursorPosition);
 end;
-
-var
-  i: Integer;
-  tw: TTimeWheel;
-  g_exited: Boolean = False;
-  g_Terminated: Boolean = False;
 
 function consoleCtrlHandler(cmd: DWORD): BOOL; stdcall;
 begin
@@ -71,20 +69,17 @@ begin
 
   while not g_Terminated do
   begin
-    if tw.itemCount < 10000 then
+    if tw.TimerCount < 10000 then
     begin
       if Random(2) = 0 then
-        tw.addTimer(Random($7fffffff), 0, nil, timerProc)
+        tw.Add(Random(10000), 0, timerProc)
       else
-        tw.addTimer(Random(10000), 0, nil, timerProc);
+        tw.Add(Random(10000), 0, timerProc);
     end;
 
     Sleep(100);
   end;
 end;
-
-var
-  xy: Windows._COORD;
 
 begin
   System.ReportMemoryLeaksOnShutdown := True;
@@ -95,24 +90,23 @@ begin
   xy.Y := 1;
   SetConsoleCursorPosition(StdOutput, xy);
   SetConsoleCtrlHandler(@consoleCtrlHandler, True);
-  tw := TTimeWheel.Create(100);
-  tw.overdueThreshold := 1;
+  tw := TTimeWheel.Create(10);
   try
-    tw.addTimer(0, 1000, Pointer(999999), showDebugInfo);
+    tw.Add(0, 1000, showDebugInfo);
     for i := 1 to 20 do
       TThreadAddTimer.Create;
 
     while not g_Terminated do
     begin
-      tw.checkExpired;
+      tw.MoveOn;
       Sleep(10);
     end;
   except
     on E: Exception do
       Writeln(E.ClassName, ': ', E.Message);
   end;
-  tw.checkExpired;
-  Writeln(IntToStr(tw.clear) + ' timers overdue');
+  tw.MoveOn;
+  tw.Clear;
   tw.Free;
   Writeln('press ENTER to exit...');
   Readln;

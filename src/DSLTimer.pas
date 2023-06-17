@@ -3,81 +3,56 @@ unit DSLTimer;
 interface
 
 uses
-  SysUtils, Classes, Windows, DSLUtils;
+  SysUtils,
+  Classes,
+  Windows,
+  DSLUtils;
+
+{$DEFINE TIME_WHEEL_DEBUG}
 
 type
   TTimerCallbackType = (tcbExpired, tcbCleanup);
-  TTimeWheel = class;
+  TTimerProc = reference to procedure(cbType: TTimerCallbackType);
+  TTimerId = Cardinal;
 
-  PTimerItem = ^TTimerItem;
-
-  TTimerProc = procedure(driver: TTimeWheel; entry: PTimerItem; cbType: TTimerCallbackType);
-
-  TTimerItem = record
-    list: TLinkListEntry;
-    context: Pointer;
-    proc: TTimerProc;
-    expire: Int64;
-    _intervalAndFlags: DWORD;
-{$IFDEF DSLTimeWheelDebug}
-    execTimes: Integer;
-    nextExecTime: TDateTime;
-{$ENDIF}
-    procedure init; inline;
-    procedure release; inline;
-    function getInterval: DWORD; inline;
-    procedure setInterval(v: DWORD); inline;
-    function enabled: Boolean; inline;
-    procedure disable; inline;
-    procedure enable; inline;
+  ITimer = interface
+    function Add(_DelayMSecs: Int64; _Interval: DWORD; _Callback: TTimerProc): TTimerId;
+    procedure Delete(_TimerId: TTimerId);
+    procedure Clear;
+    procedure MoveOn;
   end;
 
-  TTimerVecRoot = record
-    vec: array [0 .. 255] of TLinkListEntry;
-  end;
-
-  TTimerVec = record
-    vec: array [0 .. 63] of TLinkListEntry;
-  end;
-
-  TTimeWheel = class(TRefCountedObject)
+  TTimeWheel = class(TInterfacedObject, ITimer)
   private
-    FRollThread: TThread;
-    FLock: TInterlockSync;
-    FCurrentTick: DWORD;
-    FCurrentJiffies: Int64;
-    FGradularity: DWORD;
-    tv1: TTimerVecRoot;
-    tv2, tv3, tv4, tv5: TTimerVec;
-    FItemCount: Integer;
-{$IFDEF DSLTimeWheelDebug}
-    FOverdue: Integer;
-    FOverdueThreshold: Integer;
-    FExecutedItemCount: Integer;
-{$ENDIF}
-    function cascade(var tv: TTimerVec; idx: Integer): Integer;
-    procedure _addTimer(timer: PTimerItem);
-    function clearVec(var vec: array of TLinkListEntry; nowJiffy: Int64): Integer;
+    FAddingTimerList: TLinkListEntry;
+    FLastTick: DWORD;
+    FLastJiffy: Int64;
+    FMSecsPerJiffy: DWORD;
+    tv1: array [0 .. 255] of TLinkListEntry;
+    tv2, tv3, tv4, tv5: array [0 .. 63] of TLinkListEntry;
+    FTimerCount, FTriggerCount: Integer;
+    function cascade(var tv: array of TLinkListEntry; idx: Integer): Integer;
+    procedure DoAddTimer(_Timer: Pointer);
+    procedure DoClear(_Type: TTimerCallbackType);
+    procedure clearVec(var vec: array of TLinkListEntry);
+    procedure ProcessAddingTimers;
+    procedure DoCallback(_Timer: Pointer; _Type: TTimerCallbackType);
   public
-    constructor Create(_gradularity: DWORD);
+    constructor Create(_MSecsPerJiffy: DWORD);
     destructor Destroy; override;
-    function addTimer(dueTime: Int64; interval: DWORD; context: Pointer; proc: TTimerProc): PTimerItem;
-    procedure checkExpired;
-    procedure run;
-    procedure stop;
-    function clear: Integer;
-    function getNowJiffies: Int64;
-    property itemCount: Integer read FItemCount;
-{$IFDEF DSLTimeWheelDebug}
-    property overdue: Integer read FOverdue;
-    property overdueThreshold: Integer read FOverdueThreshold write FOverdueThreshold;
-    property executedItemCount: Integer read FExecutedItemCount;
-{$ENDIF}
+    function Add(_DelayMSecs: Int64; _Interval: DWORD; _Callback: TTimerProc): TTimerId;
+    procedure Delete(_TimerId: TTimerId);
+    procedure Clear;
+    procedure MoveOn;
+    property TimerCount: Integer read FTimerCount;
+    property TriggerCount: Integer read FTriggerCount;
   end;
 
 implementation
 
 uses
+  MMSystem,
+  DateUtils,
   DSLThread;
 
 type
@@ -90,6 +65,25 @@ type
     constructor Create(tw: TTimeWheel);
   end;
 
+  PTimerItem = ^TTimerItem;
+
+  TTimerItem = record
+    ListNode: TLinkListEntry;
+    Callback: TTimerProc;
+    Deadline: Int64;
+    _IntervalAndFlags: DWORD;
+    {$IFDEF TIME_WHEEL_DEBUG}
+    ExpireTime: TDateTime;
+    {$ENDIF}
+    procedure init; inline;
+    procedure release; inline;
+    function getInterval: DWORD; inline;
+    procedure setInterval(v: DWORD); inline;
+    function enabled: Boolean; inline;
+    procedure disable; inline;
+    procedure enable; inline;
+  end;
+
 { TTimeWheel }
 
 procedure initTimerNodes(var tv: array of TLinkListEntry);
@@ -100,285 +94,248 @@ begin
     tv[i].SetEmpty;
 end;
 
-function TTimeWheel.addTimer;
+function TTimeWheel.Add(_DelayMSecs: Int64; _Interval: DWORD; _Callback: TTimerProc): TTimerId;
 var
-  diff, expireAt: Int64;
-  tmp: DWORD;
-  timer: PTimerItem;
+  LTimer: PTimerItem;
 begin
-  New(timer);
-  timer.init;
-  timer.proc := proc;
-  timer.context := context;
-  timer.setInterval(interval);
+  if _DelayMSecs < 0 then
+    _DelayMSecs := 0;
+  New(LTimer);
+  LTimer.init;
+  LTimer.Callback := _Callback;
+  LTimer.setInterval(_Interval);
+  LTimer.Deadline := _DelayMSecs;
+  {$IFDEF TIME_WHEEL_DEBUG}
+  LTimer.ExpireTime := IncMilliSecond(Now, _DelayMSecs);
+  {$ENDIF}
 
-  FLock.acquire;
-  tmp := GetTickCount - FCurrentTick;
-  diff := (dueTime + tmp) div FGradularity;
-
-  if diff < 0 then
-    diff := 0;
-
-  expireAt := FCurrentJiffies + diff;
-  timer.expire := expireAt;
-  _addTimer(timer);
-  FLock.release;
-  Result := timer;
+  TMonitor.Enter(Self);
+  try
+    FAddingTimerList.insertHead(@LTimer.ListNode);
+  finally
+    TMonitor.Exit(Self);
+  end;
+  Result := 0;
 end;
 
-function TTimeWheel.cascade(var tv: TTimerVec; idx: Integer): Integer;
+function TTimeWheel.cascade(var tv: array of TLinkListEntry; idx: Integer): Integer;
 var
   entry, head: PLinkListEntry;
   tmp: PTimerItem;
 begin
-  Result := FCurrentJiffies shr (8 + idx * 6) and 63;
-  head := @tv.vec[Result];
+  Result := FLastJiffy shr (8 + idx * 6) and 63;
+  head := @tv[Result];
   entry := head.SetEmpty;
 
   while entry <> head do
   begin
     tmp := PTimerItem(entry);
     entry := entry.next;
-    InterlockedDecrement(FItemCount);
-    Self._addTimer(tmp);
+    Dec(FTimerCount);
+    Self.DoAddTimer(tmp);
   end;
 end;
 
-function TTimeWheel.clear: Integer;
-var
-  nowJiffy: Int64;
+procedure TTimeWheel.Clear;
 begin
-  Result := 0;
-  nowJiffy := Self.getNowJiffies;
-  FLock.acquire;
-
-  try
-    Inc(Result, clearVec(tv1.vec, nowJiffy));
-    Inc(Result, clearVec(tv2.vec, nowJiffy));
-    Inc(Result, clearVec(tv3.vec, nowJiffy));
-    Inc(Result, clearVec(tv4.vec, nowJiffy));
-    Inc(Result, clearVec(tv5.vec, nowJiffy));
-  finally
-    FLock.release;
-  end;
+  Self.Add(0, 0, Self.DoClear)
 end;
 
-function TTimeWheel.clearVec(var vec: array of TLinkListEntry; nowJiffy: Int64): Integer;
+procedure TTimeWheel.clearVec(var vec: array of TLinkListEntry);
 var
   i: Integer;
-  entry, pList: PLinkListEntry;
-  pTimer: PTimerItem;
-{$IFDEF DSLTimeWheelDebug}
-  diff: Int64;
-{$ENDIF}
+  LNode: PLinkListEntry;
+  LTimer: PTimerItem;
 begin
-  Result := 0;
   for i := Low(vec) to High(vec) do
   begin
-    entry := @vec[i];
-    pList := entry.SetEmpty;
-
-    while pList <> entry do
+    LNode := vec[i].SetEmpty;
+    while LNode <> @vec[i] do
     begin
-      pTimer := PTimerItem(pList);
-      pList := pList.next;
-
-      try
-        pTimer.proc(Self, pTimer, tcbCleanup);
-      except
-        on e: Exception do
-          DbgOutputException('TTimeWheel.callTimer', e);
-      end;
-{$IFDEF DSLTimeWheelDebug}
-      diff := pTimer.expire - nowJiffy;
-      if diff < FOverdueThreshold then
-      begin
-        DbgOutput(IntToStr(diff) + ' jiffies');
-        Inc(Result);
-      end;
-{$ENDIF}
-      pTimer.release;
-      InterlockedDecrement(FItemCount);
+      LTimer := PTimerItem(LNode);
+      LNode := LNode.next;
+      DoCallback(LTimer, tcbCleanup);
     end;
   end;
 end;
 
-constructor TTimeWheel.Create(_gradularity: DWORD);
+constructor TTimeWheel.Create(_MSecsPerJiffy: DWORD);
 begin
   inherited Create;
-  FLock.init;
-  initTimerNodes(tv1.vec);
-  initTimerNodes(tv2.vec);
-  initTimerNodes(tv3.vec);
-  initTimerNodes(tv4.vec);
-  initTimerNodes(tv5.vec);
-  FGradularity := _gradularity;
-  FCurrentTick := GetTickCount;
-  FCurrentJiffies := 0;
-{$IFDEF DSLTimeWheelDebug}
-  FOverdue := 0;
-  FOverdueThreshold := 5;
-{$ENDIF}
+  initTimerNodes(tv1);
+  initTimerNodes(tv2);
+  initTimerNodes(tv3);
+  initTimerNodes(tv4);
+  initTimerNodes(tv5);
+  FAddingTimerList.SetEmpty;
+  FMSecsPerJiffy := _MSecsPerJiffy;
+  FLastTick := timeGetTime;
+  FLastJiffy := 0;
+end;
+
+procedure TTimeWheel.Delete(_TimerId: TTimerId);
+begin
+
 end;
 
 destructor TTimeWheel.Destroy;
 begin
-  stop;
-  clear;
-  FLock.cleanup;
+  DoClear(tcbExpired);
   inherited;
 end;
 
-function TTimeWheel.getNowJiffies: Int64;
+procedure TTimeWheel.DoCallback(_Timer: Pointer; _Type: TTimerCallbackType);
 var
-  nJiffies: DWORD;
+  LTimer: PTimerItem absolute _Timer;
+  LInterval: DWORD;
 begin
-  nJiffies := (GetTickCount - FCurrentTick) div FGradularity;
-  Result := FCurrentJiffies + nJiffies;
-end;
-
-procedure TTimeWheel.run;
-begin
-  if not Assigned(FRollThread) then
-    FRollThread := TTimeWheelRollThread.Create(Self);
-end;
-
-procedure TTimeWheel.stop;
-begin
-  if Assigned(FRollThread) then
-  begin
-    TSignalThread(FRollThread).StopAndWait;
-    FreeAndNil(FRollThread);
+  {$IFDEF TIME_WHEEL_DEBUG}
+  if MilliSecondsBetween(LTimer.ExpireTime, Now) > FMSecsPerJiffy * 2 then
+    Writeln(Int64(_Timer), ' ', FormatDateTime('HH:NN:SS.zzz', LTimer.ExpireTime), ', ', FormatDateTime('HH:NN:SS.zzz', Now));
+  {$ENDIF}
+  try
+    LTimer.Callback(_Type);
+  except
+    on e: Exception do
+      DbgOutputException('TTimeWheel.DoCallback', e);
   end;
+  Dec(FTimerCount);
+  Inc(FTriggerCount);
+  LInterval := LTimer.getInterval;
+  if (_Type = tcbExpired) and (LInterval > 0) and LTimer.enabled then
+  begin
+    // 定时触发的任务重新加入队列
+    Inc(LTimer.Deadline, (LInterval + FMSecsPerJiffy - 1) div FMSecsPerJiffy);
+    {$IFDEF TIME_WHEEL_DEBUG}
+    LTimer.ExpireTime := IncMilliSecond(LTimer.ExpireTime, LInterval);
+    {$ENDIF}
+    DoAddTimer(LTimer);
+  end
+  else
+    LTimer.release;
 end;
 
-procedure TTimeWheel.checkExpired;
-var
-  nJiffies, tick, i, interval: DWORD;
-  idx: Integer;
-  entry, head: PLinkListEntry;
-  timer: PTimerItem;
-  runningTimers: TLinkListEntry;
-{$IFDEF DSLTimeWheelDebug}
-  nowJiffy, diff: Int64;
-{$ENDIF}
+procedure TTimeWheel.DoClear;
 begin
-  runningTimers.SetEmpty;
-  tick := GetTickCount;
-  nJiffies := (tick - FCurrentTick) div FGradularity;
+  clearVec(tv1);
+  clearVec(tv2);
+  clearVec(tv3);
+  clearVec(tv4);
+  clearVec(tv5);
+end;
 
-  for i := 1 to nJiffies do
+procedure TTimeWheel.MoveOn;
+var
+  idx: Integer;
+  LNode: PLinkListEntry;
+  LTimer: PTimerItem;
+begin
+  ProcessAddingTimers;
+
+  while timeGetTime - FLastTick >= FMSecsPerJiffy do
   begin
-    idx := FCurrentJiffies and 255;
-{$IFDEF DSLTimeWheelDebug}
-    nowJiffy := Self.getNowJiffies;
-{$ENDIF}
-    FLock.acquire;
+    idx := FLastJiffy and 255;
     if (idx = 0) and (cascade(tv2, 0) = 0) and (cascade(tv3, 1) = 0) and (cascade(tv4, 2) = 0) then
       cascade(tv5, 3);
-
-    Inc(FCurrentJiffies);
-    Inc(FCurrentTick, FGradularity);
-    head := @tv1.vec[idx];
-    entry := head.SetEmpty;
-    FLock.release;
-
-    while entry <> head do
+    Inc(FLastJiffy);
+    Inc(FLastTick, FMSecsPerJiffy);
+    LNode := tv1[idx].SetEmpty;
+    while LNode <> @tv1[idx] do
     begin
-      // runningTimers.insertHead(entry);
-      timer := PTimerItem(entry);
-      entry := entry.next;
-
-      try
-        timer.proc(Self, timer, tcbExpired);
-      except
-        on e: Exception do
-          DbgOutputException('TTimeWheel.callTimer', e);
-      end;
-{$IFDEF DSLTimeWheelDebug}
-      Inc(timer.execTimes);
-      InterlockedIncrement(FExecutedItemCount);
-      diff := nowJiffy - timer.expire;
-      if absoluteValue(diff) > FOverdueThreshold then
-      begin
-        Inc(FOverdue);
-        DbgOutput('overdue ' + IntToStr(diff) + ' jiffies');
-      end;
-{$ENDIF}
-      InterlockedDecrement(FItemCount);
-      interval := timer.getInterval;
-      if (interval > 0) and timer.enabled then
-      begin
-        Inc(timer.expire, (interval + FGradularity - 1) div FGradularity);
-        FLock.acquire;
-        _addTimer(timer);
-        FLock.release;
-      end
-      else
-        timer.release;
+      LTimer := PTimerItem(LNode);
+      LNode := LNode.next;
+      DoCallback(LTimer, tcbExpired);
     end;
   end;
 end;
 
-procedure TTimeWheel._addTimer(timer: PTimerItem);
+procedure TTimeWheel.ProcessAddingTimers;
 var
-  diff, expireAt: Int64;
-  entry: PLinkListEntry;
+  LNode: PLinkListEntry;
+  LTimer: PTimerItem;
+  LCurrentTick, tmp: DWORD;
+  LDelayMS: Int64;
 begin
-  timer.enable;
-  diff := timer.expire - FCurrentJiffies;
+  LCurrentTick := timeGetTime;
+  TMonitor.Enter(Self);
+  try
+    LNode := FAddingTimerList.SetEmpty;
+  finally
+    TMonitor.Exit(Self);
+  end;
+  while LNode <> @FAddingTimerList do
+  begin
+    LTimer := PTimerItem(LNode);
+    LNode := LNode.next;
+    tmp := LCurrentTick - FLastTick;
+    LDelayMS := LTimer.Deadline;
+    LTimer.Deadline := FLastJiffy + (LDelayMS + tmp + FMSecsPerJiffy - 1)  div FMSecsPerJiffy;
+    if LDelayMS <= 0 then
+    begin
+      Inc(FTimerCount);
+      DoCallback(LTimer, tcbExpired);
+    end
+    else
+      DoAddTimer(LTimer);
+  end;
+end;
 
-  if diff < 0 then
-    expireAt := FCurrentJiffies
-  else
-    expireAt := timer.expire;
-{$IFDEF DSLTimeWheelDebug}
-  timer.nextExecTime := IncMilliSecond(Now, (expireAt - FCurrentJiffies) * FGradularity);
-{$ENDIF}
-  if diff < 256 then
-    entry := @tv1.vec[expireAt and 255]
-  else if diff < 256 * 64 then
-    entry := @tv2.vec[expireAt shr 8 and 63]
-  else if diff < 256 * 64 * 64 then
-    entry := @tv3.vec[expireAt shr 14 and 63]
-  else if diff < 256 * 64 * 64 * 64 then
-    entry := @tv4.vec[expireAt shr 20 and 63]
-  else
-    entry := @tv5.vec[expireAt shr 26 and 63];
+procedure TTimeWheel.DoAddTimer(_Timer: Pointer);
+var
+  LDuration: Int64;
+  entry: PLinkListEntry;
+  LTimer: PTimerItem absolute _Timer;
+begin
+  LTimer.enable;
+  LDuration := LTimer.Deadline - FLastJiffy;
 
-  entry.insertHead(@timer.list);
-  InterlockedIncrement(FItemCount);
+  if LDuration <= 0 then
+  begin
+    Inc(FTimerCount);
+    DoCallback(LTimer, tcbExpired);
+    Exit;
+  end;
+
+  if LDuration < 256 then
+    entry := @tv1[LTimer.Deadline and 255]
+  else if LDuration < 256 * 64 then
+    entry := @tv2[LTimer.Deadline shr 8 and 63]
+  else if LDuration < 256 * 64 * 64 then
+    entry := @tv3[LTimer.Deadline shr 14 and 63]
+  else if LDuration < 256 * 64 * 64 * 64 then
+    entry := @tv4[LTimer.Deadline shr 20 and 63]
+  else
+    entry := @tv5[LTimer.Deadline shr 26 and 63];
+
+  entry.insertHead(@LTimer.ListNode);
+  Inc(FTimerCount);
 end;
 
 { TTimerItem }
 
 procedure TTimerItem.disable;
 begin
-  _intervalAndFlags := _intervalAndFlags and $7FFFFFFF;
+  _IntervalAndFlags := _IntervalAndFlags and $7FFFFFFF;
 end;
 
 procedure TTimerItem.enable;
 begin
-  _intervalAndFlags := _intervalAndFlags or $80000000;
+  _IntervalAndFlags := _IntervalAndFlags or $80000000;
 end;
 
 function TTimerItem.enabled: Boolean;
 begin
-  Result := _intervalAndFlags and $80000000 <> 0;
+  Result := _IntervalAndFlags and $80000000 <> 0;
 end;
 
 function TTimerItem.getInterval: DWORD;
 begin
-  Result := _intervalAndFlags and $FFFFFF;
+  Result := _IntervalAndFlags and $FFFFFF;
 end;
 
 procedure TTimerItem.init;
 begin
-  _intervalAndFlags := $80000000;
-{$IFDEF DSLTimeWheelDebug}
-  execTimes := 0;
-  nextExecTime := 0;
-{$ENDIF}
+  _IntervalAndFlags := $80000000;
 end;
 
 procedure TTimerItem.release;
@@ -388,9 +345,8 @@ end;
 
 procedure TTimerItem.setInterval(v: DWORD);
 begin
-  _intervalAndFlags := (_intervalAndFlags or $FFFFFF) and (v or $FF000000);
+  _IntervalAndFlags := (_IntervalAndFlags and $FF000000) or (v and $FFFFFF);
 end;
-
 
 { TTimeWheelRollThread }
 
@@ -406,8 +362,8 @@ begin
 
   while not Self.Terminated do
   begin
-    FTimeWheel.checkExpired;
-    if Self.WaitForStopSignal(FTimeWheel.FGradularity) then
+    FTimeWheel.MoveOn;
+    if Self.WaitForStopSignal(FTimeWheel.FMSecsPerJiffy) then
       Break;
   end;
 end;
