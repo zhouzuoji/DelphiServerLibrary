@@ -1762,6 +1762,17 @@ function UStrUrlGetParam(const url, name: u16string): u16string;
 function BStrUrlGetParam(const url, name: WideString): WideString;
 function ExpandUrl(const url: u16string): u16string;
 
+type
+  TTextDecoderProc = function(const s: RawByteString): u16string;
+  TTextEncoderProc = function(const s: u16string): RawByteString;
+  TUrlValues = class(TDictionary<string, TArray<string>>)
+  public
+    function Get(const _Name: string; _Idx: Integer = 0): string;
+    function Encode(_Encoder: TTextEncoderProc): RawByteString;
+  end;
+
+function ParseForm(const _Url: string; _Decoder: TTextDecoderProc): TUrlValues;
+
 var
   UrlGetParam: function(const url, name: string): string;
 
@@ -1814,6 +1825,8 @@ function HttpDecodeCStr(str: PAnsiChar; invalid: PPAnsiChar = nil): RawByteStrin
 function encodeURIComponent(const s: u16string): RawByteString; overload;
 function encodeURIComponent(const s: RawByteString): RawByteString; overload;
 function decodeURIComponent(const s: RawByteString): u16string;
+function encodeURIComponentGBK(const s: u16string): RawByteString;
+function decodeURIComponentGBK(const s: RawByteString): u16string;
 
 function JsonEscape(const s: u16string): u16string; overload;
 function JsonEscape(const s: RawByteString): RawByteString; overload;
@@ -5016,6 +5029,17 @@ function decodeURIComponent(const s: RawByteString): u16string;
 begin
   Result := WinAPI_UTF8Decode(HttpDecode(s));
 end;
+
+function decodeURIComponentGBK(const s: RawByteString): u16string;
+begin
+  Result := RBStrToUnicode(HttpDecode(s), 936);
+end;
+
+function encodeURIComponentGBK(const s: u16string): RawByteString;
+begin
+  Result := HttpEncode(UStrToMultiByte(s, 936));
+end;
+
 {$WARNINGS ON}
 
 function UrlExtractPathA(const url: RawByteString): RawByteString;
@@ -5078,6 +5102,78 @@ begin
       Result := Copy(url, i, length(url) + 1 - i);
       Break;
     end;
+  end;
+end;
+
+{ TUrlValues }
+
+function TUrlValues.Encode(_Encoder: TTextEncoderProc): RawByteString;
+var
+  LPair: TPair<string, TArray<string>>;
+  LKey: RawByteString;
+  LValue: string;
+begin
+  Result := '';
+  for LPair in Self do
+  begin
+    LKey := _Encoder(LPair.Key);
+    for LValue in LPair.Value do
+    begin
+      if Result <> '' then
+        Result := Result + '&';
+      Result := Result + LKey + '=' + _Encoder(LValue)
+    end;
+  end;
+end;
+
+function TUrlValues.Get(const _Name: string; _Idx: Integer): string;
+var
+  LValues: TArray<string>;
+begin
+  Self.TryGetValue(_Name, LValues);
+  if LValues <> nil then
+    Result := LValues[_Idx]
+  else
+    Result := '';
+end;
+
+function ParseForm(const _Url: string; _Decoder: TTextDecoderProc): TUrlValues;
+var
+  LQuestion, P, i: Integer;
+  LQuery, kv, k, v: string;
+  LPairs: TStringList;
+  LValues: TArray<string>;
+begin
+  LQuestion := Pos('?', _Url);
+  if LQuestion > 0 then
+    LQuery := Copy(_Url, LQuestion + 1)
+  else
+    LQuery := _Url;
+  Result := TUrlValues.Create;
+  LPairs := TStringList.Create;
+  LPairs.StrictDelimiter := True;
+  LPairs.Delimiter := '&';
+  try
+    LPairs.DelimitedText := LQuery;
+    for i := 0 to LPairs.Count - 1 do
+    begin
+      kv := Trim(LPairs[i]);
+      P := Pos('=', kv);
+      if P > 0 then
+      begin
+        k := Copy(kv, 1, P - 1);
+        v := Copy(kv, P + 1);
+        k := _Decoder(RawByteString(k));
+        v := _Decoder(RawByteString(v));
+        Result.TryGetValue(k, LValues);
+        P := Length(LValues);
+        SetLength(LValues, P + 1);
+        LValues[P] := v;
+        Result.AddOrSetValue(k, LValues);
+      end;
+    end;
+  finally
+    LPairs.Free;
   end;
 end;
 
