@@ -23,6 +23,7 @@ type
 const
   BASE64_ALPHABETS_STD = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
 
+function Base64DecodeResultLen(input: Pointer; InputSize: Integer): Integer;
 function Base64Encode(input: Pointer; InputSize: Integer; output: Pointer;
   const CharTable: RawByteString = BASE64_ALPHABETS_STD): Integer; overload;
 function Base64Encode(input: Pointer; InputSize: Integer): RawByteString; overload;
