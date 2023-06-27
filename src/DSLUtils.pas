@@ -1764,6 +1764,7 @@ function ExpandUrl(const url: u16string): u16string;
 
 type
   TTextDecoderProc = function(const s: RawByteString): u16string;
+  TTextBufDecoderProc = function(s: PAnsiChar; len: Integer): u16string;
   TTextEncoderProc = function(const s: u16string): RawByteString;
   TUrlValues = class(TDictionary<string, TArray<string>>)
   public
@@ -1771,7 +1772,12 @@ type
     function Encode(_Encoder: TTextEncoderProc): RawByteString;
   end;
 
-function ParseForm(const _Url: string; _Decoder: TTextDecoderProc): TUrlValues;
+type
+  TKeyValueCallback = reference to function(_KeyStart, _KeyEnd, _ValueStart, _ValueEnd: PAnsiChar): Boolean;
+
+procedure UrlEncodedFormIterate(_Search: PAnsiChar; _SearchLen: Integer; const _Callback: TKeyValueCallback);
+function ParseForm(const _Url: string; _Decoder: TTextDecoderProc): TUrlValues; overload;
+function ParseForm(const _Search: RawByteString; _Decoder: TTextBufDecoderProc): TUrlValues; overload;
 
 var
   UrlGetParam: function(const url, name: string): string;
@@ -1826,7 +1832,7 @@ function encodeURIComponent(const s: u16string): RawByteString; overload;
 function encodeURIComponent(const s: RawByteString): RawByteString; overload;
 function decodeURIComponent(const s: RawByteString): u16string;
 function encodeURIComponentGBK(const s: u16string): RawByteString;
-function decodeURIComponentGBK(const s: RawByteString): u16string;
+function decodeURIComponentGBK(_Text: PAnsiChar; _Len: Integer): u16string;
 
 function JsonEscape(const s: u16string): u16string; overload;
 function JsonEscape(const s: RawByteString): RawByteString; overload;
@@ -5030,9 +5036,9 @@ begin
   Result := WinAPI_UTF8Decode(HttpDecode(s));
 end;
 
-function decodeURIComponentGBK(const s: RawByteString): u16string;
+function decodeURIComponentGBK(_Text: PAnsiChar; _Len: Integer): u16string;
 begin
-  Result := RBStrToUnicode(HttpDecode(s), 936);
+  Result := RBStrToUnicode(HttpDecodeBuf(_Text^, _Len), 936);
 end;
 
 function encodeURIComponentGBK(const s: u16string): RawByteString;
@@ -5175,6 +5181,88 @@ begin
   finally
     LPairs.Free;
   end;
+end;
+
+procedure UrlEncodedFormIterate(_Search: PAnsiChar; _SearchLen: Integer; const _Callback: TKeyValueCallback);
+label
+  lbl_k, lbl_kv;
+var
+  P, LEnd, LNameStart, LNameEnd, LValueStart, LValueEnd: PAnsiChar;
+begin
+  P := _Search;
+  LEnd := P + _SearchLen;
+  while (P < LEnd) and (P^ <> '?') do Inc(P);
+  if P = LEnd then
+    P := PAnsiChar(_Search)
+  else
+    Inc(P);
+  while P < LEnd do
+  begin
+    LValueStart := P;
+    LValueEnd := P;
+    LNameStart := P;
+    while P < LEnd do
+    begin
+      case P^ of
+        '&':
+          begin
+            LNameEnd := P;
+            goto lbl_kv;
+          end;
+        '=':
+          begin
+            LNameEnd := P;
+            goto lbl_k;
+          end
+        else Inc(P);
+      end;
+    end;
+    LNameEnd := P;
+    goto lbl_kv;
+lbl_k:
+    Inc(P);
+    LValueStart := P;
+    while (P < LEnd) and (P^ <> '&') do Inc(P);
+    LValueEnd := P;
+lbl_kv:
+    Inc(P);
+    if LNameEnd <= LNameStart then Continue;
+    if _Callback(LNameStart, LNameEnd, LValueStart, LValueEnd) then
+      Break;
+  end;
+end;
+
+function ParseForm(const _Search: RawByteString; _Decoder: TTextBufDecoderProc): TUrlValues;
+var
+  LResult: TUrlValues;
+begin
+  LResult := TUrlValues.Create;
+  try
+    UrlEncodedFormIterate(PAnsiChar(_Search), Length(_Search),
+      function(_KeyStart, _KeyEnd, _ValueStart, _ValueEnd: PAnsiChar): Boolean
+      var
+        LName, LValue: string;
+        LValues: TArray<string>;
+        L: Integer;
+      begin
+        LName := _Decoder(_KeyStart, _KeyEnd - _KeyStart);
+        if _ValueEnd > _ValueStart then
+          LValue := _Decoder(_ValueStart, _ValueEnd - _ValueStart)
+        else
+          LValue := '';
+        LResult.TryGetValue(LName, LValues);
+        L := Length(LValues);
+        SetLength(LValues, L + 1);
+        LValues[L] := LValue;
+        LResult.AddOrSetValue(LName, LValues);
+        Result := False;
+      end
+    );
+  except
+    FreeAndNil(LResult);
+    raise;
+  end;
+  Result := LResult;
 end;
 
 function CloneList(src: TList): TList;
