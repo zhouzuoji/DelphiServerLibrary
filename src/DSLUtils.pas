@@ -1754,6 +1754,7 @@ procedure EditSetNumberOnly(edit: TWinControl);
 function CtrlDown: Boolean;
 procedure CloseForm(form: TCustomForm);
 procedure SetModalResult(form: TCustomForm; mr: TModalResult);
+procedure ShowForm(form: TCustomForm);
 
 procedure ListViewSetRowCount(ListView: TListView; count: Integer);
 {$REGION 'url string utils'}
@@ -2385,6 +2386,9 @@ var
   InterlockedExchangeAddDWORD: function(var Addend: DWORD; value: DWORD): DWORD stdcall;
 
 implementation
+
+uses
+  Messages;
 
 const
   MB_ERR_INVALID_CHARS = 8; { error for invalid chars }
@@ -17472,6 +17476,18 @@ begin
     form.ModalResult := mr
   else
     form.Close;
+end;
+
+type
+  TWinCtrlHack = class(TWinControl);
+
+procedure ShowForm(form: TCustomForm);
+begin
+  form.Visible := True;
+  if IsIconic(TWinCtrlHack(form).WindowHandle) then
+    form.Perform(WM_SYSCOMMAND, SC_RESTORE, 0);
+  form.BringToFront;
+  SetForegroundWindow(TWinCtrlHack(form).WindowHandle);
 end;
 
 procedure ListViewSetRowCount(ListView: TListView; count: Integer);
