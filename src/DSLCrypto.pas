@@ -267,7 +267,14 @@ function SHA384File(const FileName: string): TSHA384Digest;
 
 {$ENDREGION}
 
+function PKCS7DataSize(const _PaddedBuf; _PaddedBufLen: Integer): Integer;
+
 implementation
+
+function PKCS7DataSize(const _PaddedBuf; _PaddedBufLen: Integer): Integer;
+begin
+  Result := _PaddedBufLen - PByte(PAnsiChar(@_PaddedBuf)+_PaddedBufLen-1)^;
+end;
 
 procedure xor_32bit_array(const src; var dst; v: UInt32; num: Integer); inline;
 var
