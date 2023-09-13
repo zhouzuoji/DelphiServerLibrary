@@ -643,7 +643,6 @@ end;
 function ImportCert(_CertData: Pointer; _CertDataLen: Integer): Boolean;
 var
   hStore: HCERTSTORE;
-  LCertData: RawByteString;
   LCtx, LExistingCtx: PCCERT_CONTEXT;
 begin
   hStore := CertOpenSystemStore(0, 'ROOT');
