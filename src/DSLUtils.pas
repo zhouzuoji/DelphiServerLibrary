@@ -17618,7 +17618,7 @@ function SHGetTargetOfShortcut(const LinkFile: string): string;
 var
   IntfLink: IShellLink;
   IntfPersist: IPersistFile;
-  pfd: _WIN32_FIND_DATA;
+  pfd: TWin32FindData;
   buf: array [0 .. MAX_PATH] of Char;
 begin
   Result := '';
