@@ -42,6 +42,23 @@ function GetObjectListConstructor(t: TRttiInstanceType): TObjectListConstructor;
 type
   TRTTIAttributeClass = class of TCustomAttribute;
   CalleeOwnsRetValue = class(TCustomAttribute);
+  ITypeTrait = interface
+    procedure WriteAsStr(const _S: string; var _Addr);
+    function ReadAsStr(const _Addr): string;
+  end;
+
+  TIntegerTypeTrait = class(TInterfacedObject, ITypeTrait)
+  private
+    FOrdType: TOrdType;
+    FMinValue, FMaxValue: Integer;
+  public
+    procedure WriteAsStr(const _S: string; var _Addr);
+    function ReadAsStr(const _Addr): string;
+    property OrdType: TOrdType read FOrdType;
+    property MinValue: Integer read FMinValue;
+    property MaxValue: Integer read FMaxValue;
+  end;
+
   TCustomClassTrait = class
   private
     FParamlessCtor: TParamlessConstructor;
@@ -175,8 +192,7 @@ begin
   begin
     Result.Free;
     Result := tmp;
-  end
-  else
+  end;
     G_ClassTraitCache.Add(_TypeInfo, Result);
   G_ClassTraitCacheLock.Release;
 end;
@@ -684,6 +700,18 @@ end;
 procedure TGenericListTrait.SetCount(_List: TObject; _Count: Integer);
 begin
   FMethodSetCount(_List, _Count);
+end;
+
+{ TIntegerTypeTrait }
+
+function TIntegerTypeTrait.ReadAsStr(const _Addr): string;
+begin
+
+end;
+
+procedure TIntegerTypeTrait.WriteAsStr(const _S: string; var _Addr);
+begin
+
 end;
 
 initialization
