@@ -118,7 +118,7 @@ end;
 
 class operator TdslArray<T>.Add(const a, b: TdslArray<T>): TdslArray<T>;
 var
-  len1, len2, i: Integer;
+  len1, len2: Integer;
 begin
   len1 := a.Count;
   len2 := b.Count;
@@ -153,7 +153,7 @@ end;
 
 procedure TdslArray<T>.Delete(avIndex, avCount: Integer);
 var
-  i, j, lvOldCount: Integer;
+  lvOldCount: Integer;
 begin
   lvOldCount := Self.GetCount;
 
@@ -201,7 +201,7 @@ end;
 
 procedure TdslArray<T>.Grow(avMinCapacity: Integer);
 var
-  lvOldCapacity, lvDelta: Integer;
+  lvOldCapacity: Integer;
 begin
   lvOldCapacity := Length(tvItems);
   if avMinCapacity > lvOldCapacity then
@@ -232,8 +232,6 @@ begin
 end;
 
 procedure TdslArray<T>.Insert(avIndex: Integer; avItem: TItemPointer; avCount: Integer);
-var
-  i: Integer;
 begin
   if avCount > 0 then
   begin
@@ -314,8 +312,6 @@ begin
 end;
 
 class function TdslArrayUtils<T>.Delete(avBase: TItemPointer; avLength, avIndex, avCount: Integer): Integer;
-var
-  i, j: Integer;
 begin
   if (avIndex >= 0) and (avIndex < avLength) then
   begin
@@ -334,7 +330,7 @@ end;
 class procedure TdslArrayUtils<T>.Insert(var arr: TArray<T>; avIndex: Integer;
   avItem: TItemPointer; avCount: Integer);
 var
-  lvOldLen, i: Integer;
+  lvOldLen: Integer;
 begin
   if avCount > 0 then
   begin
@@ -353,7 +349,7 @@ end;
 
 class procedure TdslArrayUtils<T>.Insert(var arr: TArray<T>; avIndex: Integer; const v: T);
 var
-  lvOldLen, i: Integer;
+  lvOldLen: Integer;
 begin
   lvOldLen := Length(arr);
   if (avIndex >= 0) and (avIndex <= lvOldLen) then

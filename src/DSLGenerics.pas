@@ -1191,7 +1191,6 @@ end;
 
 procedure TCircularList<T>.DoDeleteRange(AIndex, ACount: Integer; Notification: Generics.Collections.TCollectionNotification);
 var
-  oldItems: array of T;
   i, S1, S2, S3, S4, D1, D2, D3, D4, O1, O2: Integer;
 begin
   if (AIndex < 0) or (ACount < 0) or (AIndex + ACount > Count) or (AIndex + ACount < 0) then
