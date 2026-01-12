@@ -9,14 +9,14 @@ uses
   DSLUtils;
 
 type
-  TMobuleInfo = record
+  TModuleInfo = record
     ModuleId: DWORD;
     ModuleName: string;
     ModulePath: string;
   end;
 
-function GetProcessList: TArray<TMobuleInfo>;
-function GetModuleList(_pid: DWORD): TArray<TMobuleInfo>;
+function GetProcessList: TArray<TModuleInfo>;
+function GetModuleList(_pid: DWORD): TArray<TModuleInfo>;
 function getParentProcessId: DWORD;
 function dslGetModuleFileName(hProcess, hModule: THandle): string;
 function GetModulePath(const _pid: DWORD; const _ModuleName: string): string;
@@ -129,7 +129,7 @@ begin
   Result := SameText('explorer.exe', s);
 end;
 
-function GetProcessList: TArray<TMobuleInfo>;
+function GetProcessList: TArray<TModuleInfo>;
 var
   LSnapshot: THandle;
   LEntry: TProcessEntry32;
@@ -155,7 +155,7 @@ begin
   end;
 end;
 
-function GetModuleList(_pid: DWORD): TArray<TMobuleInfo>;
+function GetModuleList(_pid: DWORD): TArray<TModuleInfo>;
 var
   LSnapshot: THandle;
   LEntry: TModuleEntry32;

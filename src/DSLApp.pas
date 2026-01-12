@@ -58,6 +58,7 @@ function getAppStartTime: TDateTime;
 function getAppDataPath: string;
 function getAppUserPath: string;
 function ResolvePath(const _Path: string): string;
+function FixDesktopShortcut(const _Desc, _IconFile: string): Boolean;
 function iniReadInteger(const section, name: string; def: Integer = 0): Integer;
 function iniReadFloat(const section, name: string; def: Double = 0.0): Double;
 function iniReadBool(const section, name: string; def: Boolean = False): Boolean;
@@ -103,7 +104,9 @@ var
 implementation
 
 uses
-  Generics.Collections;
+  Generics.Collections,
+  ShlObj,
+  ComObj;
 
 var
   g_appVerInfo: TFileVersionInfo;
@@ -687,13 +690,57 @@ begin
     DbgOutput(s);
 end;
 
+
+const
+  IID_IPersistFile: TGUID = '{0000010B-0000-0000-C000-000000000046}';
+
+function FixDesktopShortcut(const _Desc, _IconFile: string): Boolean;
+var
+  LFiles: TStringList;
+  LDesktopPath, LFileName, LLinkFile, LTarget, LLinkDir: string;
+  IntfLink: IShellLink;
+  IntfPersist: IPersistFile;
+  pfd: TWin32FindData;
+  buf: array [0 .. MAX_PATH] of Char;
+begin
+  Result := False;
+  LDesktopPath := DSLUtils.SHGetSpecialFolderPath(sfiDesktop);
+  LFiles := TStringList.Create;
+  try
+    SearchFiles(LDesktopPath, '*.lnk', LFiles);
+    for LFileName in LFiles do
+    begin
+      LLinkFile := PathJoin(LDesktopPath, LFileName);
+      IntfLink := CreateComObject(CLSID_ShellLink) as IShellLink;
+      if Assigned(IntfLink) and SUCCEEDED(IntfLink.QueryInterface(IID_IPersistFile, IntfPersist)) and
+        SUCCEEDED(IntfPersist.Load(PChar(LLinkFile), STGM_READWRITE)) and
+        SUCCEEDED(IntfLink.GetPath(buf, length(buf) - 1, pfd, SLGP_RAWPATH)) then
+      begin
+        LTarget := Array2Str(buf);
+        if SameText(LTarget, getAppExeFullName) then
+        begin
+          IntfLink.SetDescription(PChar(_Desc));
+          IntfLink.SetIconLocation(PChar(_IconFile), 0);
+          IntfPersist.Save(PChar(LLinkFile), True);
+          Exit(True);
+        end;
+        LLinkDir := ExtractFilePath(LTarget);
+        if SameText(LLinkDir, g_appPath) and not FileExists(LTarget) then
+          DSLUtils.DeleteFile(LLinkFile);
+      end;
+    end;
+  finally
+    LFiles.Free;
+  end;
+end;
+
 procedure unitInit;
 var
   i: Integer;
 begin
-  G_AppDataRoaming := ExcludeTrailingPathDelimiter(SHGetSpecialFolderPath(sfiAppData));
-  G_LocalAppDataLocal := ExcludeTrailingPathDelimiter(SHGetSpecialFolderPath(sfiLocalAppData));
-  G_CommonAppData := ExcludeTrailingPathDelimiter(SHGetSpecialFolderPath(sfiCommonAppData));
+  G_AppDataRoaming := ExcludeTrailingPathDelimiter(DSLUtils.SHGetSpecialFolderPath(sfiAppData));
+  G_LocalAppDataLocal := ExcludeTrailingPathDelimiter(DSLUtils.SHGetSpecialFolderPath(sfiLocalAppData));
+  G_CommonAppData := ExcludeTrailingPathDelimiter(DSLUtils.SHGetSpecialFolderPath(sfiCommonAppData));
   g_StartTime := Now;
   g_appImagePath := dslGetModuleFileName(0, 0);
   g_appPath := ExtractFilePath(g_appImagePath);

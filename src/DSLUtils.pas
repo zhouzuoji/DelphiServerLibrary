@@ -1708,9 +1708,12 @@ procedure ClearObjectList(objlist: TObject);
 procedure ClearObjectListAndFree(objlist: TObject);
 {$REGION '文件目录相关'}
 procedure EmptyFile(const FileName: string);
+function DeleteFile(const _FileName: string): Boolean;
+function ForceMoveFile(const _Source, _Dest: string): Boolean;
 procedure SubDirList(const ParentDir: string; strs: TStrings);
 function CopyDirecotry(const SrcDir, DstDir: string; recursive: Boolean = False): Integer;
 procedure SearchFiles(const ParentDir, filter: string; strs: TStrings);
+function SearchAndDeleteFiles(const ParentDir, filter: string): Integer;
 procedure SafeForceDirectories(const dir: string);
 function PathJoin(const s1, s2: string): string;
 procedure SaveStreamToFile(const FileName: string; stream: TStream; len: Integer);
@@ -1944,7 +1947,7 @@ function FindChildWindowRecursive(parent: HWND; WndClassName, WndText: PWideChar
   const ExcludeWindows: array of THandle): HWND;
 
 function SHGetTargetOfShortcut(const LinkFile: string): string;
-function SHCreateShortcut(const TargetFile, desc, CreateAt: string): Boolean;
+function SHCreateShortcut(const TargetFile, desc, CreateAt: string; const _IconPath: string = ''): Boolean;
 function SHGetSpecialFolderPath(FolderID: TSpecialFolderID): string;
 function InternetExplorerGetCookie(const url: u16string; HttpOnly: Boolean): u16string;
 {$ENDREGION}
@@ -5688,6 +5691,16 @@ begin
   end;
 end;
 
+function DeleteFile(const _FileName: string): Boolean;
+begin
+  Result := Windows.DeleteFile(PChar(_FileName));
+end;
+
+function ForceMoveFile(const _Source, _Dest: string): Boolean;
+begin
+  Result := Windows.MoveFileEx(PChar(_Source), PChar(_Dest), MOVEFILE_COPY_ALLOWED or MOVEFILE_REPLACE_EXISTING or MOVEFILE_WRITE_THROUGH);
+end;
+
 procedure SubDirList(const ParentDir: string; strs: TStrings);
 var
   sr: TSearchRec;
@@ -5777,7 +5790,7 @@ begin
   if ParentDir = '' then
     Exit;
 
-  if ParentDir[length(ParentDir)] = '\' then
+  if ParentDir[Length(ParentDir)] = '\' then
     path := ParentDir + filter
   else
     path := ParentDir + '\' + filter;
@@ -5789,6 +5802,32 @@ begin
   begin
     if (sr.Name <> '.') and (sr.Name <> '..') and (sr.Attr and faDirectory = 0) then
       strs.add(sr.Name);
+
+    if SysUtils.FindNext(sr) <> 0 then
+      Break;
+  end;
+
+  SysUtils.FindClose(sr);
+end;
+
+function SearchAndDeleteFiles(const ParentDir, filter: string): Integer;
+var
+  sr: TSearchRec;
+  LParentDir: string;
+begin
+  Result := 0;
+  if ParentDir = '' then
+    Exit;
+  LParentDir := IncludeTrailingPathDelimiter(ParentDir);
+  if SysUtils.FindFirst(LParentDir + filter, faAnyFile, sr) <> 0 then
+    Exit;
+  while True do
+  begin
+    if (sr.Name <> '.') and (sr.Name <> '..') and (sr.Attr and faDirectory = 0) then
+    begin
+      DeleteFile(LParentDir + sr.Name);
+      Inc(Result);
+    end;
 
     if SysUtils.FindNext(sr) <> 0 then
       Break;
@@ -17630,7 +17669,7 @@ begin
     Result := Array2Str(buf);
 end;
 
-function SHCreateShortcut(const TargetFile, desc, CreateAt: string): Boolean;
+function SHCreateShortcut;
 var
   IntfLink: IShellLink;
   IntfPersist: IPersistFile;
@@ -17644,7 +17683,8 @@ begin
   begin
     IntfLink.SetDescription(PChar(desc));
     IntfLink.SetWorkingDirectory(PChar(ExtractFilePath(TargetFile)));
-
+    if _IconPath <> '' then
+      IntfLink.SetIconLocation(PChar(_IconPath), 0);
     if SUCCEEDED(IntfPersist.Save(PWideChar(u16string(CreateAt)), True)) then
       Result := True;
   end;

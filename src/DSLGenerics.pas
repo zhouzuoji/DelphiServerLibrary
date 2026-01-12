@@ -1862,7 +1862,7 @@ begin
     begin
       FItems.Exchange(FItems.Count - 1, LIdx);
       FDict.AddOrSetValue(FKeyGetter(FItems.List[LIdx]), LIdx);
-      FDict.AddOrSetValue(FKeyGetter(FItems.List[LIdx]), FItems.Count - 1);
+      //FDict.AddOrSetValue(FKeyGetter(FItems.List[LIdx]), FItems.Count - 1);
     end;
     FItems.Delete(FItems.Count - 1);
     FDict.Remove(_Key);
