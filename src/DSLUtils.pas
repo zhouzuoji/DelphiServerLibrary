@@ -10,9 +10,8 @@ interface
 
 uses
   AnsiStrings, DSLAnsiFunctions, SysUtils, Classes, Types, SysConst, Windows, MMSystem, WinSvc,
-  Generics.Collections, ShellAPI, PsAPI, StrUtils, DateUtils, Controls, RTLConsts, WideStrings, Math,
-  Dialogs, Forms, Graphics, ComCtrls, CommCtrl, ComObj, ShlObj, ActiveX, Variants, VarUtils,
-  SyncObjs, Contnrs, TlHelp32, ZLibExApi;
+  Generics.Collections, ShellAPI, PsAPI, StrUtils, DateUtils, RTLConsts, WideStrings, Math,
+  ShlObj, ComObj, ActiveX, Variants, VarUtils, SyncObjs, Contnrs, TlHelp32, ZLibExApi;
 
 type
 {$ifndef  unicode}
@@ -901,29 +900,6 @@ procedure SetRBStr(var s: RawByteString; _begin, _end: PAnsiChar);
 procedure SetUString(var s: u16string; _begin, _end: PWideChar);
 {$ENDREGION}
 {$REGION 'string <=> number interface'}
-const
-  INT64_TABLE: array [0 .. 19] of UInt64 = (
-    1,
-    10,
-    100,
-    1000,
-    10000,
-    100000,
-    1000000,
-    10000000,
-    100000000,
-    1000000000,
-    10000000000,
-    100000000000,
-    1000000000000,
-    10000000000000,
-    100000000000000,
-    1000000000000000,
-    10000000000000000,
-    100000000000000000,
-    1000000000000000000,
-    10000000000000000000
-    );
 
 type
   TNumberType = (numNaN, numInt32, numUInt32, numInt64, numUInt64, numDouble, numExtended);
@@ -952,6 +928,7 @@ type
     procedure setDouble(value: Double); inline;
     procedure setExtended(value: Extended); inline;
     procedure clear; inline;
+    function ToVariant: Variant;
     case _type: TNumberType of
       numInt32:
         (I32: Int32);
@@ -966,15 +943,6 @@ type
       numExtended:
         (VExtended: Extended);
   end;
-
-procedure _calcInt(isNegative: Boolean; s: PAnsiChar; len: Integer; var number: TNumber); overload;
-procedure _calcInt(isNegative: Boolean; s: PWideChar; len: Integer; var number: TNumber); overload;
-
-// parseNumber supports both integers and floats
-function parseNumber(s: PAnsiChar; endAt: PPAnsiChar = nil): TNumber; overload;
-function parseNumber(s: PWideChar; endAt: PPWideChar = nil): TNumber; overload;
-function parseNumber(s: PAnsiChar; slen: Integer; endAt: PPAnsiChar = nil): TNumber; overload;
-function parseNumber(s: PWideChar; slen: Integer; endAt: PPWideChar = nil): TNumber; overload;
 
 function divBy100(dividend: Int32): Int32;
 function StrInt(s: PAnsiChar; value: UInt32): PAnsiChar; overload;
@@ -1732,34 +1700,14 @@ function Stream2String(stream: TStream): RawByteString;
 function getStreamContentType(data: TStream): RawByteString;
 {$ENDREGION}
 
-function ControlFindContainer(control: TControl; cls: TClass): TWinControl;
-function ControlFindChild(container: TWinControl; cls: TClass): TControl;
-
 procedure InfoBox(const msg: string; _Parent: THandle = 0);
 procedure ErrorBox(const msg: string; _Parent: THandle = 0);
 procedure WarnBox(const msg: string; _Parent: THandle = 0);
 function ConfirmBox(const msg: string; _Parent: THandle = 0): Boolean;
 
-procedure ShowMessageEx(const v: TAnsiCharSection); overload;
-procedure ShowMessageEx(const v: string); overload;
-procedure ShowMessageEx(const v: RawByteString); overload;
-procedure ShowMessageEx(v: Integer); overload;
-procedure ShowMessageEx(v: Int64); overload;
-procedure ShowMessageEx(v: Double); overload;
-procedure ShowMessageEx(v: Extended); overload;
-procedure ShowMessageEx(v: Real); overload;
-//procedure ShowMessageEx(v: Real48); overload;
-procedure ShowMessageEx(v: Boolean); overload;
 
-function ControlVisible(ctrl: TControl): Boolean;
-procedure ControlSetFocus(ctrl: TWinControl);
-procedure EditSetNumberOnly(edit: TWinControl);
 function CtrlDown: Boolean;
-procedure CloseForm(form: TCustomForm);
-procedure SetModalResult(form: TCustomForm; mr: TModalResult);
-procedure ShowForm(form: TCustomForm);
 
-procedure ListViewSetRowCount(ListView: TListView; count: Integer);
 {$REGION 'url string utils'}
 function RBStrUrlGetParam(const url, name: RawByteString): RawByteString;
 function UStrUrlGetParam(const url, name: u16string): u16string;
@@ -1893,17 +1841,6 @@ function RawByteStrInsertAfter(const src, prefix, ToInsert: AnsiString; first: I
   last: Integer = 0): AnsiString;
 function UStrInsertAfter(const src, prefix, ToInsert: u16string; first: Integer = 1;
   last: Integer = 0): u16string;
-
-procedure MsgSleep(period: DWORD);
-
-type
-  TConfirmDlgButtons = (cdbOK, cdbOKCancel, cdbAbortRetryIgnore, cdbYesNoCancel, cdbYesNo, cdbRetryCancel);
-
-  TConfirmDlgResult = (cdrOK, cdrCancel, cdrAbort, cdrRetry, cdrIgnore, cdrYes, cdrNo, cdrClose, cdrHelp, cdrTryAgain,
-    cdrContinue);
-
-function ConfirmDialog(const msg: string; const parent: THandle = 0; const title: string = '';
-  const buttons: TConfirmDlgButtons = cdbYesNo): TConfirmDlgResult;
 
 function RunningInMainThread: Boolean;
 function StrToBoolA(s: PAnsiChar; len: Integer; def: Boolean): Boolean;
@@ -2408,47 +2345,6 @@ begin
   Result := Target;
   Target := value;
 {$ENDIF}
-end;
-
-procedure MsgSleep(period: DWORD);
-var
-  tick, remain, ellapse, wr: DWORD;
-  events: array [0 .. 0] of THandle;
-begin
-  if RunningInMainThread then
-  begin
-    events[0] := CreateEvent(nil, False, False, nil);
-
-    try
-      tick := GetTickCount;
-
-      while not Application.Terminated do
-      begin
-        ellapse := GetTickCount - tick;
-
-        if ellapse >= period then
-          Break;
-
-        remain := period - ellapse;
-
-        wr := MsgWaitForMultipleObjects(1, events, False, remain, QS_ALLINPUT);
-
-        if wr = WAIT_TIMEOUT then
-          Break;
-
-        if wr = WAIT_OBJECT_0 + 1 then
-          try
-            Application.ProcessMessages;
-          except
-
-          end;
-      end;
-    finally
-      CloseHandle(events[0]);
-    end;
-  end
-  else
-    Windows.Sleep(period);
 end;
 
 function GetHumanReadableByteSize(size: DWORD): string;
@@ -8858,926 +8754,7 @@ end;
 
 {$REGION 'string <=> number implementation'}
 
-procedure _calcInt(isNegative: Boolean; s: PAnsiChar; len: Integer; var number: TNumber);
-var
-  c, c2: UInt32;
-  UI64: UInt64;
-  len2: Integer;
-  function _(pch: PAnsiChar; i: Integer): UInt32; inline;
-  begin
-    Result := UInt32(pch[i]) and $0F;
-  end;
 
-begin
-  if len < 10 then
-  begin
-    number._type := numInt32;
-    c := 0;
-    case len of
-      1:
-        c := _(s, 0);
-      2:
-        c := _(s, 0) * 10 + _(s, 1);
-      3:
-        c := _(s, 0) * 100 + _(s, 1) * 10 + _(s, 2);
-      4:
-        c := _(s, 0) * 1000 + _(s, 1) * 100 + _(s, 2) * 10 + _(s, 3);
-      5:
-        c := _(s, 0) * 10000 + _(s, 1) * 1000 + _(s, 2) * 100 + _(s, 3) * 10 + _(s, 4);
-      6:
-        c := _(s, 0) * 100000 + _(s, 1) * 10000 + _(s, 2) * 1000 + _(s, 3) * 100 + _(s, 4) * 10 + _(s, 5);
-      7:
-        c := _(s, 0) * 1000000 + _(s, 1) * 100000 + _(s, 2) * 10000 + _(s, 3) * 1000 + _(s, 4) * 100 + _(s, 5) * 10 + _
-          (s, 6);
-      8:
-        c := _(s, 0) * 10000000 + _(s, 1) * 1000000 + _(s, 2) * 100000 + _(s, 3) * 10000 + _(s, 4) * 1000 + _(s, 5)
-          * 100 + _(s, 6) * 10 + _(s, 7);
-      9:
-        c := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s,
-          5) * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
-    end;
-    if isNegative then
-      number.I32 := -c
-    else
-      number.I32 := c;
-    Exit;
-  end;
-
-  c := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s, 5)
-    * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
-
-  Inc(s, 9);
-  Dec(len, 9);
-  if (c < High(UInt32) div 10) or ((c = High(UInt32) div 10) and (s[0] = '5')) then
-  begin
-    c := c * 10 + _(s, 0);
-    Inc(s);
-    Dec(len);
-
-    if len = 0 then
-    begin
-      if isNegative then
-      begin
-        if c > UInt32( High(Int32)) + 1 then
-          number.setInt64(-Int64(c))
-        else
-          number.setInt32(-c);
-      end
-      else
-        number.setUInt32(c);
-      Exit;
-    end;
-  end;
-
-  UI64 := UInt64(c);
-  len2 := len;
-  case len of
-    0:
-      c2 := 0;
-    1:
-      c2 := _(s, 0);
-    2:
-      c2 := _(s, 0) * 10 + _(s, 1);
-    3:
-      c2 := _(s, 0) * 100 + _(s, 1) * 10 + _(s, 2);
-    4:
-      c2 := _(s, 0) * 1000 + _(s, 1) * 100 + _(s, 2) * 10 + _(s, 3);
-    5:
-      c2 := _(s, 0) * 10000 + _(s, 1) * 1000 + _(s, 2) * 100 + _(s, 3) * 10 + _(s, 4);
-    6:
-      c2 := _(s, 0) * 100000 + _(s, 1) * 10000 + _(s, 2) * 1000 + _(s, 3) * 100 + _(s, 4) * 10 + _(s, 5);
-    7:
-      c2 := _(s, 0) * 1000000 + _(s, 1) * 100000 + _(s, 2) * 10000 + _(s, 3) * 1000 + _(s, 4) * 100 + _(s, 5) * 10 + _
-        (s, 6);
-    8:
-      c2 := _(s, 0) * 10000000 + _(s, 1) * 1000000 + _(s, 2) * 100000 + _(s, 3) * 10000 + _(s, 4) * 1000 + _(s, 5)
-        * 100 + _(s, 6) * 10 + _(s, 7);
-  else
-    c2 := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s, 5)
-      * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
-    len2 := 9;
-    if (len > 9) and ((c2 < High(UInt32) div 10) or ((c2 = High(UInt32) div 10) and (s[9] = '5'))) then
-    begin
-      c2 := c2 * 10 + _(s, 9);
-      Inc(len2);
-    end;
-  end;
-  Inc(s, len2);
-  Dec(len, len2);
-  UI64 := UI64 * INT64_TABLE[len2] + c2;
-
-  if len > 0 then
-  begin
-    case len of
-      1:
-        c2 := _(s, 0);
-      2:
-        c2 := _(s, 0) * 10 + _(s, 1);
-    end;
-    UI64 := UI64 * INT64_TABLE[len] + c2;
-  end;
-
-  if isNegative then
-    number.setInt64(-UI64)
-  else
-    number.setUInt64(UI64);
-end;
-
-function parseNumber(s: PAnsiChar; endAt: PPAnsiChar): TNumber;
-var
-  isNegative, expNegative: Boolean;
-  p, firstDigit, pNonZeroFrac, pDigits, intEnd, fracBegin, fracEnd: PAnsiChar;
-  maxIntBits, exponent, len, len2, i, n: Integer;
-  c: UInt32;
-  mantissa: array [0 .. 14] of AnsiChar;
-label lbl_exit, lbl_exp, lbl_float, lbl_int, lbl_power;
-begin
-  Result.clear;
-
-  if s = nil then
-  begin
-    P := s;
-    goto lbl_exit;
-  end;
-
-  s := GotoNextNotSpace(s);
-  p := s;
-  isNegative := False;
-  expNegative := False;
-  maxIntBits := 20; // UInt64
-  exponent := 0;
-
-  if p^ = '+' then
-    Inc(p)
-  else if p^ = '-' then
-  begin
-    isNegative := True;
-    maxIntBits := 19;
-    Inc(p);
-  end;
-
-  firstDigit := p;
-
-  while p^ = '0' do
-    Inc(p);
-
-  pDigits := p;
-
-  while UInt32(p^) - 48 <= 9 do
-    Inc(p);
-
-  intEnd := p;
-
-  if p^ = '.' then
-  begin
-    Inc(p);
-    fracBegin := p;
-
-    while p^ = '0' do
-      Inc(p);
-
-    pNonZeroFrac := p;
-
-    while UInt32(p^) - 48 <= 9 do
-      Inc(p);
-    fracEnd := p;
-    if fracEnd = firstDigit + 1 then
-      goto lbl_exit;
-
-    if (pNonZeroFrac = fracEnd) and (pDigits = intEnd) then
-    begin
-      Result.setInt32(0);
-      goto lbl_exit;
-    end;
-
-    if (p^ = 'e') or (p^ = 'E') then
-      goto lbl_exp;
-    goto lbl_float;
-  end
-  else
-  begin
-    if p = firstDigit then
-      goto lbl_exit;
-    fracBegin := p;
-    fracEnd := p;
-    pNonZeroFrac := p;
-    if (p^ = 'e') or (p^ = 'E') then
-      goto lbl_exp;
-    goto lbl_float;
-  end;
-
-lbl_exp :
-  Inc(p);
-  if p^ = '+' then
-    Inc(p)
-  else if p^ = '-' then
-  begin
-    expNegative := True;
-    Inc(p);
-  end;
-
-  while p^ = '0' do
-    Inc(p);
-
-  while True do
-  begin
-    c := UInt32(p^) - 48;
-    if c <= 9 then
-    begin
-      exponent := exponent * 10 + Integer(c);
-      Inc(p);
-    end
-    else
-      Break;
-  end;
-
-lbl_float :
-  len := intEnd - pDigits;
-  if (exponent = 0) and (pNonZeroFrac = fracEnd) and (len <= maxIntBits) then
-    goto lbl_int;
-  if expNegative then
-    exponent := -exponent;
-
-  if len > 0 then
-  begin
-    if len > length(mantissa) then
-    begin
-      Inc(exponent, len - length(mantissa));
-      len := length(mantissa);
-    end;
-    for i := 0 to len - 1 do
-      mantissa[i] := pDigits[i];
-
-    len2 := length(mantissa) - len;
-
-    if len2 > fracEnd - fracBegin then
-      len2 := fracEnd - fracBegin;
-
-    for i := 0 to len2 - 1 do
-      mantissa[len + i] := fracBegin[i];
-    Inc(len, len2);
-    Dec(exponent, len2);
-  end
-  else
-  begin
-    len := fracEnd - pNonZeroFrac;
-    if len > length(mantissa) then
-      len := length(mantissa);
-    for i := 0 to len - 1 do
-      mantissa[i] := pNonZeroFrac[i];
-    Dec(exponent, pNonZeroFrac - fracBegin + len);
-  end;
-  n := len - 1;
-  while mantissa[n] = '0' do
-    Dec(n);
-  Inc(exponent, len - n - 1);
-
-  _calcInt(isNegative, mantissa, n + 1, Result);
-
-  if exponent <> 0 then
-    Result.setExtended(Power10(Result.toExtended, exponent));
-
-  goto lbl_exit;
-
-lbl_int :
-  _calcInt(isNegative, pDigits, intEnd - pDigits, Result);
-
-lbl_exit :
-  if Assigned(endAt) then
-    endAt^ := p;
-end;
-
-function parseNumber(s: PAnsiChar; slen: Integer; endAt: PPAnsiChar): TNumber;
-var
-  isNegative, expNegative: Boolean;
-  send, p, firstDigit, pNonZeroFrac, pDigits, intEnd, fracBegin, fracEnd: PAnsiChar;
-  maxIntBits, exponent, len, len2, i, n: Integer;
-  c: UInt32;
-  mantissa: array [0 .. 14] of AnsiChar;
-label lbl_exit, lbl_exp, lbl_float, lbl_int, lbl_power;
-begin
-  Result.clear;
-  if (s = nil) or (slen <= 0) then
-  begin
-    P := s;
-    goto lbl_exit;
-  end;
-
-  send := s + slen;
-  while (s < send) and (UInt32(s^) - 1 < 32) do
-    Inc(s);
-  p := s;
-  if s = send then
-    goto lbl_exit;
-
-  fracBegin := s;
-  fracEnd := s;
-  pNonZeroFrac := s;
-  isNegative := False;
-  expNegative := False;
-  maxIntBits := 20; // UInt64
-  exponent := 0;
-
-  if p^ = '+' then
-    Inc(p)
-  else if p^ = '-' then
-  begin
-    isNegative := True;
-    maxIntBits := 19;
-    Inc(p);
-  end;
-
-  firstDigit := p;
-
-  while (p < send) and (p^ = '0') do
-    Inc(p);
-
-  pDigits := p;
-
-  while (p < send) and (UInt32(p^) - 48 <= 9) do
-    Inc(p);
-
-  intEnd := p;
-
-  if p = send then
-    goto lbl_float;
-
-  if p^ = '.' then
-  begin
-    Inc(p);
-    fracBegin := p;
-
-    while (p < send) and (p^ = '0') do
-      Inc(p);
-
-    pNonZeroFrac := p;
-
-    while (p < send) and (UInt32(p^) - 48 <= 9) do
-      Inc(p);
-    fracEnd := p;
-    if fracEnd = firstDigit + 1 then
-      goto lbl_exit;
-
-    if (pNonZeroFrac = fracEnd) and (pDigits = intEnd) then
-    begin
-      Result.setInt32(0);
-      goto lbl_exit;
-    end;
-
-    if (p < send) and ((p^ = 'e') or (p^ = 'E')) then
-      goto lbl_exp;
-
-    goto lbl_float;
-  end
-  else
-  begin
-    if p = firstDigit then
-      goto lbl_exit;
-    if (p^ = 'e') or (p^ = 'E') then
-      goto lbl_exp;
-    goto lbl_float;
-  end;
-
-lbl_exp :
-  Inc(p);
-  if p = send then
-    goto lbl_float;
-
-  if p^ = '+' then
-    Inc(p)
-  else if p^ = '-' then
-  begin
-    expNegative := True;
-    Inc(p);
-  end;
-
-  while (p < send) and (p^ = '0') do
-    Inc(p);
-
-  while p < send do
-  begin
-    c := UInt32(p^) - 48;
-    if c <= 9 then
-    begin
-      exponent := exponent * 10 + Integer(c);
-      Inc(p);
-    end
-    else
-      Break;
-  end;
-
-lbl_float :
-  len := intEnd - pDigits;
-  if (exponent = 0) and (pNonZeroFrac = fracEnd) and (len <= maxIntBits) then
-    goto lbl_int;
-
-  if expNegative then
-    exponent := -exponent;
-
-  if len > 0 then
-  begin
-    if len > length(mantissa) then
-    begin
-      Inc(exponent, len - length(mantissa));
-      len := length(mantissa);
-    end;
-    for i := 0 to len - 1 do
-      mantissa[i] := pDigits[i];
-
-    len2 := length(mantissa) - len;
-
-    if len2 > fracEnd - fracBegin then
-      len2 := fracEnd - fracBegin;
-
-    for i := 0 to len2 - 1 do
-      mantissa[len + i] := fracBegin[i];
-    Inc(len, len2);
-    Dec(exponent, len2);
-  end
-  else
-  begin
-    len := fracEnd - pNonZeroFrac;
-    if len > length(mantissa) then
-      len := length(mantissa);
-    for i := 0 to len - 1 do
-      mantissa[i] := pNonZeroFrac[i];
-    Dec(exponent, pNonZeroFrac - fracBegin + len);
-  end;
-  n := len - 1;
-  while mantissa[n] = '0' do
-    Dec(n);
-  Inc(exponent, len - n - 1);
-
-  _calcInt(isNegative, mantissa, n + 1, Result);
-  if exponent <> 0 then
-    Result.setExtended(Power10(Result.toExtended, exponent));
-  goto lbl_exit;
-
-lbl_int :
-  _calcInt(isNegative, pDigits, intEnd - pDigits, Result);
-
-lbl_exit :
-  if Assigned(endAt) then
-    endAt^ := p;
-end;
-
-procedure _calcInt(isNegative: Boolean; s: PWideChar; len: Integer; var number: TNumber);
-var
-  c, c2: UInt32;
-  UI64: UInt64;
-  len2: Integer;
-  function _(pch: PWideChar; i: Integer): UInt32; inline;
-  begin
-    Result := UInt32(pch[i]) and $0F;
-  end;
-
-begin
-  if len < 10 then
-  begin
-    number._type := numInt32;
-    c := 0;
-    case len of
-      1:
-        c := _(s, 0);
-      2:
-        c := _(s, 0) * 10 + _(s, 1);
-      3:
-        c := _(s, 0) * 100 + _(s, 1) * 10 + _(s, 2);
-      4:
-        c := _(s, 0) * 1000 + _(s, 1) * 100 + _(s, 2) * 10 + _(s, 3);
-      5:
-        c := _(s, 0) * 10000 + _(s, 1) * 1000 + _(s, 2) * 100 + _(s, 3) * 10 + _(s, 4);
-      6:
-        c := _(s, 0) * 100000 + _(s, 1) * 10000 + _(s, 2) * 1000 + _(s, 3) * 100 + _(s, 4) * 10 + _(s, 5);
-      7:
-        c := _(s, 0) * 1000000 + _(s, 1) * 100000 + _(s, 2) * 10000 + _(s, 3) * 1000 + _(s, 4) * 100 + _(s, 5) * 10 + _
-          (s, 6);
-      8:
-        c := _(s, 0) * 10000000 + _(s, 1) * 1000000 + _(s, 2) * 100000 + _(s, 3) * 10000 + _(s, 4) * 1000 + _(s, 5)
-          * 100 + _(s, 6) * 10 + _(s, 7);
-      9:
-        c := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s,
-          5) * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
-    end;
-    if isNegative then
-      number.I32 := -c
-    else
-      number.I32 := c;
-    Exit;
-  end;
-
-  c := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s, 5)
-    * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
-
-  Inc(s, 9);
-  Dec(len, 9);
-  if (c < High(UInt32) div 10) or ((c = High(UInt32) div 10) and (s[0] = '5')) then
-  begin
-    c := c * 10 + _(s, 0);
-    Inc(s);
-    Dec(len);
-
-    if len = 0 then
-    begin
-      if isNegative then
-      begin
-        if c > UInt32( High(Int32)) + 1 then
-          number.setInt64(-Int64(c))
-        else
-          number.setInt32(-c);
-      end
-      else
-        number.setUInt32(c);
-      Exit;
-    end;
-  end;
-
-  UI64 := UInt64(c);
-  len2 := len;
-  case len of
-    0:
-      c2 := 0;
-    1:
-      c2 := _(s, 0);
-    2:
-      c2 := _(s, 0) * 10 + _(s, 1);
-    3:
-      c2 := _(s, 0) * 100 + _(s, 1) * 10 + _(s, 2);
-    4:
-      c2 := _(s, 0) * 1000 + _(s, 1) * 100 + _(s, 2) * 10 + _(s, 3);
-    5:
-      c2 := _(s, 0) * 10000 + _(s, 1) * 1000 + _(s, 2) * 100 + _(s, 3) * 10 + _(s, 4);
-    6:
-      c2 := _(s, 0) * 100000 + _(s, 1) * 10000 + _(s, 2) * 1000 + _(s, 3) * 100 + _(s, 4) * 10 + _(s, 5);
-    7:
-      c2 := _(s, 0) * 1000000 + _(s, 1) * 100000 + _(s, 2) * 10000 + _(s, 3) * 1000 + _(s, 4) * 100 + _(s, 5) * 10 + _
-        (s, 6);
-    8:
-      c2 := _(s, 0) * 10000000 + _(s, 1) * 1000000 + _(s, 2) * 100000 + _(s, 3) * 10000 + _(s, 4) * 1000 + _(s, 5)
-        * 100 + _(s, 6) * 10 + _(s, 7);
-  else
-    c2 := _(s, 0) * 100000000 + _(s, 1) * 10000000 + _(s, 2) * 1000000 + _(s, 3) * 100000 + _(s, 4) * 10000 + _(s, 5)
-      * 1000 + _(s, 6) * 100 + _(s, 7) * 10 + _(s, 8);
-    len2 := 9;
-    if (len > 9) and ((c2 < High(UInt32) div 10) or ((c2 = High(UInt32) div 10) and (s[9] = '5'))) then
-    begin
-      c2 := c2 * 10 + _(s, 9);
-      Inc(len2);
-    end;
-  end;
-  Inc(s, len2);
-  Dec(len, len2);
-  UI64 := UI64 * INT64_TABLE[len2] + c2;
-
-  if len > 0 then
-  begin
-    case len of
-      1:
-        c2 := _(s, 0);
-      2:
-        c2 := _(s, 0) * 10 + _(s, 1);
-    end;
-    UI64 := UI64 * INT64_TABLE[len] + c2;
-  end;
-
-  if isNegative then
-    number.setInt64(-UI64)
-  else
-    number.setUInt64(UI64);
-end;
-
-function parseNumber(s: PWideChar; endAt: PPWideChar): TNumber;
-var
-  isNegative, expNegative: Boolean;
-  p, firstDigit, pNonZeroFrac, pDigits, intEnd, fracBegin, fracEnd: PWideChar;
-  maxIntBits, exponent, len, len2, i, n: Integer;
-  c: UInt32;
-  mantissa: array [0 .. 14] of WideChar;
-label lbl_exit, lbl_exp, lbl_float, lbl_int, lbl_power;
-begin
-  Result.clear;
-  if s = nil then
-  begin
-    P := s;
-    goto lbl_exit;
-  end;
-  s := GotoNextNotSpace(s);
-  p := s;
-  isNegative := False;
-  expNegative := False;
-  maxIntBits := 20; // UInt64
-  exponent := 0;
-
-  if p^ = '+' then
-    Inc(p)
-  else if p^ = '-' then
-  begin
-    isNegative := True;
-    maxIntBits := 19;
-    Inc(p);
-  end;
-
-  firstDigit := p;
-
-  while p^ = '0' do
-    Inc(p);
-
-  pDigits := p;
-
-  while UInt32(p^) - 48 <= 9 do
-    Inc(p);
-
-  intEnd := p;
-
-  if p^ = '.' then
-  begin
-    Inc(p);
-    fracBegin := p;
-
-    while p^ = '0' do
-      Inc(p);
-
-    pNonZeroFrac := p;
-
-    while UInt32(p^) - 48 <= 9 do
-      Inc(p);
-    fracEnd := p;
-    if fracEnd = firstDigit + 1 then
-      goto lbl_exit;
-
-    if (pNonZeroFrac = fracEnd) and (pDigits = intEnd) then
-    begin
-      Result.setInt32(0);
-      goto lbl_exit;
-    end;
-
-    if (p^ = 'e') or (p^ = 'E') then
-      goto lbl_exp;
-    goto lbl_float;
-  end
-  else
-  begin
-    if p = firstDigit then
-      goto lbl_exit;
-    fracBegin := p;
-    fracEnd := p;
-    pNonZeroFrac := p;
-    if (p^ = 'e') or (p^ = 'E') then
-      goto lbl_exp;
-    goto lbl_float;
-  end;
-
-lbl_exp :
-  Inc(p);
-  if p^ = '+' then
-    Inc(p)
-  else if p^ = '-' then
-  begin
-    expNegative := True;
-    Inc(p);
-  end;
-
-  while p^ = '0' do
-    Inc(p);
-
-  while True do
-  begin
-    c := UInt32(p^) - 48;
-    if c <= 9 then
-    begin
-      exponent := exponent * 10 + Integer(c);
-      Inc(p);
-    end
-    else
-      Break;
-  end;
-
-lbl_float :
-  len := intEnd - pDigits;
-  if (exponent = 0) and (pNonZeroFrac = fracEnd) and (len <= maxIntBits) then
-    goto lbl_int;
-  if expNegative then
-    exponent := -exponent;
-
-  if len > 0 then
-  begin
-    if len > length(mantissa) then
-    begin
-      Inc(exponent, len - length(mantissa));
-      len := length(mantissa);
-    end;
-    for i := 0 to len - 1 do
-      mantissa[i] := pDigits[i];
-
-    len2 := length(mantissa) - len;
-
-    if len2 > fracEnd - fracBegin then
-      len2 := fracEnd - fracBegin;
-
-    for i := 0 to len2 - 1 do
-      mantissa[len + i] := fracBegin[i];
-    Inc(len, len2);
-    Dec(exponent, len2);
-  end
-  else
-  begin
-    len := fracEnd - pNonZeroFrac;
-    if len > length(mantissa) then
-      len := length(mantissa);
-    for i := 0 to len - 1 do
-      mantissa[i] := pNonZeroFrac[i];
-    Dec(exponent, pNonZeroFrac - fracBegin + len);
-  end;
-  n := len - 1;
-  while mantissa[n] = '0' do
-    Dec(n);
-  Inc(exponent, len - n - 1);
-
-  _calcInt(isNegative, mantissa, n + 1, Result);
-  if exponent <> 0 then
-    Result.setExtended(Power10(Result.toExtended, exponent));
-  goto lbl_exit;
-
-lbl_int :
-  _calcInt(isNegative, pDigits, intEnd - pDigits, Result);
-
-lbl_exit :
-  if Assigned(endAt) then
-    endAt^ := p;
-end;
-
-function parseNumber(s: PWideChar; slen: Integer; endAt: PPWideChar): TNumber;
-var
-  isNegative, expNegative: Boolean;
-  send, p, firstDigit, pNonZeroFrac, pDigits, intEnd, fracBegin, fracEnd: PWideChar;
-  maxIntBits, exponent, len, len2, i, n: Integer;
-  c: UInt32;
-  mantissa: array [0 .. 14] of WideChar;
-label lbl_exit, lbl_exp, lbl_float, lbl_int, lbl_power;
-begin
-  Result.clear;
-  if (s = nil) or (slen <= 0) then
-  begin
-    P := s;
-    goto lbl_exit;
-  end;
-  send := s + slen;
-  while (s < send) and (UInt32(s^) - 1 < 32) do
-    Inc(s);
-  p := s;
-  if s = send then
-    goto lbl_exit;
-
-  fracBegin := s;
-  fracEnd := s;
-  pNonZeroFrac := s;
-  isNegative := False;
-  expNegative := False;
-  maxIntBits := 20; // UInt64
-  exponent := 0;
-
-  if p^ = '+' then
-    Inc(p)
-  else if p^ = '-' then
-  begin
-    isNegative := True;
-    maxIntBits := 19;
-    Inc(p);
-  end;
-
-  firstDigit := p;
-
-  while (p < send) and (p^ = '0') do
-    Inc(p);
-
-  pDigits := p;
-
-  while (p < send) and (UInt32(p^) - 48 <= 9) do
-    Inc(p);
-
-  intEnd := p;
-
-  if p = send then
-    goto lbl_float;
-
-  if p^ = '.' then
-  begin
-    Inc(p);
-    fracBegin := p;
-
-    while (p < send) and (p^ = '0') do
-      Inc(p);
-
-    pNonZeroFrac := p;
-
-    while (p < send) and (UInt32(p^) - 48 <= 9) do
-      Inc(p);
-    fracEnd := p;
-    if fracEnd = firstDigit + 1 then
-      goto lbl_exit;
-
-    if (pNonZeroFrac = fracEnd) and (pDigits = intEnd) then
-    begin
-      Result.setInt32(0);
-      goto lbl_exit;
-    end;
-
-    if (p < send) and ((p^ = 'e') or (p^ = 'E')) then
-      goto lbl_exp;
-
-    goto lbl_float;
-  end
-  else
-  begin
-    if p = firstDigit then
-      goto lbl_exit;
-    if (p^ = 'e') or (p^ = 'E') then
-      goto lbl_exp;
-    goto lbl_float;
-  end;
-
-lbl_exp :
-  Inc(p);
-  if p = send then
-    goto lbl_float;
-
-  if p^ = '+' then
-    Inc(p)
-  else if p^ = '-' then
-  begin
-    expNegative := True;
-    Inc(p);
-  end;
-
-  while (p < send) and (p^ = '0') do
-    Inc(p);
-
-  while p < send do
-  begin
-    c := UInt32(p^) - 48;
-    if c <= 9 then
-    begin
-      exponent := exponent * 10 + Integer(c);
-      Inc(p);
-    end
-    else
-      Break;
-  end;
-
-lbl_float :
-  len := intEnd - pDigits;
-  if (exponent = 0) and (pNonZeroFrac = fracEnd) and (len <= maxIntBits) then
-    goto lbl_int;
-
-  if expNegative then
-    exponent := -exponent;
-
-  if len > 0 then
-  begin
-    if len > length(mantissa) then
-    begin
-      Inc(exponent, len - length(mantissa));
-      len := length(mantissa);
-    end;
-    for i := 0 to len - 1 do
-      mantissa[i] := pDigits[i];
-
-    len2 := length(mantissa) - len;
-
-    if len2 > fracEnd - fracBegin then
-      len2 := fracEnd - fracBegin;
-
-    for i := 0 to len2 - 1 do
-      mantissa[len + i] := fracBegin[i];
-    Inc(len, len2);
-    Dec(exponent, len2);
-  end
-  else
-  begin
-    len := fracEnd - pNonZeroFrac;
-    if len > length(mantissa) then
-      len := length(mantissa);
-    for i := 0 to len - 1 do
-      mantissa[i] := pNonZeroFrac[i];
-    Dec(exponent, pNonZeroFrac - fracBegin + len);
-  end;
-  n := len - 1;
-  while mantissa[n] = '0' do
-    Dec(n);
-  Inc(exponent, len - n - 1);
-
-  _calcInt(isNegative, mantissa, n + 1, Result);
-  if exponent <> 0 then
-    Result.setExtended(Power10(Result.toExtended, exponent));
-  goto lbl_exit;
-
-lbl_int :
-  _calcInt(isNegative, pDigits, intEnd - pDigits, Result);
-
-lbl_exit :
-  if Assigned(endAt) then
-    endAt^ := p;
-end;
 
 function IntToStrFast(value: UInt; s: PAnsiChar): PAnsiChar;
 var
@@ -10167,306 +9144,6 @@ begin
   end;
 end;
 {$ENDIF}
-
-{ TNumber }
-
-function TNumber.ceil: Int64;
-begin
-  case _type of
-    numInt32:
-      Result := I32;
-    numUInt32:
-      Result := UI32;
-    numInt64:
-      Result := I64;
-    numUInt64:
-      Result := UI64;
-    numDouble:
-      Result := Math.Ceil(VDouble);
-    numExtended:
-      Result := Math.Ceil(VExtended);
-  else
-    Result := 0;
-  end;
-end;
-
-procedure TNumber.clear;
-begin
-  _type := numNaN;
-end;
-
-function TNumber.expr: string;
-begin
-  case _type of
-    numNaN:
-      Result := '(NaN)';
-    numInt32:
-      Result := '(int32): ' + IntToStrFast(I32);
-    numUInt32:
-      Result := '(uint32): ' + IntToStrFast(UI32);
-    numInt64:
-      Result := '(int64): ' + IntToStrFast(I64);
-    numUInt64:
-      Result := '(uint64): ' + IntToStrFast(UI64);
-    numDouble:
-      Result := '(float): ' + FloatToStr(VDouble);
-    numExtended:
-      Result := '(extended): ' + FloatToStr(VExtended);
-  else
-    Result := '(unknown)';
-  end;
-end;
-
-function TNumber.isFloat: Boolean;
-begin
-  Result := _type in [numDouble, numExtended];
-end;
-
-function TNumber.isInteger: Boolean;
-begin
-  Result := _type in [numInt32 .. numUInt64];
-end;
-
-function TNumber.isNegative: Boolean;
-begin
-  case _type of
-    numInt32:
-      Result := I32 < 0;
-    numInt64:
-      Result := I64 < 0;
-    numDouble:
-      Result := VDouble < 0;
-    numExtended:
-      Result := VExtended < 0;
-  else
-    Result := False
-  end;
-end;
-
-function TNumber.isPositive: Boolean;
-begin
-  case _type of
-    numInt32:
-      Result := I32 >= 0;
-    numInt64:
-      Result := I64 >= 0;
-    numDouble:
-      Result := VDouble >= 0;
-    numExtended:
-      Result := VExtended >= 0;
-    numUInt32, numUInt64:
-      Result := True;
-  else
-    Result := False
-  end;
-end;
-
-function TNumber.round: Int64;
-begin
-  case _type of
-    numInt32:
-      Result := I32;
-    numUInt32:
-      Result := UI32;
-    numInt64:
-      Result := I64;
-    numUInt64:
-      Result := UI64;
-    numDouble:
-      Result := System.Round(VDouble);
-    numExtended:
-      Result := System.Round(VExtended);
-  else
-    Result := 0;
-  end;
-end;
-
-procedure TNumber.setDouble(value: Double);
-begin
-  _type := numDouble;
-  VDouble := value;
-end;
-
-procedure TNumber.setExtended(value: Extended);
-begin
-  _type := numExtended;
-  VExtended := value;
-end;
-
-procedure TNumber.setInt32(value: Int32);
-begin
-  _type := numInt32;
-  I32 := value;
-end;
-
-procedure TNumber.setInt64(value: Int64);
-begin
-  _type := numInt64;
-  I64 := value;
-end;
-
-procedure TNumber.setUInt32(value: UInt32);
-begin
-  _type := numUInt32;
-  UI32 := value;
-end;
-
-procedure TNumber.setUInt64(value: UInt64);
-begin
-  _type := numUInt64;
-  UI64 := value;
-end;
-
-function TNumber.toExtended: Extended;
-begin
-  case _type of
-    numInt32:
-      Result := I32;
-    numUInt32:
-      Result := UI32;
-    numInt64:
-      Result := I64;
-    numUInt64:
-      Result := UI64;
-    numDouble:
-      Result := VDouble;
-    numExtended:
-      Result := VExtended;
-  else
-    Result := 0.0;
-  end;
-end;
-
-function TNumber.toRawBytes: RawByteString;
-begin
-  case _type of
-    numInt32:
-      Result := IntToRawBytes(I32);
-    numUInt32:
-      Result := IntToRawBytes(UI32);
-    numInt64:
-      Result := IntToRawBytes(I64);
-    numUInt64:
-      Result := IntToRawBytes(UI64);
-    numDouble:
-      Result := FloatToRBStr(VDouble);
-    numExtended:
-      Result := FloatToRBStr(VExtended);
-  else
-    Result := 'NaN';
-  end;
-end;
-
-function TNumber.toString: string;
-begin
-{$IF SizeOf(Char)=1}
-  Result := Self.toRawBytes;
-{$ELSE}
-  Result := Self.toUTF16Str;
-{$IFEND}
-end;
-
-function TNumber.asInt32: Int32;
-begin
-  case _type of
-    numInt32:
-      Result := I32;
-    numUInt32:
-      Result := UI32;
-    numInt64:
-      Result := I64;
-    numUInt64:
-      Result := UI64;
-    numDouble:
-      Result := System.Round(VDouble);
-    numExtended:
-      Result := System.Round(VExtended);
-  else
-    Result := 0;
-  end;
-end;
-
-function TNumber.asUInt32: UInt32;
-begin
-  case _type of
-    numInt32:
-      Result := I32;
-    numUInt32:
-      Result := UI32;
-    numInt64:
-      Result := I64;
-    numUInt64:
-      Result := UI64;
-    numDouble:
-      Result := System.Round(VDouble);
-    numExtended:
-      Result := System.Round(VExtended);
-  else
-    Result := 0;
-  end;
-end;
-
-function TNumber.toUTF16Str: UTF16String;
-begin
-  case _type of
-    numInt32:
-      Result := IntToUTF16Str(I32);
-    numUInt32:
-      Result := IntToUTF16Str(UI32);
-    numInt64:
-      Result := IntToUTF16Str(I64);
-    numUInt64:
-      Result := IntToUTF16Str(UI64);
-    numDouble:
-      Result := FloatToUStr(VDouble);
-    numExtended:
-      Result := FloatToUStr(VExtended);
-  else
-    Result := 'NaN';
-  end;
-end;
-
-function TNumber.trunc: Int64;
-begin
-  case _type of
-    numInt32:
-      Result := I32;
-    numUInt32:
-      Result := UI32;
-    numInt64:
-      Result := I64;
-    numUInt64:
-      Result := UI64;
-    numDouble:
-      Result := System.Trunc(VDouble);
-    numExtended:
-      Result := System.Trunc(VExtended);
-  else
-    Result := 0;
-  end;
-end;
-
-function TNumber.tryGetInt(var value: Int64): Boolean;
-begin
-  Result := True;
-  case _type of
-    numInt32:
-      value := I32;
-    numUInt32:
-      value := UI32;
-    numInt64:
-      value := I64;
-    numUInt64:
-      value := UI64;
-  else
-    Result := False;
-  end;
-end;
-
-function TNumber.valid: Boolean;
-begin
-  Result := _type <> numNaN;
-end;
 
 function divBy100(dividend: Int32): Int32;
 asm
@@ -12540,6 +11217,326 @@ begin
 {$IFEND}
 end;
 
+{ TNumber }
+
+function TNumber.ceil: Int64;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := Math.Ceil(VDouble);
+    numExtended:
+      Result := Math.Ceil(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+procedure TNumber.clear;
+begin
+  _type := numNaN;
+end;
+
+function TNumber.expr: string;
+begin
+  case _type of
+    numNaN:
+      Result := '(NaN)';
+    numInt32:
+      Result := '(int32): ' + IntToStrFast(I32);
+    numUInt32:
+      Result := '(uint32): ' + IntToStrFast(UI32);
+    numInt64:
+      Result := '(int64): ' + IntToStrFast(I64);
+    numUInt64:
+      Result := '(uint64): ' + IntToStrFast(UI64);
+    numDouble:
+      Result := '(float): ' + FloatToStr(VDouble);
+    numExtended:
+      Result := '(extended): ' + FloatToStr(VExtended);
+  else
+    Result := '(unknown)';
+  end;
+end;
+
+function TNumber.isFloat: Boolean;
+begin
+  Result := _type in [numDouble, numExtended];
+end;
+
+function TNumber.isInteger: Boolean;
+begin
+  Result := _type in [numInt32 .. numUInt64];
+end;
+
+function TNumber.isNegative: Boolean;
+begin
+  case _type of
+    numInt32:
+      Result := I32 < 0;
+    numInt64:
+      Result := I64 < 0;
+    numDouble:
+      Result := VDouble < 0;
+    numExtended:
+      Result := VExtended < 0;
+  else
+    Result := False
+  end;
+end;
+
+function TNumber.isPositive: Boolean;
+begin
+  case _type of
+    numInt32:
+      Result := I32 >= 0;
+    numInt64:
+      Result := I64 >= 0;
+    numDouble:
+      Result := VDouble >= 0;
+    numExtended:
+      Result := VExtended >= 0;
+    numUInt32, numUInt64:
+      Result := True;
+  else
+    Result := False
+  end;
+end;
+
+function TNumber.round: Int64;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Round(VDouble);
+    numExtended:
+      Result := System.Round(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+procedure TNumber.setDouble(value: Double);
+begin
+  _type := numDouble;
+  VDouble := value;
+end;
+
+procedure TNumber.setExtended(value: Extended);
+begin
+  _type := numExtended;
+  VExtended := value;
+end;
+
+procedure TNumber.setInt32(value: Int32);
+begin
+  _type := numInt32;
+  I32 := value;
+end;
+
+procedure TNumber.setInt64(value: Int64);
+begin
+  _type := numInt64;
+  I64 := value;
+end;
+
+procedure TNumber.setUInt32(value: UInt32);
+begin
+  _type := numUInt32;
+  UI32 := value;
+end;
+
+procedure TNumber.setUInt64(value: UInt64);
+begin
+  _type := numUInt64;
+  UI64 := value;
+end;
+
+function TNumber.toExtended: Extended;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := VDouble;
+    numExtended:
+      Result := VExtended;
+  else
+    Result := 0.0;
+  end;
+end;
+
+function TNumber.toRawBytes: RawByteString;
+begin
+  case _type of
+    numInt32:
+      Result := IntToRawBytes(I32);
+    numUInt32:
+      Result := IntToRawBytes(UI32);
+    numInt64:
+      Result := IntToRawBytes(I64);
+    numUInt64:
+      Result := IntToRawBytes(UI64);
+    numDouble:
+      Result := FloatToRBStr(VDouble);
+    numExtended:
+      Result := FloatToRBStr(VExtended);
+  else
+    Result := 'NaN';
+  end;
+end;
+
+function TNumber.toString: string;
+begin
+{$IF SizeOf(Char)=1}
+  Result := Self.toRawBytes;
+{$ELSE}
+  Result := Self.toUTF16Str;
+{$IFEND}
+end;
+
+function TNumber.asInt32: Int32;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Round(VDouble);
+    numExtended:
+      Result := System.Round(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+function TNumber.asUInt32: UInt32;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Round(VDouble);
+    numExtended:
+      Result := System.Round(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+function TNumber.toUTF16Str: UTF16String;
+begin
+  case _type of
+    numInt32:
+      Result := IntToUTF16Str(I32);
+    numUInt32:
+      Result := IntToUTF16Str(UI32);
+    numInt64:
+      Result := IntToUTF16Str(I64);
+    numUInt64:
+      Result := IntToUTF16Str(UI64);
+    numDouble:
+      Result := FloatToUStr(VDouble);
+    numExtended:
+      Result := FloatToUStr(VExtended);
+  else
+    Result := 'NaN';
+  end;
+end;
+
+function TNumber.ToVariant: Variant;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Trunc(VDouble);
+    numExtended:
+      Result := System.Trunc(VExtended);
+  else
+    Result := Null;
+  end;
+end;
+
+function TNumber.trunc: Int64;
+begin
+  case _type of
+    numInt32:
+      Result := I32;
+    numUInt32:
+      Result := UI32;
+    numInt64:
+      Result := I64;
+    numUInt64:
+      Result := UI64;
+    numDouble:
+      Result := System.Trunc(VDouble);
+    numExtended:
+      Result := System.Trunc(VExtended);
+  else
+    Result := 0;
+  end;
+end;
+
+function TNumber.tryGetInt(var value: Int64): Boolean;
+begin
+  Result := True;
+  case _type of
+    numInt32:
+      value := I32;
+    numUInt32:
+      value := UI32;
+    numInt64:
+      value := I64;
+    numUInt64:
+      value := UI64;
+  else
+    Result := False;
+  end;
+end;
+
+function TNumber.valid: Boolean;
+begin
+  Result := _type <> numNaN;
+end;
+
 procedure ConvertError(ResString: PResStringRec); local;
 begin
   raise EConvertError.CreateRes(ResString);
@@ -12690,10 +11687,10 @@ end;
 
 function GotoNextNotSpace(p: PAnsiChar): PAnsiChar;
 begin
-  if (p^ > #0) and (p^ <= #32) then
+  if p^ in [#1..#32] then
     repeat
       Inc(p);
-    until (p^ <= #0) or (p^ > #32);
+    until not (p^ in [#1..#32]);
     Result := p;
 end;
 
@@ -17443,55 +16440,6 @@ begin
   end;
 end;
 
-function ControlFindContainer(control: TControl; cls: TClass): TWinControl;
-begin
-  Result := control.parent;
-  while Assigned(Result) do
-  begin
-    if not Assigned(cls) or (Result is cls) then
-      Break;
-
-    Result := Result.parent;
-  end;
-end;
-
-function ControlFindChild(container: TWinControl; cls: TClass): TControl;
-var
-  i: Integer;
-begin
-  Result := nil;
-  for i := 0 to container.ControlCount - 1 do
-  begin
-    if container.Controls[i].InheritsFrom(cls) then
-    begin
-      Result := container.Controls[i];
-      Break;
-    end;
-  end;
-end;
-
-function ControlVisible(ctrl: TControl): Boolean;
-begin
-  while Assigned(ctrl) and ctrl.Visible do
-    ctrl := ctrl.parent;
-
-  Result := not Assigned(ctrl);
-end;
-
-procedure ControlSetFocus(ctrl: TWinControl);
-begin
-  try
-    if ControlVisible(ctrl) then
-      ctrl.SetFocus;
-  except
-
-  end;
-end;
-
-procedure EditSetNumberOnly(edit: TWinControl);
-begin
-  SetWindowLong(edit.handle, GWL_STYLE, GetWindowLong(edit.handle, GWL_STYLE) or ES_NUMBER);
-end;
 
 function CtrlDown: Boolean;
 var
@@ -17499,67 +16447,6 @@ var
 begin
   GetKeyboardState(State);
   Result := ((State[VK_CONTROL] and 128) <> 0);
-end;
-
-procedure CloseForm(form: TCustomForm);
-begin
-  if fsModal in form.FormState then
-    form.ModalResult := mrCancel
-  else
-    form.Close;
-end;
-
-procedure SetModalResult(form: TCustomForm; mr: TModalResult);
-begin
-  if fsModal in form.FormState then
-    form.ModalResult := mr
-  else
-    form.Close;
-end;
-
-type
-  TWinCtrlHack = class(TWinControl);
-
-procedure ShowForm(form: TCustomForm);
-begin
-  form.Visible := True;
-  if IsIconic(TWinCtrlHack(form).WindowHandle) then
-    form.Perform(WM_SYSCOMMAND, SC_RESTORE, 0);
-  form.BringToFront;
-  SetForegroundWindow(TWinCtrlHack(form).WindowHandle);
-end;
-
-procedure ListViewSetRowCount(ListView: TListView; count: Integer);
-var
-  TopIndex, ItemIndex: Integer;
-begin
-  if ListView.items.count <> count then
-  begin
-    try
-      TopIndex := ListView_GetTopIndex(ListView.handle);
-      ItemIndex := ListView.ItemIndex;
-      ListView.items.count := count;
-
-      if TopIndex <> -1 then
-      begin
-        TopIndex := TopIndex + ListView.VisibleRowCount - 1;
-
-        if TopIndex >= count then
-          TopIndex := count - 1;
-
-        if TopIndex <> -1 then
-          ListView.items[TopIndex].MakeVisible(False);
-      end;
-
-      if ItemIndex >= count then
-        ItemIndex := count - 1;
-
-      ListView.ItemIndex := ItemIndex;
-    except
-    end;
-  end;
-
-  ListView.Refresh;
 end;
 
 procedure InfoBox(const msg: string; _Parent: THandle);
@@ -17582,73 +16469,12 @@ begin
   Result := Windows.MessageBox(_Parent, PChar(msg), '确认', MB_ICONQUESTION or MB_YESNO) = ID_YES;
 end;
 
-function ConfirmDialog(const msg: string; const parent: THandle = 0; const title: string = '';
-  const buttons: TConfirmDlgButtons = cdbYesNo): TConfirmDlgResult;
-var
-  _title: string;
-begin
-  if title = '' then
-    _title := '确认'
-  else
-    _title := title;
-
-  Result := TConfirmDlgResult(Application.MessageBox(PChar(msg), PChar(_title), MB_ICONQUESTION or Ord(buttons)) - 1);
-end;
-
-procedure ShowMessageEx(const v: string);
-begin
-  ShowMessage(v);
-end;
-
-procedure ShowMessageEx(const v: RawByteString); overload;
-begin
-  ShowMessage(string(v));
-end;
-
-procedure ShowMessageEx(const v: TAnsiCharSection);
-begin
-  ShowMessage(string(v.toString));
-end;
-
-procedure ShowMessageEx(v: Integer);
-begin
-  ShowMessage(IntToStr(v));
-end;
-
-procedure ShowMessageEx(v: Int64);
-begin
-  ShowMessage(IntToStr(v));
-end;
-
-procedure ShowMessageEx(v: Double);
-begin
-  ShowMessage(FloatToStr(v));
-end;
-
-procedure ShowMessageEx(v: Extended);
-begin
-  ShowMessage(FloatToStr(v));
-end;
-
-procedure ShowMessageEx(v: Real);
-begin
-  ShowMessage(FloatToStr(v));
-end;
-
 (*
 procedure ShowMessageEx(v: Real48);
 begin
   ShowMessage(FloatToStr(v));
 end;
 *)
-
-procedure ShowMessageEx(v: Boolean);
-begin
-  if v then
-    ShowMessage('true')
-  else
-    ShowMessage('false');
-end;
 
 const
   IID_IPersistFile: TGUID = '{0000010B-0000-0000-C000-000000000046}';

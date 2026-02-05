@@ -3,7 +3,7 @@ unit DSLGenerics;
 interface
 
 uses
-  SysUtils, Classes, RTLConsts, Windows, Dialogs, SyncObjs, Generics.Collections,
+  SysUtils, Classes, RTLConsts, Windows, SyncObjs, Generics.Collections,
   Generics.Defaults, DSLUtils;
 
 type
@@ -339,10 +339,11 @@ type
     property Items: TList<TValue> read FItems;
   end;
 
-procedure UnitTest_StringKeyStringValueList;
+//procedure UnitTest_StringKeyStringValueList;
 
 implementation
 
+{
 procedure UnitTest_StringKeyStringValueList;
 var
   list: TKeyValueList<string, string>;
@@ -363,6 +364,7 @@ begin
     list.Free;
   end;
 end;
+}
 
 { TObjectListHelper<T> }
 

@@ -1,3 +1,8 @@
+{$B-,C+,E-,F-,G+,H+,I+,J-,K-,M-,N-,P+,Q-,R-,S-,U-,V+,W-,X+,Z1}
+{$O+}   // optimization on
+{$T+}   // typed pointers on
+{$POINTERMATH ON}
+
 {$ifdef VER80}
 {$define DELPHI1}
 {$define DELPHI1_UP}

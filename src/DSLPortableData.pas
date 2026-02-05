@@ -43,7 +43,7 @@ interface
 
 uses
   SysUtils, Classes, Variants, RTLConsts, TypInfo, Math, SysConst, Windows, DateUtils,
-  DSLUtils;
+  DSLUtils, DSLNumberParse;
 
 type
   EJsonPathException = class(Exception)
@@ -1056,7 +1056,7 @@ begin
 {$IF not declared(SNoMappingForUnicodeCharacter)}
   RaiseLastOSError;
 {$ELSE}
-  raise EEncodingError.CreateRes(@SNoMappingForUnicodeCharacter)
+  raise EEncodingError.CreateRes(PResStringRec(@SNoMappingForUnicodeCharacter))
 {$IFDEF HAS_RETURN_ADDRESS} at ReturnAddress {$ENDIF};
 {$IFEND}
 end;
